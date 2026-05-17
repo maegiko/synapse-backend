@@ -10,3 +10,8 @@ spring:
 
   flyway:
     enabled: true
+  
+jwt:
+  issuer: synapse
+  access-token-ttl: 15m
+  secret: ${JWT_SECRET}
