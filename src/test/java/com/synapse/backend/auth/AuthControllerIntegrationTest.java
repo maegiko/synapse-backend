@@ -56,13 +56,13 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.name").value("Kenneth"))
+            .andExpect(jsonPath("$.fullName").value("Kenneth"))
             .andExpect(jsonPath("$.email").value("kenneth@example.com"))
             .andExpect(jsonPath("$.accessToken").isNotEmpty())
             .andReturn();
 
         Map<String, Object> savedUser = jdbcTemplate.queryForMap(
-            "SELECT id, name, email, password_hash FROM app_user WHERE email = ?",
+            "SELECT id, full_name, email, password_hash FROM app_user WHERE email = ?",
             "kenneth@example.com"
         );
         String accessToken = objectMapper
@@ -71,7 +71,7 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
             .asString();
         Jwt jwt = jwtDecoder.decode(accessToken);
 
-        assertThat(savedUser.get("name")).isEqualTo("Kenneth");
+        assertThat(savedUser.get("full_name")).isEqualTo("Kenneth");
         assertThat(savedUser.get("email")).isEqualTo("kenneth@example.com");
         assertThat(savedUser.get("password_hash")).isNotEqualTo(VALID_PASSWORD);
         assertThat(savedUser.get("password_hash").toString()).startsWith("$2");
@@ -104,7 +104,7 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("name: must not be blank"));
+            .andExpect(jsonPath("$.message").value("fullName: must not be blank"));
     }
 
     @Test
