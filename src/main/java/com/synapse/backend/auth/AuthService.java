@@ -1,11 +1,16 @@
 package com.synapse.backend.auth;
 
+import java.util.Optional;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.synapse.backend.auth.dto.LoginRequest;
+import com.synapse.backend.auth.dto.LoginResponse;
 import com.synapse.backend.auth.dto.RegisterRequest;
 import com.synapse.backend.auth.dto.RegisterResponse;
 import com.synapse.backend.auth.exceptions.EmailAlreadyExistsException;
+import com.synapse.backend.auth.exceptions.LoginFailException;
 import com.synapse.backend.security.jwt.JwtService;
 import com.synapse.backend.user.User;
 import com.synapse.backend.user.UserRepository;
@@ -23,6 +28,11 @@ public class AuthService {
         this.jwtService = jwtService;
     }
 
+    /**
+     *
+     * @param registerRequest
+     * @return
+     */
     public RegisterResponse registerUser(RegisterRequest registerRequest) {
         if (isEmailInUse(registerRequest.email())) {
             throw new EmailAlreadyExistsException(registerRequest.email());
@@ -48,6 +58,37 @@ public class AuthService {
 
     private boolean isEmailInUse(String email) {
         return userRepository.existsByEmail(email);
+    }
+
+    /**
+     *
+     * @param loginRequest
+     * @return
+     */
+    public LoginResponse loginUser(LoginRequest loginRequest) {
+        String email = loginRequest.email();
+        String password = loginRequest.password();
+
+        User user = findUserByEmail(email).orElseThrow(() -> new LoginFailException());
+
+        if (!doesPasswordMatch(password, user.getPasswordHash()))
+            throw new LoginFailException();
+
+        String accessToken = jwtService.generateAccessToken(user);
+
+        return new LoginResponse(
+            user.getName(),
+            user.getEmail(),
+            accessToken
+        );
+    }
+
+    private Optional<User> findUserByEmail(String email) {
+        return userRepository.findByEmail(email);
+    }
+
+    private boolean doesPasswordMatch(String rawPassword, String passwordHash) {
+        return passwordEncoder.matches(rawPassword, passwordHash);
     }
 
 }
