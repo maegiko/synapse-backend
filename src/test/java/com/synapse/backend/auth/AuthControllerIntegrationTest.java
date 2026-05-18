@@ -14,11 +14,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import com.synapse.backend.auth.dto.LoginRequest;
 import com.synapse.backend.auth.dto.RegisterRequest;
 import com.synapse.backend.support.PostgresIntegrationTest;
 
@@ -29,6 +31,7 @@ import tools.jackson.databind.ObjectMapper;
 class AuthControllerIntegrationTest extends PostgresIntegrationTest {
 
     private static final String REGISTER_ENDPOINT = "/api/auth/register";
+    private static final String LOGIN_ENDPOINT = "/api/auth/login";
     private static final String VALID_PASSWORD = "password123";
 
     @Autowired
@@ -39,6 +42,9 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @Autowired
     private JwtDecoder jwtDecoder;
@@ -127,5 +133,114 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value("password: size must be between 8 and 64"));
+    }
+
+    @Test
+    void loginReturnsUserAndAccessTokenForValidCredentials() throws Exception {
+        long userId = createUser("Kenneth", "kenneth@example.com", VALID_PASSWORD);
+        LoginRequest request = new LoginRequest("kenneth@example.com", VALID_PASSWORD);
+
+        MvcResult result = mockMvc.perform(post(LOGIN_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.fullName").value("Kenneth"))
+            .andExpect(jsonPath("$.email").value("kenneth@example.com"))
+            .andExpect(jsonPath("$.accessToken").isNotEmpty())
+            .andReturn();
+
+        String accessToken = objectMapper
+            .readTree(result.getResponse().getContentAsString())
+            .get("accessToken")
+            .asString();
+        Jwt jwt = jwtDecoder.decode(accessToken);
+
+        assertThat(jwt.getSubject()).isEqualTo(String.valueOf(userId));
+        assertThat(jwt.getClaimAsString("email")).isEqualTo("kenneth@example.com");
+        assertThat(jwt.getClaimAsString("name")).isEqualTo("Kenneth");
+    }
+
+    @Test
+    void loginReturnsUnauthorizedWhenPasswordIsIncorrect() throws Exception {
+        createUser("Kenneth", "kenneth@example.com", VALID_PASSWORD);
+        LoginRequest request = new LoginRequest("kenneth@example.com", "wrong-password");
+
+        mockMvc.perform(post(LOGIN_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.message").value("Invalid email or password."));
+    }
+
+    @Test
+    void loginReturnsUnauthorizedWhenEmailDoesNotExist() throws Exception {
+        LoginRequest request = new LoginRequest("missing@example.com", VALID_PASSWORD);
+
+        mockMvc.perform(post(LOGIN_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.message").value("Invalid email or password."));
+
+        Integer userCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM app_user", Integer.class);
+
+        assertThat(userCount).isZero();
+    }
+
+    @Test
+    void loginReturnsBadRequestWhenEmailIsMissing() throws Exception {
+        LoginRequest request = new LoginRequest(null, VALID_PASSWORD);
+
+        mockMvc.perform(post(LOGIN_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("email: must not be blank"));
+    }
+
+    @Test
+    void loginReturnsBadRequestWhenEmailIsInvalid() throws Exception {
+        LoginRequest request = new LoginRequest("not-an-email", VALID_PASSWORD);
+
+        mockMvc.perform(post(LOGIN_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("email: must be a well-formed email address"));
+    }
+
+    @Test
+    void loginReturnsBadRequestWhenPasswordIsMissing() throws Exception {
+        LoginRequest request = new LoginRequest("kenneth@example.com", null);
+
+        mockMvc.perform(post(LOGIN_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("password: must not be blank"));
+    }
+
+    @Test
+    void loginReturnsBadRequestWhenPasswordIsTooShort() throws Exception {
+        LoginRequest request = new LoginRequest("kenneth@example.com", "short");
+
+        mockMvc.perform(post(LOGIN_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("password: size must be between 8 and 64"));
+    }
+
+    private long createUser(String fullName, String email, String password) {
+        String passwordHash = passwordEncoder.encode(password);
+
+        jdbcTemplate.update(
+            "INSERT INTO app_user (full_name, email, password_hash) VALUES (?, ?, ?)",
+            fullName,
+            email,
+            passwordHash
+        );
+
+        return jdbcTemplate.queryForObject("SELECT id FROM app_user WHERE email = ?", Long.class, email);
     }
 }
