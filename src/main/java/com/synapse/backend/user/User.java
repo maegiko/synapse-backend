@@ -17,8 +17,8 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 100)
-    private String name;
+    @Column(name = "full_name", nullable = false, length = 100)
+    private String fullName;
 
     @Column(nullable = false, unique = true, length = 255)
     private String email;
@@ -35,7 +35,7 @@ public class User {
     protected User() {}
 
     public User(String name, String email, String passwordHash) {
-        this.name = name;
+        this.fullName = name;
         this.email = email;
         this.passwordHash = passwordHash;
     }
@@ -45,7 +45,7 @@ public class User {
     }
 
     public String getName() {
-        return name;
+        return fullName;
     }
 
     public String getEmail() {

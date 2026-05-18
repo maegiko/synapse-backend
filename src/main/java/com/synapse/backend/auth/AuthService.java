@@ -30,7 +30,7 @@ public class AuthService {
         String passwordHash = passwordEncoder.encode(registerRequest.password());
 
         User user = new User(
-            registerRequest.name(),
+            registerRequest.fullName(),
             registerRequest.email(),
             passwordHash
         );
