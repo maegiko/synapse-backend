@@ -58,6 +58,17 @@ public class SecurityConfig {
         return new SecretKeySpec(secretBytes, "HmacSHA256");
     }
 
+    /**
+     * Configures HTTP security for the API.
+     *
+     * <p>Swagger documentation, registration, and login are public. All other
+     * requests require JWT authentication. Sessions are stateless and CSRF is
+     * disabled because the API authenticates with bearer tokens.</p>
+     *
+     * @param http the Spring Security HTTP configuration builder.
+     * @return the configured security filter chain.
+     * @throws Exception if Spring Security cannot build the filter chain.
+     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http

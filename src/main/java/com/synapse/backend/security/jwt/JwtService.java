@@ -24,6 +24,15 @@ public class JwtService {
         this.jwtProperties = jwtProperties;
     }
 
+    /**
+     * Generates a signed JWT access token for the given user.
+     *
+     * <p>The token subject is the user's ID. The token also includes the user's
+     * email and name, and expires after the configured access token TTL.</p>
+     *
+     * @param user the authenticated user to create a token for.
+     * @return the encoded JWT access token.
+     */
     public String generateAccessToken(User user) {
         Instant now = Instant.now();
         JwsHeader headers = JwsHeader.with(MacAlgorithm.HS256).build();
