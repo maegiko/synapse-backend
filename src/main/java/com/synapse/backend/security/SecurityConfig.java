@@ -1,4 +1,4 @@
-package com.synapse.backend.auth;
+package com.synapse.backend.security;
 
 import java.nio.charset.StandardCharsets;
 
@@ -7,6 +7,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.nimbusds.jose.proc.SecurityContext;
+import com.synapse.backend.security.jwt.JwtProperties;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

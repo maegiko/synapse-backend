@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import com.synapse.backend.auth.dto.RegisterRequest;
 import com.synapse.backend.auth.dto.RegisterResponse;
 import com.synapse.backend.auth.exceptions.EmailAlreadyExistsException;
+import com.synapse.backend.security.jwt.JwtService;
 import com.synapse.backend.user.User;
 import com.synapse.backend.user.UserRepository;
 

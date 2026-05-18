@@ -1,4 +1,4 @@
-package com.synapse.backend.auth;
+package com.synapse.backend.security.jwt;
 
 import java.time.Instant;
 
