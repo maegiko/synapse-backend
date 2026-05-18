@@ -2,6 +2,8 @@ package com.synapse.backend.auth;
 
 import org.springframework.web.bind.annotation.RestController;
 
+import com.synapse.backend.auth.dto.LoginRequest;
+import com.synapse.backend.auth.dto.LoginResponse;
 import com.synapse.backend.auth.dto.RegisterRequest;
 import com.synapse.backend.auth.dto.RegisterResponse;
 
@@ -48,6 +50,13 @@ public class AuthController {
         RegisterResponse res = authService.registerUser(registerRequest);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(res);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
+        LoginResponse res = authService.loginUser(loginRequest);
+
+        return ResponseEntity.status(HttpStatus.OK).body(res);
     }
 
 }
