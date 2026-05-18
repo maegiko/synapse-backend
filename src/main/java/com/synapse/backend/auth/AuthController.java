@@ -53,6 +53,23 @@ public class AuthController {
     }
 
     @PostMapping("/login")
+    @Operation(
+        summary = "Log in a user",
+        description = "Logs in a user and returns a JWT access token.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "User logged in"),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Invalid login request",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Invalid credentials",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
         LoginResponse res = authService.loginUser(loginRequest);
 
