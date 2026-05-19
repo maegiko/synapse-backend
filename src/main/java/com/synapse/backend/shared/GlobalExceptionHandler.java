@@ -6,19 +6,19 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import com.synapse.backend.auth.exceptions.EmailAlreadyExistsException;
-import com.synapse.backend.auth.exceptions.LoginFailException;
+import com.synapse.backend.shared.exceptions.ConflictException;
+import com.synapse.backend.shared.exceptions.UnauthorisedException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(EmailAlreadyExistsException.class)
-    public ResponseEntity<ErrorResponse> handleEmailAlreadyExists(EmailAlreadyExistsException ex) {
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ErrorResponse> handleConflict(ConflictException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(ex.getMessage()));
     }
 
-    @ExceptionHandler(LoginFailException.class)
-    public ResponseEntity<ErrorResponse> handleLoginFail(LoginFailException ex) {
+    @ExceptionHandler(UnauthorisedException.class)
+    public ResponseEntity<ErrorResponse> handleUnauthorised(UnauthorisedException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ErrorResponse(ex.getMessage()));
     }
 
