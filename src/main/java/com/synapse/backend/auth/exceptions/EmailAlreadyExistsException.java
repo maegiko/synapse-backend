@@ -1,6 +1,8 @@
 package com.synapse.backend.auth.exceptions;
 
-public class EmailAlreadyExistsException extends RuntimeException {
+import com.synapse.backend.shared.exceptions.ConflictException;
+
+public class EmailAlreadyExistsException extends ConflictException {
 
     public EmailAlreadyExistsException(String email) {
         super("Email is already registered: " + email);
