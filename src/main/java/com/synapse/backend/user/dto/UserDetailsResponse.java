@@ -1,6 +1,6 @@
 package com.synapse.backend.user.dto;
 
-public record MyDetailsResponse(
+public record UserDetailsResponse(
     String fullName,
     String email
 ) {}
