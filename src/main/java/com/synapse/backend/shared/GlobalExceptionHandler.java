@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.synapse.backend.shared.exceptions.ConflictException;
+import com.synapse.backend.shared.exceptions.NotFoundException;
 import com.synapse.backend.shared.exceptions.UnauthorisedException;
 
 @RestControllerAdvice
@@ -20,6 +21,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UnauthorisedException.class)
     public ResponseEntity<ErrorResponse> handleUnauthorised(UnauthorisedException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ErrorResponse(ex.getMessage()));
+    }
+
+    @ExceptionHandler(NotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNotFound(NotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
