@@ -15,7 +15,11 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
-  
+    
+ai:
+  gemini:
+    api-key: ${GEMINI_API_KEY}
+
 jwt:
   issuer: synapse
   access-token-ttl: 15m
