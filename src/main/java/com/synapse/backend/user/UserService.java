@@ -14,10 +14,11 @@ public class UserService {
     }
 
     /**
-     * Gets the user's details by Id.
-     * @param userId the user's Id.
+     * Gets the user's details by ID.
+     *
+     * @param userId the user's ID.
      * @return the user's full name and email.
-     * @throws UserNotFoundException if the user Id does not exist in DB.
+     * @throws UserNotFoundException if the user ID does not exist in DB.
      */
     public UserDetailsResponse getUserDetails(Long userId) {
         User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));

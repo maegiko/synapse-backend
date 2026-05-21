@@ -38,6 +38,8 @@ public class NotesService {
      *
      * @param file the file to be summarised.
      * @return a structured summary of the file.
+     * @throws InvalidFileException if the file is missing or empty.
+     * @throws LLMResponseParsingException if the LLM response cannot be parsed.
      */
     public NoteSummaryResponse summariseNotes(MultipartFile file) {
         if (file == null || file.isEmpty())

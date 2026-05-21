@@ -6,13 +6,15 @@ public interface FileTextExtractor {
 
     /**
      * Returns whether the extractor supports a given file type.
+     *
      * @param fileType the file type to be parsed.
-     * @return boolean
+     * @return true if extractor supports file type, false otherwise.
      */
     public boolean supports(String fileType);
 
     /**
-     * Extract text from a file.
+     * Extracts text from a file.
+     *
      * @param file the file to extract text from.
      * @return the text of the file.
      * @throws FileParsingException if file cannot be parsed.

@@ -30,6 +30,7 @@ public class AuthService {
 
     /**
      * Registers a new user and returns their details with an access token.
+     *
      * @param registerRequest validated registration details.
      * @return the user's name, email and an access token.
      * @throws EmailAlreadyExistsException if email is already registered.
@@ -63,6 +64,7 @@ public class AuthService {
 
     /**
      * Logs in a user and returns their details with an access token.
+     *
      * @param loginRequest validated login details.
      * @return the user's name, email and an access token.
      * @throws LoginFailException if the email address is not registered or the password is incorrect.

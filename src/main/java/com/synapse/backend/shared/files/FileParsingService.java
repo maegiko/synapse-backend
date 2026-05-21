@@ -17,10 +17,11 @@ public class FileParsingService {
 
     /**
      * Extracts text from a supported file.
+     *
      * @param file the file to extract text from.
      * @return the text extracted from the file.
      * @throws UnsupportedFileException if the file type is not supported.
-     * @throws FileParsingException if file cannot be parsed.
+     * @throws FileParsingException if the file cannot be parsed.
      */
     public String extractText(MultipartFile file) {
         String fileType = file.getContentType();

@@ -6,7 +6,8 @@ public interface LLMClient {
 
     /**
      * Makes an API call to an LLM and returns the output.
-     * @param llmRequest the model and prompt for the request.
+     *
+     * @param llmRequest the model, system prompt and user prompt for the request.
      * @return the string output of the LLM.
      */
     public String generate(LLMRequest llmRequest);
