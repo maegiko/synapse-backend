@@ -27,3 +27,7 @@ jwt:
   issuer: synapse
   access-token-ttl: 15m
   secret: ${JWT_SECRET}
+
+springdoc:
+  swagger-ui:
+    default-models-expand-depth: 0
