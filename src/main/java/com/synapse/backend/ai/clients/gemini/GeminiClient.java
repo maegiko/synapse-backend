@@ -32,7 +32,7 @@ public class GeminiClient implements LLMClient {
             List.of(
                 new GeminiContent(
                     List.of(
-                        new GeminiPart(llmRequest.prompt())
+                        new GeminiPart(llmRequest.userPrompt())
                     )
                 )
             )
