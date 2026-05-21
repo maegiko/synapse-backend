@@ -40,12 +40,12 @@ public class GeminiClient implements LLMClient {
 
         try {
             GeminiResponse res = restClient.post()
-            .uri("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", llmRequest.model())
-            .header("x-goog-api-key", geminiProperties.apiKey())
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(body)
-            .retrieve()
-            .body(GeminiResponse.class);
+                .uri("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", llmRequest.model())
+                .header("x-goog-api-key", geminiProperties.apiKey())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(GeminiResponse.class);
 
             return res
                 .candidates()
