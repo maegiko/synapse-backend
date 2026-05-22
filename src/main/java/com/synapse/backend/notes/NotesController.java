@@ -34,8 +34,8 @@ public class NotesController {
         consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
     @Operation(
-        summary = "Summarise notes",
-        description = "Summarises notes uploaded by user.",
+        summary = "Summarise and save notes",
+        description = "Summarises notes uploaded by user. Saves to Database after successful summary generation.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Successful note summary"),
             @ApiResponse(
