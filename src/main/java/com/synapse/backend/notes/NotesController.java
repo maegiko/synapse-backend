@@ -59,7 +59,8 @@ public class NotesController {
         @RequestParam MultipartFile file,
         @AuthenticationPrincipal Jwt jwt
     ) {
-        NoteSummaryResponse res = notesService.summariseNotes(file);
+        Long userId = Long.valueOf(jwt.getSubject());
+        NoteSummaryResponse res = notesService.summariseNotes(file, userId);
 
         return ResponseEntity.ok(res);
     }
