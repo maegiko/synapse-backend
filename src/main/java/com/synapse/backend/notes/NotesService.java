@@ -20,17 +20,20 @@ public class NotesService {
     private final LLMClient llmClient;
     private final ObjectMapper objectMapper;
     private final NoteSummaryPromptFactory promptFactory;
+    private final NotesPersistenceService notesPersistenceService;
 
     public NotesService(
         FileParsingService fileParsingService,
         LLMClient llmClient,
         ObjectMapper objectMapper,
-        NoteSummaryPromptFactory promptFactory
+        NoteSummaryPromptFactory promptFactory,
+        NotesPersistenceService notesPersistenceService
     ) {
         this.fileParsingService = fileParsingService;
         this.llmClient = llmClient;
         this.objectMapper = objectMapper;
         this.promptFactory = promptFactory;
+        this.notesPersistenceService = notesPersistenceService;
     }
 
     /**
@@ -39,14 +42,27 @@ public class NotesService {
      * @param file the file to be summarised.
      * @return a structured summary of the file.
      * @throws InvalidFileException if the file is missing or empty.
-     * @throws LLMResponseParsingException if the LLM response cannot be parsed.
      */
-    public NoteSummaryResponse summariseNotes(MultipartFile file) {
+    public NoteSummaryResponse summariseNotes(MultipartFile file, Long userId) {
         if (file == null || file.isEmpty())
             throw new InvalidFileException("The file cannot be empty.");
 
         String extractedText = fileParsingService.extractText(file);
+        NoteSummaryResponse res = generateSummary(extractedText);
 
+        notesPersistenceService.saveNoteSummary(res, userId);
+
+        return res;
+    }
+
+    /**
+     * Generates a summary of notes.
+     *
+     * @param extractedText the extracted text from a file.
+     * @return the structured summary of the notes.
+     * @throws LLMResponseParsingException if the LLM response cannot be parsed.
+     */
+    private NoteSummaryResponse generateSummary(String extractedText) {
         LLMRequest req = new LLMRequest(
             "meta-llama/llama-4-scout-17b-16e-instruct",
             promptFactory.createNoteSummarySystemPrompt(),
