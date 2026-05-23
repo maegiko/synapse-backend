@@ -1,5 +1,7 @@
 package com.synapse.backend.notes;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -7,6 +9,7 @@ import com.synapse.backend.ai.clients.LLMClient;
 import com.synapse.backend.ai.clients.dto.LLMRequest;
 import com.synapse.backend.ai.exceptions.LLMResponseParsingException;
 import com.synapse.backend.ai.prompts.NoteSummaryPromptFactory;
+import com.synapse.backend.notes.dto.NoteListResponse;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
 import com.synapse.backend.notes.exceptions.InvalidFileException;
 import com.synapse.backend.shared.files.FileParsingService;
@@ -75,6 +78,12 @@ public class NotesService {
         } catch (JacksonException e) {
             throw new LLMResponseParsingException("Failed to parse LLM response");
         }
+    }
+
+    public NoteListResponse getAllNoteSummaries(Long userId) {
+        List<NoteSummaryResponse> notesList = notesPersistenceService.getAllNoteSummaries(userId);
+
+        return new NoteListResponse(notesList);
     }
 
 }
