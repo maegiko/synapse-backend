@@ -10,4 +10,6 @@ public interface NoteImportantTermRepository extends JpaRepository<NoteImportant
 
     List<NoteImportantTerm> findByNoteIdOrderByPositionAsc(Long noteId);
 
+    List<NoteImportantTerm> findByNoteIdInOrderByNoteIdAscPositionAsc(List<Long> noteIds);
+
 }

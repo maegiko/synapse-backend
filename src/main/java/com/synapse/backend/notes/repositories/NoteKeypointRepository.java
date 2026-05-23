@@ -10,4 +10,6 @@ public interface NoteKeypointRepository extends JpaRepository<NoteKeypoint, Long
 
     List<NoteKeypoint> findByNoteIdOrderByPositionAsc(Long noteId);
 
+    List<NoteKeypoint> findByNoteIdInOrderByNoteIdAscPositionAsc(List<Long> noteIds);
+
 }

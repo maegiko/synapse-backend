@@ -10,4 +10,6 @@ public interface NoteConceptRepository extends JpaRepository<NoteConcept, Long> 
 
     List<NoteConcept> findByNoteIdOrderByPositionAsc(Long noteId);
 
+    List<NoteConcept> findByNoteIdInOrderByNoteIdAscPositionAsc(List<Long> noteIds);
+
 }
