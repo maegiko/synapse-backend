@@ -1,5 +1,6 @@
 package com.synapse.backend.auth;
 
+import java.util.Locale;
 import java.util.Optional;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -36,15 +37,17 @@ public class AuthService {
      * @throws EmailAlreadyExistsException if email is already registered.
      */
     public RegisterResponse registerUser(RegisterRequest registerRequest) {
-        if (isEmailInUse(registerRequest.email())) {
-            throw new EmailAlreadyExistsException(registerRequest.email());
+        String email = registerRequest.email().trim().toLowerCase(Locale.ROOT);
+
+        if (isEmailInUse(email)) {
+            throw new EmailAlreadyExistsException(email);
         }
 
         String passwordHash = passwordEncoder.encode(registerRequest.password());
 
         User user = new User(
             registerRequest.fullName(),
-            registerRequest.email(),
+            email,
             passwordHash
         );
 
@@ -70,7 +73,7 @@ public class AuthService {
      * @throws LoginFailException if the email address is not registered or the password is incorrect.
      */
     public LoginResponse loginUser(LoginRequest loginRequest) {
-        String email = loginRequest.email();
+        String email = loginRequest.email().trim().toLowerCase(Locale.ROOT);
         String password = loginRequest.password();
 
         User user = findUserByEmail(email).orElseThrow(() -> new LoginFailException());
