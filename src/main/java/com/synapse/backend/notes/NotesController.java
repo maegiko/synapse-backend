@@ -68,6 +68,18 @@ public class NotesController {
     }
 
     @GetMapping("/list")
+    @Operation(
+        summary = "Get all note summaries",
+        description = "Lists all saved note summaries for the currently authenticated user.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Successful note list retrieval"),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            )
+        }
+    )
     public ResponseEntity<NoteListResponse> getAllNotes(@AuthenticationPrincipal Jwt jwt) {
         Long userId = Long.valueOf(jwt.getSubject());
         NoteListResponse notes = notesService.getAllNoteSummaries(userId);
