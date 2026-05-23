@@ -1,6 +1,9 @@
 package com.synapse.backend.notes;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -88,6 +91,63 @@ public class NotesPersistenceService {
 
             noteImportantTermRepository.save(newTerm);
         }
+    }
+
+    public List<NoteSummaryResponse> getAllNoteSummaries(Long userId) {
+        List<Note> notes = noteRepository.findByUserIdOrderByCreatedAtDesc(userId);
+
+        List<Long> noteIds = notes.stream().map(Note::getId).toList();
+
+        if (noteIds.isEmpty())
+            return List.of();
+
+        List<NoteKeypoint> keypoints = noteKeypointRepository.findByNoteIdInOrderByNoteIdAscPositionAsc(noteIds);
+
+        List<NoteConcept> concepts = noteConceptRepository.findByNoteIdInOrderByNoteIdAscPositionAsc(noteIds);
+
+        List<NoteImportantTerm> importantTerms = noteImportantTermRepository.findByNoteIdInOrderByNoteIdAscPositionAsc(noteIds);
+
+        Map<Long, List<NoteKeypoint>> keypointsByNoteId = keypoints.stream()
+            .collect(Collectors.groupingBy(NoteKeypoint::getNoteId));
+
+        Map<Long, List<NoteConcept>> conceptsByNoteId = concepts.stream()
+            .collect(Collectors.groupingBy(NoteConcept::getNoteId));
+
+        Map<Long, List<NoteImportantTerm>> importantTermsByNoteId = importantTerms.stream()
+            .collect(Collectors.groupingBy(NoteImportantTerm::getNoteId));
+
+        List<NoteSummaryResponse> allNotes = new ArrayList<>();
+        for (Note note : notes) {
+            Long noteId = note.getId();
+
+            List<String> noteKeypoints = keypointsByNoteId
+                .getOrDefault(noteId, List.of())
+                .stream()
+                .map(NoteKeypoint::getKeypoint)
+                .toList();
+
+            List<ConceptSummary> noteConcepts = conceptsByNoteId
+                .getOrDefault(noteId, List.of())
+                .stream()
+                .map(concept -> new ConceptSummary(concept.getName(), concept.getExplanation()))
+                .toList();
+
+            List<String> noteImportantTerms = importantTermsByNoteId
+                .getOrDefault(noteId, List.of())
+                .stream()
+                .map(NoteImportantTerm::getTerm)
+                .toList();
+
+            allNotes.add(new NoteSummaryResponse(
+                note.getTitle(),
+                note.getOverview(),
+                noteKeypoints,
+                noteConcepts,
+                noteImportantTerms
+            ));
+        }
+
+        return allNotes;
     }
 
 }
