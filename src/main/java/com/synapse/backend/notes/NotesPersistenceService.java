@@ -101,38 +101,58 @@ public class NotesPersistenceService {
         if (noteIds.isEmpty())
             return List.of();
 
-        List<NoteKeypoint> keypoints = noteKeypointRepository.findByNoteIdInOrderByNoteIdAscPositionAsc(noteIds);
+        Map<Long, List<NoteKeypoint>> keypoints = getKeypointsByNoteId(noteIds);
+        Map<Long, List<NoteConcept>> concepts = getConceptsByNoteId(noteIds);
+        Map<Long, List<NoteImportantTerm>> importantTerms = getImportantTermsByNoteId(noteIds);
 
-        List<NoteConcept> concepts = noteConceptRepository.findByNoteIdInOrderByNoteIdAscPositionAsc(noteIds);
+        return buildNoteSummaryResponses(notes, keypoints, concepts, importantTerms);
+    }
 
-        List<NoteImportantTerm> importantTerms = noteImportantTermRepository.findByNoteIdInOrderByNoteIdAscPositionAsc(noteIds);
-
-        Map<Long, List<NoteKeypoint>> keypointsByNoteId = keypoints.stream()
+    private Map<Long, List<NoteKeypoint>> getKeypointsByNoteId(List<Long> noteIds) {
+        return noteKeypointRepository
+            .findByNoteIdInOrderByNoteIdAscPositionAsc(noteIds)
+            .stream()
             .collect(Collectors.groupingBy(NoteKeypoint::getNoteId));
+    }
 
-        Map<Long, List<NoteConcept>> conceptsByNoteId = concepts.stream()
+    private Map<Long, List<NoteConcept>> getConceptsByNoteId(List<Long> noteIds) {
+        return noteConceptRepository
+            .findByNoteIdInOrderByNoteIdAscPositionAsc(noteIds)
+            .stream()
             .collect(Collectors.groupingBy(NoteConcept::getNoteId));
+    }
 
-        Map<Long, List<NoteImportantTerm>> importantTermsByNoteId = importantTerms.stream()
+    private Map<Long, List<NoteImportantTerm>> getImportantTermsByNoteId(List<Long> noteIds) {
+        return noteImportantTermRepository
+            .findByNoteIdInOrderByNoteIdAscPositionAsc(noteIds)
+            .stream()
             .collect(Collectors.groupingBy(NoteImportantTerm::getNoteId));
+    }
 
+    private List<NoteSummaryResponse> buildNoteSummaryResponses(
+        List<Note> notes,
+        Map<Long, List<NoteKeypoint>> keypoints,
+        Map<Long, List<NoteConcept>> concepts,
+        Map<Long, List<NoteImportantTerm>> importantTerms
+    ) {
         List<NoteSummaryResponse> allNotes = new ArrayList<>();
+
         for (Note note : notes) {
             Long noteId = note.getId();
 
-            List<String> noteKeypoints = keypointsByNoteId
+            List<String> noteKeypoints = keypoints
                 .getOrDefault(noteId, List.of())
                 .stream()
                 .map(NoteKeypoint::getKeypoint)
                 .toList();
 
-            List<ConceptSummary> noteConcepts = conceptsByNoteId
+            List<ConceptSummary> noteConcepts = concepts
                 .getOrDefault(noteId, List.of())
                 .stream()
                 .map(concept -> new ConceptSummary(concept.getName(), concept.getExplanation()))
                 .toList();
 
-            List<String> noteImportantTerms = importantTermsByNoteId
+            List<String> noteImportantTerms = importantTerms
                 .getOrDefault(noteId, List.of())
                 .stream()
                 .map(NoteImportantTerm::getTerm)
