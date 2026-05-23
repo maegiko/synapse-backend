@@ -44,4 +44,8 @@ public class NoteKeypoint {
         return keypoint;
     }
 
+    public Long getNoteId() {
+        return noteId;
+    }
+
 }

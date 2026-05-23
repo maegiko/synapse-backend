@@ -52,6 +52,10 @@ public class NoteConcept {
         return explanation;
     }
 
+    public Long getNoteId() {
+        return noteId;
+    }
+
 }
 
 

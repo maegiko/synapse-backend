@@ -44,4 +44,8 @@ public class NoteImportantTerm {
         return term;
     }
 
+    public Long getNoteId() {
+        return noteId;
+    }
+
 }
