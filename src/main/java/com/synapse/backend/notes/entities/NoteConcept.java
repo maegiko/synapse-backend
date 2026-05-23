@@ -44,6 +44,14 @@ public class NoteConcept {
         this.explanation = explanation;
     }
 
+    public String getName() {
+        return name;
+    }
+
+    public String getExplanation() {
+        return explanation;
+    }
+
 }
 
 

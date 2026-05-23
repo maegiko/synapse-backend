@@ -40,4 +40,8 @@ public class NoteKeypoint {
         this.keypoint = keypoint;
     }
 
+    public String getKeypoint() {
+        return keypoint;
+    }
+
 }

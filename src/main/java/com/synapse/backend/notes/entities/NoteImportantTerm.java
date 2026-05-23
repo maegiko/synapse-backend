@@ -40,4 +40,8 @@ public class NoteImportantTerm {
         this.term = term;
     }
 
+    public String getTerm() {
+        return term;
+    }
+
 }
