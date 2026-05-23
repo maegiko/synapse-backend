@@ -1,5 +1,6 @@
 package com.synapse.backend.notes;
 
+import com.synapse.backend.notes.dto.NoteListResponse;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
 
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 
 @RestController
 @RequestMapping("/api/notes")
@@ -63,6 +65,14 @@ public class NotesController {
         NoteSummaryResponse res = notesService.summariseNotes(file, userId);
 
         return ResponseEntity.ok(res);
+    }
+
+    @GetMapping("/list")
+    public ResponseEntity<NoteListResponse> getAllNotes(@AuthenticationPrincipal Jwt jwt) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        NoteListResponse notes = notesService.getAllNoteSummaries(userId);
+
+        return ResponseEntity.ok(notes);
     }
 
 }
