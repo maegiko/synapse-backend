@@ -40,9 +40,10 @@ public class NotesService {
     }
 
     /**
-     * Returns the summarised notes.
+     * Returns and saves the summarised notes.
      *
      * @param file the file to be summarised.
+     * @param userId the ID of the user.
      * @return a structured summary of the file.
      * @throws InvalidFileException if the file is missing or empty.
      */
@@ -80,6 +81,12 @@ public class NotesService {
         }
     }
 
+    /**
+     * Returns all saved note summaries for user.
+     *
+     * @param userId the ID of the user.
+     * @return all saved note summaries for the user.
+     */
     public NoteListResponse getAllNoteSummaries(Long userId) {
         List<NoteSummaryResponse> notesList = notesPersistenceService.getAllNoteSummaries(userId);
 

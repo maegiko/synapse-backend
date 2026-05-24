@@ -93,6 +93,12 @@ public class NotesPersistenceService {
         }
     }
 
+    /**
+     * Returns all saved note summaries for user.
+     *
+     * @param userId the ID of the user.
+     * @return all saved note summaries for the user.
+     */
     public List<NoteSummaryResponse> getAllNoteSummaries(Long userId) {
         List<Note> notes = noteRepository.findByUserIdOrderByCreatedAtDesc(userId);
 
