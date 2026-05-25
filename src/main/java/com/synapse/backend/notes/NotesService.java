@@ -93,4 +93,14 @@ public class NotesService {
         return new NoteListResponse(notesList);
     }
 
+    /**
+     * Returns a single note belonging to a user.
+     * @param noteId the note ID of the note to return.
+     * @param userId the user ID of the user requesting the note.
+     * @return the note belonging to the user of a given noteId.
+     */
+    public NoteSummaryResponse getNoteSummary(Long noteId, Long userId) {
+        return notesPersistenceService.getNoteSummary(noteId, userId);
+    }
+
 }
