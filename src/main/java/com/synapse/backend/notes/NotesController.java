@@ -20,6 +20,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 
 @RestController
 @RequestMapping("/api/notes")
@@ -85,6 +86,31 @@ public class NotesController {
         NoteListResponse notes = notesService.getAllNoteSummaries(userId);
 
         return ResponseEntity.ok(notes);
+    }
+
+    @GetMapping("/{id}")
+    @Operation(
+        summary = "Get a single note",
+        description = "Gets the details of a single note owned by the currently authenticated user.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Successful retrieval of note"),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Note not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
+    public ResponseEntity<NoteSummaryResponse> getNote(@PathVariable("id") Long noteId, @AuthenticationPrincipal Jwt jwt) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        NoteSummaryResponse res = notesService.getNoteSummary(noteId, userId);
+
+        return ResponseEntity.ok(res);
     }
 
 }
