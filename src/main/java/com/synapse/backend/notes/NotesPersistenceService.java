@@ -13,6 +13,7 @@ import com.synapse.backend.notes.entities.Note;
 import com.synapse.backend.notes.entities.NoteConcept;
 import com.synapse.backend.notes.entities.NoteImportantTerm;
 import com.synapse.backend.notes.entities.NoteKeypoint;
+import com.synapse.backend.notes.exceptions.NoteNotFoundException;
 import com.synapse.backend.notes.repositories.NoteConceptRepository;
 import com.synapse.backend.notes.repositories.NoteImportantTermRepository;
 import com.synapse.backend.notes.repositories.NoteKeypointRepository;
@@ -165,6 +166,7 @@ public class NotesPersistenceService {
                 .toList();
 
             allNotes.add(new NoteSummaryResponse(
+                note.getId(),
                 note.getTitle(),
                 note.getOverview(),
                 noteKeypoints,
@@ -174,6 +176,39 @@ public class NotesPersistenceService {
         }
 
         return allNotes;
+    }
+
+    /**
+     * Returns a single note belonging to a user.
+     * @param noteId the note ID of the note to return.
+     * @param userId the user ID of the user requesting the note.
+     * @return the note belonging to the user of a given noteId.
+     * @throws NoteNotFoundException if a note with noteId belonging to user with userId does not exist.
+     */
+    public NoteSummaryResponse getNoteSummary(Long noteId, Long userId) {
+        Note note = noteRepository
+            .findByIdAndUserId(noteId, userId)
+            .orElseThrow(() -> new NoteNotFoundException("Requested note not found."));
+
+        List<NoteConcept> concepts = noteConceptRepository.findByNoteIdOrderByPositionAsc(noteId);
+        List<NoteKeypoint> keypoints = noteKeypointRepository.findByNoteIdOrderByPositionAsc(noteId);
+        List<NoteImportantTerm> importantTerms = noteImportantTermRepository.findByNoteIdOrderByPositionAsc(noteId);
+
+        List<String> noteKeypoints = keypoints.stream().map(k -> k.getKeypoint()).toList();
+        List<ConceptSummary> noteConcepts = concepts
+            .stream()
+            .map(c -> new ConceptSummary(c.getName(), c.getExplanation()))
+            .toList();
+        List<String> noteImportantTerms = importantTerms.stream().map(t -> t.getTerm()).toList();
+
+        return new NoteSummaryResponse(
+            note.getId(),
+            note.getTitle(),
+            note.getOverview(),
+            noteKeypoints,
+            noteConcepts,
+            noteImportantTerms
+        );
     }
 
 }
