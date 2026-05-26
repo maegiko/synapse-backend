@@ -76,13 +76,13 @@ class FlashcardGenerateIntegrationTest extends PostgresIntegrationTest {
                 .content(objectMapper.writeValueAsString(new FlashcardGenerateNoteRequest(noteId)))
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$", hasSize(3)))
-            .andExpect(jsonPath("$[0].title").value("Cell"))
-            .andExpect(jsonPath("$[0].answer").value("The basic unit of life."))
-            .andExpect(jsonPath("$[1].title").value("Mitochondria"))
-            .andExpect(jsonPath("$[1].answer").value("The organelle that releases energy for the cell."))
-            .andExpect(jsonPath("$[2].title").value("Nucleus"))
-            .andExpect(jsonPath("$[2].answer").value("The organelle that stores genetic material."));
+            .andExpect(jsonPath("$.flashcards", hasSize(3)))
+            .andExpect(jsonPath("$.flashcards[0].title").value("Cell"))
+            .andExpect(jsonPath("$.flashcards[0].answer").value("The basic unit of life."))
+            .andExpect(jsonPath("$.flashcards[1].title").value("Mitochondria"))
+            .andExpect(jsonPath("$.flashcards[1].answer").value("The organelle that releases energy for the cell."))
+            .andExpect(jsonPath("$.flashcards[2].title").value("Nucleus"))
+            .andExpect(jsonPath("$.flashcards[2].answer").value("The organelle that stores genetic material."));
 
         Map<String, Object> deck = jdbcTemplate.queryForMap(
             "SELECT id, user_id, note_id, title, source_type FROM flashcard_deck WHERE note_id = ?",
