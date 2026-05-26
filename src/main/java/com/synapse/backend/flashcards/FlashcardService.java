@@ -39,7 +39,7 @@ public class FlashcardService {
         this.persistenceService = persistenceService;
     }
 
-    public List<FlashcardGenerateResponse> generateFlashCards(Long noteId, Long userId) {
+    public FlashcardGenerateListResponse generateFlashCards(Long noteId, Long userId) {
         NoteSummaryResponse note = notesService.getNoteSummary(noteId, userId);
 
         List<FlashcardGenerateResponse> flashcards = new ArrayList<>(
@@ -69,7 +69,7 @@ public class FlashcardService {
 
             persistenceService.saveFlashcardFromNote(flashcards, userId, note);
 
-            return flashcards;
+            return new FlashcardGenerateListResponse(flashcards);
         } catch (JacksonException e) {
             throw new LLMResponseParsingException("Failed to parse LLM response");
         }
