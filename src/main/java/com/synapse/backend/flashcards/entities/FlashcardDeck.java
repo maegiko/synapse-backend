@@ -44,4 +44,24 @@ public class FlashcardDeck {
         this.sourceType = sourceType;
     }
 
+    public Long getId() {
+        return id;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public Long getNoteId() {
+        return noteId;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public String getSourceType() {
+        return sourceType;
+    }
+
 }
