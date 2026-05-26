@@ -6,6 +6,10 @@ import org.springframework.web.bind.annotation.RestController;
 import com.synapse.backend.flashcards.dto.FlashcardGenerateNoteRequest;
 import com.synapse.backend.flashcards.dto.FlashcardGenerateResponse;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 
@@ -29,6 +33,34 @@ public class FlashcardController {
     }
 
     @PostMapping("/generate")
+    @Operation(
+        summary = "Generate flashcards from a note",
+        description = "Generates flashcards from a saved note owned by the currently authenticated user. "
+            + "Saves the generated flashcard deck and flashcards to the database.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Successful flashcard generation"),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Invalid flashcard generation request",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Note not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "502",
+                description = "LLM provider error or invalid LLM response",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
     public ResponseEntity<List<FlashcardGenerateResponse>> generateFlashcards(
             @Valid @RequestBody FlashcardGenerateNoteRequest request, @AuthenticationPrincipal Jwt jwt) {
         Long userId = Long.valueOf(jwt.getSubject());
