@@ -21,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
@@ -29,9 +30,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 @SecurityRequirement(name = "bearerAuth")
 public class NotesController {
     private final NotesService notesService;
+    private final NotesPersistenceService persistenceService;
 
-    public NotesController(NotesService notesService) {
+    public NotesController(NotesService notesService, NotesPersistenceService persistenceService) {
         this.notesService = notesService;
+        this.persistenceService = persistenceService;
     }
 
     @PostMapping(
@@ -113,6 +116,31 @@ public class NotesController {
         NoteSummaryResponse res = notesService.getNoteSummary(noteId, userId);
 
         return ResponseEntity.ok(res);
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(
+        summary = "Delete a note",
+        description = "Deletes a note owned by the currently authenticated user.",
+        responses = {
+            @ApiResponse(responseCode = "204", description = "Successful deletion of note"),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Note not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
+    public ResponseEntity<Void> deleteNote(@PathVariable("id") UUID noteId, @AuthenticationPrincipal Jwt jwt) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        persistenceService.deleteNote(noteId, userId);
+
+        return ResponseEntity.noContent().build();
     }
 
 }
