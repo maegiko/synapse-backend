@@ -27,6 +27,12 @@ public class FlashcardPersistenceService {
         this.flashcardRepository = flashcardRepository;
     }
 
+    /**
+     * Saves a flashcard generated from a note summary to the DB.
+     * @param flashcards list of flashcards to save.
+     * @param userId the id of the currently authenticated user.
+     * @param note the note that the flashcards were generated from.
+     */
     @Transactional
     public void saveFlashcardFromNote(List<FlashcardGenerateResponse> flashcards, Long userId, NoteSummaryResponse note) {
         if (flashcards == null) return;
