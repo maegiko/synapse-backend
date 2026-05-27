@@ -3,8 +3,8 @@ package com.synapse.backend.flashcards;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.synapse.backend.flashcards.dto.FlashcardGenerateListResponse;
 import com.synapse.backend.flashcards.dto.FlashcardGenerateNoteRequest;
+import com.synapse.backend.flashcards.dto.FlashcardGenerateResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -59,10 +59,10 @@ public class FlashcardController {
             )
         }
     )
-    public ResponseEntity<FlashcardGenerateListResponse> generateFlashcards(
+    public ResponseEntity<FlashcardGenerateResponse> generateFlashcards(
             @Valid @RequestBody FlashcardGenerateNoteRequest request, @AuthenticationPrincipal Jwt jwt) {
         Long userId = Long.valueOf(jwt.getSubject());
-        FlashcardGenerateListResponse res = flashcardService.generateFlashCards(request.noteId(), userId);
+        FlashcardGenerateResponse res = flashcardService.generateFlashCards(request.noteId(), userId);
 
         return ResponseEntity.ok(res);
     }
