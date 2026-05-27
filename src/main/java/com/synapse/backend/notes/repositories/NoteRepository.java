@@ -16,6 +16,6 @@ public interface NoteRepository extends JpaRepository<Note, Long> {
 
     Optional<Note> findByPublicIdAndUserId(UUID noteId, Long userId);
 
-    long deleteByIdAndUserId(Long noteId, Long userId);
+    long deleteByPublicIdAndUserId(UUID noteId, Long userId);
 
 }
