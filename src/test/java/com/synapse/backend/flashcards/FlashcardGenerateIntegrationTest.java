@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -76,7 +77,7 @@ class FlashcardGenerateIntegrationTest extends PostgresIntegrationTest {
                 .content(objectMapper.writeValueAsString(new FlashcardGenerateNoteRequest(noteId)))
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.deckId").isNumber())
+            .andExpect(jsonPath("$.deckId").isString())
             .andExpect(jsonPath("$.flashcards", hasSize(3)))
             .andExpect(jsonPath("$.flashcards[0].title").value("Cell"))
             .andExpect(jsonPath("$.flashcards[0].answer").value("The basic unit of life."))
@@ -86,18 +87,19 @@ class FlashcardGenerateIntegrationTest extends PostgresIntegrationTest {
             .andExpect(jsonPath("$.flashcards[2].answer").value("The organelle that stores genetic material."))
             .andReturn();
 
-        Long responseDeckId = objectMapper
+        String responseDeckId = objectMapper
             .readTree(result.getResponse().getContentAsString())
             .get("deckId")
-            .asLong();
+            .asString();
 
         Map<String, Object> deck = jdbcTemplate.queryForMap(
-            "SELECT id, user_id, note_id, title, source_type FROM flashcard_deck WHERE note_id = ?",
+            "SELECT id, public_id, user_id, note_id, title, source_type FROM flashcard_deck WHERE note_id = ?",
             noteId
         );
         Long deckId = ((Number) deck.get("id")).longValue();
 
-        assertEquals(deckId, responseDeckId);
+        assertEquals(deck.get("public_id").toString(), responseDeckId);
+        UUID.fromString(responseDeckId);
         assertEquals(user.id(), deck.get("user_id"));
         assertEquals(noteId, deck.get("note_id"));
         assertEquals("Biology notes", deck.get("title"));
