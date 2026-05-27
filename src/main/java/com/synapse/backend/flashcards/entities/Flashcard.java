@@ -44,4 +44,20 @@ public class Flashcard {
         this.position = position;
     }
 
+    public Long getDeckId() {
+        return deckId;
+    }
+
+    public String getQuestion() {
+        return question;
+    }
+
+    public String getAnswer() {
+        return answer;
+    }
+
+    public Integer getPosition() {
+        return position;
+    }
+
 }
