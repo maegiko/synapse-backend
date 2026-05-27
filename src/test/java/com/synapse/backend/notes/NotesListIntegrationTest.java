@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.UUID;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -63,29 +65,30 @@ class NotesListIntegrationTest extends PostgresIntegrationTest {
     @Test
     void listNotesReturnsCurrentUsersSavedSummariesNewestFirst() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
-        createNote(
+        TestNote olderNote = createNote(
             user.id(),
             "Older behavioural modelling",
             "This older note has no structured children.",
             "2026-01-01 09:00:00"
         );
-        Long newerNoteId = createNote(
+        TestNote newerNote = createNote(
             user.id(),
             "Newer system dynamics",
             "Feedback loops and stocks are the main ideas.",
             "2026-01-02 09:00:00"
         );
-        createKeypoint(newerNoteId, 1, "Stocks accumulate over time.");
-        createKeypoint(newerNoteId, 0, "Feedback loops drive behaviour.");
-        createConcept(newerNoteId, 1, "Stock", "A quantity measured at a point in time.");
-        createConcept(newerNoteId, 0, "Feedback loop", "A closed chain of cause and effect.");
-        createImportantTerm(newerNoteId, 1, "stock");
-        createImportantTerm(newerNoteId, 0, "feedback");
+        createKeypoint(newerNote.id(), 1, "Stocks accumulate over time.");
+        createKeypoint(newerNote.id(), 0, "Feedback loops drive behaviour.");
+        createConcept(newerNote.id(), 1, "Stock", "A quantity measured at a point in time.");
+        createConcept(newerNote.id(), 0, "Feedback loop", "A closed chain of cause and effect.");
+        createImportantTerm(newerNote.id(), 1, "stock");
+        createImportantTerm(newerNote.id(), 0, "feedback");
 
         mockMvc.perform(get(LIST_ENDPOINT)
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.notes", hasSize(2)))
+            .andExpect(jsonPath("$.notes[0].id").value(newerNote.publicId().toString()))
             .andExpect(jsonPath("$.notes[0].title").value("Newer system dynamics"))
             .andExpect(jsonPath("$.notes[0].overview").value("Feedback loops and stocks are the main ideas."))
             .andExpect(jsonPath("$.notes[0].keypoints", hasSize(2)))
@@ -99,6 +102,7 @@ class NotesListIntegrationTest extends PostgresIntegrationTest {
             .andExpect(jsonPath("$.notes[0].importantTerms", hasSize(2)))
             .andExpect(jsonPath("$.notes[0].importantTerms[0]").value("feedback"))
             .andExpect(jsonPath("$.notes[0].importantTerms[1]").value("stock"))
+            .andExpect(jsonPath("$.notes[1].id").value(olderNote.publicId().toString()))
             .andExpect(jsonPath("$.notes[1].title").value("Older behavioural modelling"))
             .andExpect(jsonPath("$.notes[1].overview").value("This older note has no structured children."))
             .andExpect(jsonPath("$.notes[1].keypoints", hasSize(0)))
@@ -120,19 +124,20 @@ class NotesListIntegrationTest extends PostgresIntegrationTest {
     void listNotesDoesNotReturnNotesOwnedByOtherUsers() throws Exception {
         TestUser currentUser = register("Kenneth", "kenneth@example.com");
         TestUser otherUser = register("Ada", "ada@example.com");
-        Long visibleNoteId = createNote(
+        TestNote visibleNote = createNote(
             currentUser.id(),
             "Current user's notes",
             "Only this note should be visible.",
             "2026-01-02 09:00:00"
         );
         createNote(otherUser.id(), "Other user's notes", "This note must not leak.", "2026-01-03 09:00:00");
-        createKeypoint(visibleNoteId, 0, "Visible keypoint");
+        createKeypoint(visibleNote.id(), 0, "Visible keypoint");
 
         mockMvc.perform(get(LIST_ENDPOINT)
                 .header(HttpHeaders.AUTHORIZATION, bearer(currentUser.accessToken())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.notes", hasSize(1)))
+            .andExpect(jsonPath("$.notes[0].id").value(visibleNote.publicId().toString()))
             .andExpect(jsonPath("$.notes[0].title").value("Current user's notes"))
             .andExpect(jsonPath("$.notes[0].overview").value("Only this note should be visible."))
             .andExpect(jsonPath("$.notes[0].keypoints[0]").value("Visible keypoint"));
@@ -169,20 +174,24 @@ class NotesListIntegrationTest extends PostgresIntegrationTest {
         return new TestUser(userId, accessToken);
     }
 
-    private Long createNote(Long userId, String title, String overview, String createdAt) {
-        return jdbcTemplate.queryForObject(
+    private TestNote createNote(Long userId, String title, String overview, String createdAt) {
+        UUID publicId = UUID.randomUUID();
+        Long id = jdbcTemplate.queryForObject(
             """
-            INSERT INTO note (user_id, title, overview, created_at, updated_at)
-            VALUES (?, ?, ?, ?::timestamp, ?::timestamp)
+            INSERT INTO note (user_id, public_id, title, overview, created_at, updated_at)
+            VALUES (?, ?::uuid, ?, ?, ?::timestamp, ?::timestamp)
             RETURNING id
             """,
             Long.class,
             userId,
+            publicId,
             title,
             overview,
             createdAt,
             createdAt
         );
+
+        return new TestNote(id, publicId);
     }
 
     private void createKeypoint(Long noteId, int position, String keypoint) {
@@ -220,5 +229,10 @@ class NotesListIntegrationTest extends PostgresIntegrationTest {
     private record TestUser(
         Long id,
         String accessToken
+    ) {}
+
+    private record TestNote(
+        Long id,
+        UUID publicId
     ) {}
 }

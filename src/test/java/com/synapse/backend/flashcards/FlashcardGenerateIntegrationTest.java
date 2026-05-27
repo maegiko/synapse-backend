@@ -69,12 +69,12 @@ class FlashcardGenerateIntegrationTest extends PostgresIntegrationTest {
     void generateFlashcardsReturnsGeneratedCardsAndSavesDeckAndCardsToDatabase() throws Exception {
         when(llmClient.generate(any(LLMRequest.class))).thenReturn(validFlashcardJson());
         TestUser user = register("Kenneth", "kenneth@example.com");
-        Long noteId = createNote(user.id(), "Biology notes", "An overview of cells.");
-        createConcept(noteId, 0, "Cell", "The basic unit of life.");
+        TestNote note = createNote(user.id(), "Biology notes", "An overview of cells.");
+        createConcept(note.id(), 0, "Cell", "The basic unit of life.");
 
         MvcResult result = mockMvc.perform(post(GENERATE_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new FlashcardGenerateNoteRequest(noteId)))
+                .content(objectMapper.writeValueAsString(new FlashcardGenerateNoteRequest(note.publicId())))
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deckId").isString())
@@ -94,14 +94,14 @@ class FlashcardGenerateIntegrationTest extends PostgresIntegrationTest {
 
         Map<String, Object> deck = jdbcTemplate.queryForMap(
             "SELECT id, public_id, user_id, note_id, title, source_type FROM flashcard_deck WHERE note_id = ?",
-            noteId
+            note.id()
         );
         Long deckId = ((Number) deck.get("id")).longValue();
 
         assertEquals(deck.get("public_id").toString(), responseDeckId);
         UUID.fromString(responseDeckId);
         assertEquals(user.id(), deck.get("user_id"));
-        assertEquals(noteId, deck.get("note_id"));
+        assertEquals(note.id(), deck.get("note_id"));
         assertEquals("Biology notes", deck.get("title"));
         assertEquals("NOTE", deck.get("source_type"));
 
@@ -132,11 +132,11 @@ class FlashcardGenerateIntegrationTest extends PostgresIntegrationTest {
     void generateFlashcardsReturnsNotFoundAndDoesNotCallLlmWhenNoteBelongsToAnotherUser() throws Exception {
         TestUser currentUser = register("Kenneth", "kenneth@example.com");
         TestUser otherUser = register("Ada", "ada@example.com");
-        Long otherUsersNoteId = createNote(otherUser.id(), "Private note", "This should stay private.");
+        TestNote otherUsersNote = createNote(otherUser.id(), "Private note", "This should stay private.");
 
         mockMvc.perform(post(GENERATE_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new FlashcardGenerateNoteRequest(otherUsersNoteId)))
+                .content(objectMapper.writeValueAsString(new FlashcardGenerateNoteRequest(otherUsersNote.publicId())))
                 .header(HttpHeaders.AUTHORIZATION, bearer(currentUser.accessToken())))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.message").value("Requested note not found."));
@@ -149,11 +149,11 @@ class FlashcardGenerateIntegrationTest extends PostgresIntegrationTest {
     void generateFlashcardsReturnsBadGatewayAndDoesNotSaveWhenLlmResponseIsInvalid() throws Exception {
         when(llmClient.generate(any(LLMRequest.class))).thenReturn("not json");
         TestUser user = register("Kenneth", "kenneth@example.com");
-        Long noteId = createNote(user.id(), "Biology notes", "An overview of cells.");
+        TestNote note = createNote(user.id(), "Biology notes", "An overview of cells.");
 
         mockMvc.perform(post(GENERATE_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new FlashcardGenerateNoteRequest(noteId)))
+                .content(objectMapper.writeValueAsString(new FlashcardGenerateNoteRequest(note.publicId())))
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isBadGateway())
             .andExpect(jsonPath("$.message").value("Failed to parse LLM response"));
@@ -165,7 +165,9 @@ class FlashcardGenerateIntegrationTest extends PostgresIntegrationTest {
     void generateFlashcardsReturnsUnauthorizedWhenTokenIsMissing() throws Exception {
         mockMvc.perform(post(GENERATE_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new FlashcardGenerateNoteRequest(1L))))
+                .content(objectMapper.writeValueAsString(new FlashcardGenerateNoteRequest(
+                    UUID.fromString("00000000-0000-0000-0000-000000000001")
+                ))))
             .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(llmClient);
@@ -190,18 +192,22 @@ class FlashcardGenerateIntegrationTest extends PostgresIntegrationTest {
         return new TestUser(userId, accessToken);
     }
 
-    private Long createNote(Long userId, String title, String overview) {
-        return jdbcTemplate.queryForObject(
+    private TestNote createNote(Long userId, String title, String overview) {
+        UUID publicId = UUID.randomUUID();
+        Long id = jdbcTemplate.queryForObject(
             """
-            INSERT INTO note (user_id, title, overview)
-            VALUES (?, ?, ?)
+            INSERT INTO note (user_id, public_id, title, overview)
+            VALUES (?, ?::uuid, ?, ?)
             RETURNING id
             """,
             Long.class,
             userId,
+            publicId,
             title,
             overview
         );
+
+        return new TestNote(id, publicId);
     }
 
     private void createConcept(Long noteId, int position, String name, String explanation) {
@@ -263,5 +269,10 @@ class FlashcardGenerateIntegrationTest extends PostgresIntegrationTest {
     private record TestUser(
         Long id,
         String accessToken
+    ) {}
+
+    private record TestNote(
+        Long id,
+        UUID publicId
     ) {}
 }

@@ -10,6 +10,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.util.UUID;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -64,21 +67,21 @@ class NotesGetIntegrationTest extends PostgresIntegrationTest {
     void getNoteReturnsTheRequestedNoteForCurrentUser() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
         createNote(user.id(), "First note", "This note should not be returned.", "2026-01-01 09:00:00");
-        Long requestedNoteId = createNote(
+        TestNote requestedNote = createNote(
             user.id(),
             "Requested note",
             "This is the requested note.",
             "2026-01-02 09:00:00"
         );
-        createKeypoint(requestedNoteId, 1, "Second keypoint.");
-        createKeypoint(requestedNoteId, 0, "First keypoint.");
-        createConcept(requestedNoteId, 0, "Concept", "Concept explanation.");
-        createImportantTerm(requestedNoteId, 0, "term");
+        createKeypoint(requestedNote.id(), 1, "Second keypoint.");
+        createKeypoint(requestedNote.id(), 0, "First keypoint.");
+        createConcept(requestedNote.id(), 0, "Concept", "Concept explanation.");
+        createImportantTerm(requestedNote.id(), 0, "term");
 
-        mockMvc.perform(get(NOTES_ENDPOINT + requestedNoteId)
+        mockMvc.perform(get(NOTES_ENDPOINT + requestedNote.publicId())
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.id").value(requestedNoteId))
+            .andExpect(jsonPath("$.id").value(requestedNote.publicId().toString()))
             .andExpect(jsonPath("$.title").value("Requested note"))
             .andExpect(jsonPath("$.overview").value("This is the requested note."))
             .andExpect(jsonPath("$.keypoints", hasSize(2)))
@@ -93,14 +96,14 @@ class NotesGetIntegrationTest extends PostgresIntegrationTest {
     void getNoteReturnsNotFoundForAnotherUsersNote() throws Exception {
         TestUser currentUser = register("Kenneth", "kenneth@example.com");
         TestUser otherUser = register("Ada", "ada@example.com");
-        Long otherUsersNoteId = createNote(
+        TestNote otherUsersNote = createNote(
             otherUser.id(),
             "Other user's note",
             "This note must not be visible.",
             "2026-01-01 09:00:00"
         );
 
-        mockMvc.perform(get(NOTES_ENDPOINT + otherUsersNoteId)
+        mockMvc.perform(get(NOTES_ENDPOINT + otherUsersNote.publicId())
                 .header(HttpHeaders.AUTHORIZATION, bearer(currentUser.accessToken())))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.message").value("Requested note not found."));
@@ -109,8 +112,9 @@ class NotesGetIntegrationTest extends PostgresIntegrationTest {
     @Test
     void getNoteReturnsNotFoundWhenNoteDoesNotExist() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
+        UUID missingNoteId = UUID.fromString("00000000-0000-0000-0000-000000009999");
 
-        mockMvc.perform(get(NOTES_ENDPOINT + 999_999L)
+        mockMvc.perform(get(NOTES_ENDPOINT + missingNoteId)
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.message").value("Requested note not found."));
@@ -118,7 +122,7 @@ class NotesGetIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void getNoteReturnsUnauthorizedWhenTokenIsMissing() throws Exception {
-        mockMvc.perform(get(NOTES_ENDPOINT + 1L))
+        mockMvc.perform(get(NOTES_ENDPOINT + UUID.fromString("00000000-0000-0000-0000-000000000001")))
             .andExpect(status().isUnauthorized());
     }
 
@@ -140,20 +144,24 @@ class NotesGetIntegrationTest extends PostgresIntegrationTest {
         return new TestUser(userId, accessToken);
     }
 
-    private Long createNote(Long userId, String title, String overview, String createdAt) {
-        return jdbcTemplate.queryForObject(
+    private TestNote createNote(Long userId, String title, String overview, String createdAt) {
+        UUID publicId = UUID.randomUUID();
+        Long id = jdbcTemplate.queryForObject(
             """
-            INSERT INTO note (user_id, title, overview, created_at, updated_at)
-            VALUES (?, ?, ?, ?::timestamp, ?::timestamp)
+            INSERT INTO note (user_id, public_id, title, overview, created_at, updated_at)
+            VALUES (?, ?::uuid, ?, ?, ?::timestamp, ?::timestamp)
             RETURNING id
             """,
             Long.class,
             userId,
+            publicId,
             title,
             overview,
             createdAt,
             createdAt
         );
+
+        return new TestNote(id, publicId);
     }
 
     private void createKeypoint(Long noteId, int position, String keypoint) {
@@ -191,5 +199,10 @@ class NotesGetIntegrationTest extends PostgresIntegrationTest {
     private record TestUser(
         Long id,
         String accessToken
+    ) {}
+
+    private record TestNote(
+        Long id,
+        UUID publicId
     ) {}
 }
