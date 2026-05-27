@@ -3,6 +3,7 @@ package com.synapse.backend.notes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -48,7 +49,7 @@ public class NotesPersistenceService {
      */
     @Transactional
     public void saveNoteSummary(NoteSummaryResponse summary, Long userId) {
-        Note note = new Note(userId, summary.title(), summary.overview());
+        Note note = new Note(userId, summary.title(), summary.overview(), UUID.randomUUID());
 
         Note newNote = noteRepository.save(note);
 
@@ -166,7 +167,7 @@ public class NotesPersistenceService {
                 .toList();
 
             allNotes.add(new NoteSummaryResponse(
-                note.getId(),
+                note.getPublicId(),
                 note.getTitle(),
                 note.getOverview(),
                 noteKeypoints,
@@ -186,14 +187,14 @@ public class NotesPersistenceService {
      * @return the note belonging to the user of a given noteId.
      * @throws NoteNotFoundException if a note with noteId belonging to user with userId does not exist.
      */
-    public NoteSummaryResponse getNoteSummary(Long noteId, Long userId) {
+    public NoteSummaryResponse getNoteSummary(UUID noteId, Long userId) {
         Note note = noteRepository
-            .findByIdAndUserId(noteId, userId)
+            .findByPublicIdAndUserId(noteId, userId)
             .orElseThrow(() -> new NoteNotFoundException("Requested note not found."));
 
-        List<NoteConcept> concepts = noteConceptRepository.findByNoteIdOrderByPositionAsc(noteId);
-        List<NoteKeypoint> keypoints = noteKeypointRepository.findByNoteIdOrderByPositionAsc(noteId);
-        List<NoteImportantTerm> importantTerms = noteImportantTermRepository.findByNoteIdOrderByPositionAsc(noteId);
+        List<NoteConcept> concepts = noteConceptRepository.findByNoteIdOrderByPositionAsc(note.getId());
+        List<NoteKeypoint> keypoints = noteKeypointRepository.findByNoteIdOrderByPositionAsc(note.getId());
+        List<NoteImportantTerm> importantTerms = noteImportantTermRepository.findByNoteIdOrderByPositionAsc(note.getId());
 
         List<String> noteKeypoints = keypoints.stream().map(k -> k.getKeypoint()).toList();
         List<ConceptSummary> noteConcepts = concepts
@@ -203,7 +204,7 @@ public class NotesPersistenceService {
         List<String> noteImportantTerms = importantTerms.stream().map(t -> t.getTerm()).toList();
 
         return new NoteSummaryResponse(
-            note.getId(),
+            note.getPublicId(),
             note.getTitle(),
             note.getOverview(),
             noteKeypoints,

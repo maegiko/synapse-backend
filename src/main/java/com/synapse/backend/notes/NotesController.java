@@ -14,6 +14,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
+import java.util.UUID;
+
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -106,7 +108,7 @@ public class NotesController {
             )
         }
     )
-    public ResponseEntity<NoteSummaryResponse> getNote(@PathVariable("id") Long noteId, @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<NoteSummaryResponse> getNote(@PathVariable("id") UUID noteId, @AuthenticationPrincipal Jwt jwt) {
         Long userId = Long.valueOf(jwt.getSubject());
         NoteSummaryResponse res = notesService.getNoteSummary(noteId, userId);
 
