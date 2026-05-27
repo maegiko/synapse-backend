@@ -11,6 +11,7 @@ import com.synapse.backend.ai.exceptions.LLMResponseParsingException;
 import com.synapse.backend.ai.prompts.FlashcardGeneratePromptFactory;
 import com.synapse.backend.flashcards.dto.FlashcardGenerateListResponse;
 import com.synapse.backend.flashcards.dto.FlashcardGenerateResponse;
+import com.synapse.backend.flashcards.dto.FlashcardResponse;
 import com.synapse.backend.notes.NotesService;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
 
@@ -45,10 +46,10 @@ public class FlashcardService {
      * @param userId the id of the currently authenticated user.
      * @return the newly created list of flashcards.
      */
-    public FlashcardGenerateListResponse generateFlashCards(Long noteId, Long userId) {
+    public FlashcardGenerateResponse generateFlashCards(Long noteId, Long userId) {
         NoteSummaryResponse note = notesService.getNoteSummary(noteId, userId);
 
-        List<FlashcardGenerateResponse> flashcards = getBasicFlashcardsFromNote(note);
+        List<FlashcardResponse> flashcards = getBasicFlashcardsFromNote(note);
 
         LLMRequest req = new LLMRequest(
             "meta-llama/llama-4-scout-17b-16e-instruct",
@@ -68,21 +69,22 @@ public class FlashcardService {
 
             flashcards.addAll(generatedFlashcards.flashcards());
 
-            persistenceService.saveFlashcardFromNote(flashcards, userId, note);
+            Long deckId = persistenceService.saveFlashcardFromNote(flashcards, userId, note);
 
-            return new FlashcardGenerateListResponse(flashcards);
+            return new FlashcardGenerateResponse(deckId, flashcards);
         } catch (JacksonException e) {
             throw new LLMResponseParsingException("Failed to parse LLM response");
         }
     }
 
-    private List<FlashcardGenerateResponse> getBasicFlashcardsFromNote(NoteSummaryResponse note) {
+    private List<FlashcardResponse> getBasicFlashcardsFromNote(NoteSummaryResponse note) {
         return new ArrayList<>(
             note.concepts()
                 .stream()
-                .map(c -> new FlashcardGenerateResponse(c.name(), c.explanation()))
+                .map(c -> new FlashcardResponse(c.name(), c.explanation()))
                 .toList()
         );
     }
+
 
 }
