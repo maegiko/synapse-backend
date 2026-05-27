@@ -1,6 +1,8 @@
 package com.synapse.backend.flashcards.dto;
 
+import java.util.List;
+
 public record FlashcardGenerateResponse(
-    String title,
-    String answer
+    Long deckId,
+    List<FlashcardResponse> flashcards
 ) {}
