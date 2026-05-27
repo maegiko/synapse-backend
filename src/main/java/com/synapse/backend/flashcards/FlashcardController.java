@@ -22,6 +22,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
@@ -120,6 +121,31 @@ public class FlashcardController {
         SingleDeckResponse res = persistenceService.getSingleFlashcardDeck(deckId, userId);
 
         return ResponseEntity.ok(res);
+    }
+
+    @DeleteMapping("{deckId}")
+    @Operation(
+        summary = "Delete a flashcard deck",
+        description = "Deletes a flashcard deck owned by the currently authenticated user.",
+        responses = {
+            @ApiResponse(responseCode = "204", description = "Successful deletion of flashcard deck"),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Flashcard deck not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
+    public ResponseEntity<Void> deleteDeck(@PathVariable UUID deckId, @AuthenticationPrincipal Jwt jwt) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        persistenceService.deleteDeck(deckId, userId);
+
+        return ResponseEntity.noContent().build();
     }
 
 }
