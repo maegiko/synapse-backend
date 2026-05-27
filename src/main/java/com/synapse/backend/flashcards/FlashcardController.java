@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateNoteRequest;
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateResponse;
 import com.synapse.backend.flashcards.dto.list.FlashcardListResponse;
+import com.synapse.backend.flashcards.dto.list.SingleDeckResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -14,21 +15,26 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 
+import java.util.UUID;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 
 @RestController
 @RequestMapping("/api/flashcards")
 @SecurityRequirement(name = "bearerAuth")
 public class FlashcardController {
     private final FlashcardService flashcardService;
+    private final FlashcardPersistenceService persistenceService;
 
-    public FlashcardController(FlashcardService flashcardService) {
+    public FlashcardController(FlashcardService flashcardService, FlashcardPersistenceService persistenceService) {
         this.flashcardService = flashcardService;
+        this.persistenceService = persistenceService;
     }
 
     @PostMapping("/generate")
@@ -61,7 +67,8 @@ public class FlashcardController {
         }
     )
     public ResponseEntity<FlashcardGenerateResponse> generateFlashcards(
-            @Valid @RequestBody FlashcardGenerateNoteRequest request, @AuthenticationPrincipal Jwt jwt) {
+            @Valid @RequestBody FlashcardGenerateNoteRequest request, @AuthenticationPrincipal Jwt jwt
+    ) {
         Long userId = Long.valueOf(jwt.getSubject());
         FlashcardGenerateResponse res = flashcardService.generateFlashCards(request.noteId(), userId);
 
@@ -83,7 +90,34 @@ public class FlashcardController {
     )
     public ResponseEntity<FlashcardListResponse> getAllFlashcards(@AuthenticationPrincipal Jwt jwt) {
         Long userId = Long.valueOf(jwt.getSubject());
-        FlashcardListResponse res = flashcardService.getAllFlashcards(userId);
+        FlashcardListResponse res = persistenceService.getAllFlashcards(userId);
+
+        return ResponseEntity.ok(res);
+    }
+
+    @GetMapping("{deckId}")
+    @Operation(
+        summary = "Get a single flashcard deck",
+        description = "Gets a single flashcard deck owned by the currently authenticated user.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Successful retrieval of flashcard deck"),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Flashcard deck not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
+    public ResponseEntity<SingleDeckResponse> getSingleFlashcardDeck(
+        @PathVariable UUID deckId, @AuthenticationPrincipal Jwt jwt
+    ) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        SingleDeckResponse res = persistenceService.getSingleFlashcardDeck(deckId, userId);
 
         return ResponseEntity.ok(res);
     }
