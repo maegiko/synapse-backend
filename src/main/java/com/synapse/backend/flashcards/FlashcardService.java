@@ -43,7 +43,7 @@ public class FlashcardService {
      * Create and generates a list of flashcards from a note and saves each flashcard to the DB.
      * @param noteId the id of the note to generate flashcards from.
      * @param userId the id of the currently authenticated user.
-     * @return
+     * @return the newly created list of flashcards.
      */
     public FlashcardGenerateListResponse generateFlashCards(Long noteId, Long userId) {
         NoteSummaryResponse note = notesService.getNoteSummary(noteId, userId);
