@@ -13,8 +13,12 @@ import com.synapse.backend.ai.prompts.FlashcardGeneratePromptFactory;
 import com.synapse.backend.flashcards.dto.FlashcardResponse;
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateListResponse;
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateResponse;
+import com.synapse.backend.flashcards.dto.generate.FlashcardSourceNote;
 import com.synapse.backend.notes.NotesService;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
+import com.synapse.backend.notes.entities.Note;
+import com.synapse.backend.notes.exceptions.NoteNotFoundException;
+import com.synapse.backend.notes.repositories.NoteRepository;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
@@ -22,6 +26,7 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class FlashcardService {
     private final NotesService notesService;
+    private final NoteRepository notesRepository;
     private final LLMClient llmClient;
     private final ObjectMapper objectMapper;
     private final FlashcardGeneratePromptFactory promptFactory;
@@ -29,12 +34,14 @@ public class FlashcardService {
 
     public FlashcardService(
         NotesService notesService,
+        NoteRepository noteRepository,
         LLMClient llmClient,
         ObjectMapper objectMapper,
         FlashcardGeneratePromptFactory promptFactory,
         FlashcardPersistenceService persistenceService
     ) {
         this.notesService = notesService;
+        this.notesRepository = noteRepository;
         this.llmClient = llmClient;
         this.objectMapper = objectMapper;
         this.promptFactory = promptFactory;
@@ -48,8 +55,11 @@ public class FlashcardService {
      * @param userId the id of the currently authenticated user.
      * @return the newly created list of flashcards.
      */
-    public FlashcardGenerateResponse generateFlashCards(Long noteId, Long userId) {
+    public FlashcardGenerateResponse generateFlashCards(UUID noteId, Long userId) {
         NoteSummaryResponse note = notesService.getNoteSummary(noteId, userId);
+        Note noteData = notesRepository
+            .findByPublicIdAndUserId(noteId, userId)
+            .orElseThrow(() -> new NoteNotFoundException("Requested note not found."));
 
         List<FlashcardResponse> flashcards = getBasicFlashcardsFromNote(note);
 
@@ -71,7 +81,8 @@ public class FlashcardService {
 
             flashcards.addAll(generatedFlashcards.flashcards());
 
-            UUID deckId = persistenceService.saveFlashcardFromNote(flashcards, userId, note);
+            UUID deckId = persistenceService
+                .saveFlashcardFromNote(flashcards, userId, new FlashcardSourceNote(noteData.getId(), noteData.getTitle()));
 
             return new FlashcardGenerateResponse(deckId, flashcards);
         } catch (JacksonException e) {
