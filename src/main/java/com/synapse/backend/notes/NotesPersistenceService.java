@@ -213,4 +213,18 @@ public class NotesPersistenceService {
         );
     }
 
+    /**
+     * Deletes a note and all its contents.
+     * @param noteId the public id of the note.
+     * @param userId the id of the currently authenticated user.
+     * @throws NoteNotFound if the note doesn't exist.
+     */
+    @Transactional
+    public void deleteNote(UUID noteId, Long userId) {
+        long isDeleted = noteRepository.deleteByPublicIdAndUserId(noteId, userId);
+
+        if (isDeleted == 0)
+            throw new NoteNotFoundException("Note could not be found: " + noteId);
+    }
+
 }
