@@ -5,7 +5,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import com.synapse.backend.flashcards.dto.FlashcardGenerateResponse;
+import com.synapse.backend.flashcards.dto.FlashcardResponse;
 import com.synapse.backend.flashcards.entities.Flashcard;
 import com.synapse.backend.flashcards.entities.FlashcardDeck;
 import com.synapse.backend.flashcards.repositories.FlashcardDeckRepository;
@@ -32,10 +32,12 @@ public class FlashcardPersistenceService {
      * @param flashcards list of flashcards to save.
      * @param userId the id of the currently authenticated user.
      * @param note the note that the flashcards were generated from.
+     * @return the deck id if available, else null.
      */
     @Transactional
-    public void saveFlashcardFromNote(List<FlashcardGenerateResponse> flashcards, Long userId, NoteSummaryResponse note) {
-        if (flashcards == null) return;
+    public Long saveFlashcardFromNote(List<FlashcardResponse> flashcards, Long userId, NoteSummaryResponse note) {
+        if (flashcards == null)
+            return null;
 
         FlashcardDeck flashcardDeck = new FlashcardDeck(userId, note.id(), note.title(), "NOTE");
         FlashcardDeck newFlashcardDeck = flashcardDeckRepository.save(flashcardDeck);
@@ -43,11 +45,13 @@ public class FlashcardPersistenceService {
         List<Flashcard> newFlashcards = new ArrayList<>();
 
         for (int i = 0; i < flashcards.size(); i++) {
-            FlashcardGenerateResponse flashcard = flashcards.get(i);
+            FlashcardResponse flashcard = flashcards.get(i);
             newFlashcards.add(new Flashcard(newFlashcardDeck.getId(), flashcard.title(), flashcard.answer(), i));
         }
 
         flashcardRepository.saveAll(newFlashcards);
+
+        return newFlashcardDeck.getId();
     }
 
 }
