@@ -16,4 +16,6 @@ public interface FlashcardDeckRepository extends JpaRepository<FlashcardDeck, Lo
 
     Optional<FlashcardDeck> findByPublicIdAndUserId(UUID publicId, Long userId);
 
+    long deleteByPublicIdAndUserId(UUID publicId, Long userId);
+
 }
