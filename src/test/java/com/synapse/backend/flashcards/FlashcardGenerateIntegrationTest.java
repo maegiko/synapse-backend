@@ -71,18 +71,25 @@ class FlashcardGenerateIntegrationTest extends PostgresIntegrationTest {
         Long noteId = createNote(user.id(), "Biology notes", "An overview of cells.");
         createConcept(noteId, 0, "Cell", "The basic unit of life.");
 
-        mockMvc.perform(post(GENERATE_ENDPOINT)
+        MvcResult result = mockMvc.perform(post(GENERATE_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new FlashcardGenerateNoteRequest(noteId)))
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deckId").isNumber())
             .andExpect(jsonPath("$.flashcards", hasSize(3)))
             .andExpect(jsonPath("$.flashcards[0].title").value("Cell"))
             .andExpect(jsonPath("$.flashcards[0].answer").value("The basic unit of life."))
             .andExpect(jsonPath("$.flashcards[1].title").value("Mitochondria"))
             .andExpect(jsonPath("$.flashcards[1].answer").value("The organelle that releases energy for the cell."))
             .andExpect(jsonPath("$.flashcards[2].title").value("Nucleus"))
-            .andExpect(jsonPath("$.flashcards[2].answer").value("The organelle that stores genetic material."));
+            .andExpect(jsonPath("$.flashcards[2].answer").value("The organelle that stores genetic material."))
+            .andReturn();
+
+        Long responseDeckId = objectMapper
+            .readTree(result.getResponse().getContentAsString())
+            .get("deckId")
+            .asLong();
 
         Map<String, Object> deck = jdbcTemplate.queryForMap(
             "SELECT id, user_id, note_id, title, source_type FROM flashcard_deck WHERE note_id = ?",
@@ -90,6 +97,7 @@ class FlashcardGenerateIntegrationTest extends PostgresIntegrationTest {
         );
         Long deckId = ((Number) deck.get("id")).longValue();
 
+        assertEquals(deckId, responseDeckId);
         assertEquals(user.id(), deck.get("user_id"));
         assertEquals(noteId, deck.get("note_id"));
         assertEquals("Biology notes", deck.get("title"));
