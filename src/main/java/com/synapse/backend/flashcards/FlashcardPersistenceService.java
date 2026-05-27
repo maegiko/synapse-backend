@@ -9,11 +9,12 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 import com.synapse.backend.flashcards.dto.FlashcardResponse;
-import com.synapse.backend.flashcards.dto.list.DeckListResponse;
 import com.synapse.backend.flashcards.dto.list.FlashcardListResponse;
 import com.synapse.backend.flashcards.dto.list.FlashcardWithIdResponse;
+import com.synapse.backend.flashcards.dto.list.SingleDeckResponse;
 import com.synapse.backend.flashcards.entities.Flashcard;
 import com.synapse.backend.flashcards.entities.FlashcardDeck;
+import com.synapse.backend.flashcards.exceptions.DeckNotFound;
 import com.synapse.backend.flashcards.repositories.FlashcardDeckRepository;
 import com.synapse.backend.flashcards.repositories.FlashcardRepository;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
@@ -34,7 +35,8 @@ public class FlashcardPersistenceService {
     }
 
     /**
-     * Saves a flashcard generated from a note summary to the DB.
+     * Saves a deck and flashcards generated from a note summary to the DB.
+     *
      * @param flashcards list of flashcards to save.
      * @param userId the id of the currently authenticated user.
      * @param note the note that the flashcards were generated from.
@@ -66,6 +68,7 @@ public class FlashcardPersistenceService {
 
     /**
      * Returns all flashcards owned by user, sorted by deck.
+     *
      * @param userId the id of the currently authenticated user.
      * @return a list of all flashcard decks and cards owned by the user.
      */
@@ -77,7 +80,7 @@ public class FlashcardPersistenceService {
             .stream()
             .collect(Collectors.groupingBy(Flashcard::getDeckId));
 
-        List<DeckListResponse> flashcardList = new ArrayList<>();
+        List<SingleDeckResponse> flashcardList = new ArrayList<>();
 
         for (FlashcardDeck deck : decks) {
             List<FlashcardWithIdResponse> cards = flashcards
@@ -87,11 +90,33 @@ public class FlashcardPersistenceService {
                 .toList();
 
             flashcardList.add(
-                new DeckListResponse(deck.getPublicId(), cards)
+                new SingleDeckResponse(deck.getPublicId(), cards)
             );
         }
 
         return new FlashcardListResponse(flashcardList);
+    }
+
+    /**
+     * Returns a single deck of flashcards.
+     * @param publicId the public id of the flashcard deck.
+     * @param userId the id of the currently authenticated user.
+     * @return a deck id and a list of flashcards in the deck.
+     * @throws DeckNotFound if a deck with a given public deck id doesn't exist for this user.
+     */
+    public SingleDeckResponse getSingleFlashcardDeck(UUID publicId, Long userId) {
+        FlashcardDeck deck = flashcardDeckRepository
+            .findByPublicIdAndUserId(publicId, userId)
+            .orElseThrow(() -> new DeckNotFound("Flashcard deck not found: " + publicId));
+
+        List<Flashcard> flashcards = flashcardRepository.findByDeckIdOrderByPositionAsc(deck.getId());
+
+        List<FlashcardWithIdResponse> flashcardList = flashcards
+                .stream()
+                .map(f -> new FlashcardWithIdResponse(f.getPublicId(), f.getQuestion(), f.getAnswer()))
+                .toList();
+
+        return new SingleDeckResponse(publicId, flashcardList);
     }
 
 }
