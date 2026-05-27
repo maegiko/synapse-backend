@@ -2,6 +2,7 @@ package com.synapse.backend.flashcards;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
@@ -9,9 +10,10 @@ import com.synapse.backend.ai.clients.LLMClient;
 import com.synapse.backend.ai.clients.dto.LLMRequest;
 import com.synapse.backend.ai.exceptions.LLMResponseParsingException;
 import com.synapse.backend.ai.prompts.FlashcardGeneratePromptFactory;
-import com.synapse.backend.flashcards.dto.FlashcardGenerateListResponse;
-import com.synapse.backend.flashcards.dto.FlashcardGenerateResponse;
 import com.synapse.backend.flashcards.dto.FlashcardResponse;
+import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateListResponse;
+import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateResponse;
+import com.synapse.backend.flashcards.dto.list.FlashcardListResponse;
 import com.synapse.backend.notes.NotesService;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
 
@@ -69,7 +71,7 @@ public class FlashcardService {
 
             flashcards.addAll(generatedFlashcards.flashcards());
 
-            Long deckId = persistenceService.saveFlashcardFromNote(flashcards, userId, note);
+            UUID deckId = persistenceService.saveFlashcardFromNote(flashcards, userId, note);
 
             return new FlashcardGenerateResponse(deckId, flashcards);
         } catch (JacksonException e) {
@@ -86,5 +88,8 @@ public class FlashcardService {
         );
     }
 
+    public FlashcardListResponse getAllFlashcards(Long userId) {
+        return persistenceService.getAllFlashcards(userId);
+    }
 
 }
