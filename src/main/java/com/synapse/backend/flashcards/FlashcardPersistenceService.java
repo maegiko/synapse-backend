@@ -119,4 +119,18 @@ public class FlashcardPersistenceService {
         return new SingleDeckResponse(publicId, flashcardList);
     }
 
+    /**
+     * Deletes a deck and all its flashcards from the DB.
+     * @param publicId the public id of the deck.
+     * @param userId the id of the currently authenticated user.
+     * @throws DeckNotFound if the deck doesn't exist.
+     */
+    @Transactional
+    public void deleteDeck(UUID publicId, Long userId) {
+        long isDeleted = flashcardDeckRepository.deleteByPublicIdAndUserId(publicId, userId);
+
+        if (isDeleted == 0)
+            throw new DeckNotFound("Flashcard deck not found: " + publicId);
+    }
+
 }
