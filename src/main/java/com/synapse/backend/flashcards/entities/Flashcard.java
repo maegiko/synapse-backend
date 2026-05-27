@@ -1,6 +1,7 @@
 package com.synapse.backend.flashcards.entities;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -29,6 +30,9 @@ public class Flashcard {
     @Column(nullable = false)
     private Integer position;
 
+    @Column(name = "public_id", nullable = false, unique = true)
+    private UUID publicId;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -37,11 +41,12 @@ public class Flashcard {
 
     protected Flashcard() {}
 
-    public Flashcard(Long deckId, String question, String answer, Integer position) {
+    public Flashcard(Long deckId, String question, String answer, Integer position, UUID publicId) {
         this.deckId = deckId;
         this.question = question;
         this.answer = answer;
         this.position = position;
+        this.publicId = publicId;
     }
 
     public Long getDeckId() {
@@ -58,6 +63,10 @@ public class Flashcard {
 
     public Integer getPosition() {
         return position;
+    }
+
+    public UUID getPublicId() {
+        return publicId;
     }
 
 }
