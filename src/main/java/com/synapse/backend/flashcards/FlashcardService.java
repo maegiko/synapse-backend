@@ -39,15 +39,16 @@ public class FlashcardService {
         this.persistenceService = persistenceService;
     }
 
+    /**
+     * Create and generates a list of flashcards from a note and saves each flashcard to the DB.
+     * @param noteId the id of the note to generate flashcards from.
+     * @param userId the id of the currently authenticated user.
+     * @return
+     */
     public FlashcardGenerateListResponse generateFlashCards(Long noteId, Long userId) {
         NoteSummaryResponse note = notesService.getNoteSummary(noteId, userId);
 
-        List<FlashcardGenerateResponse> flashcards = new ArrayList<>(
-            note.concepts()
-                .stream()
-                .map(c -> new FlashcardGenerateResponse(c.name(), c.explanation()))
-                .toList()
-        );
+        List<FlashcardGenerateResponse> flashcards = getBasicFlashcardsFromNote(note);
 
         LLMRequest req = new LLMRequest(
             "meta-llama/llama-4-scout-17b-16e-instruct",
@@ -73,6 +74,15 @@ public class FlashcardService {
         } catch (JacksonException e) {
             throw new LLMResponseParsingException("Failed to parse LLM response");
         }
+    }
+
+    private List<FlashcardGenerateResponse> getBasicFlashcardsFromNote(NoteSummaryResponse note) {
+        return new ArrayList<>(
+            note.concepts()
+                .stream()
+                .map(c -> new FlashcardGenerateResponse(c.name(), c.explanation()))
+                .toList()
+        );
     }
 
 }
