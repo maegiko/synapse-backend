@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 import com.synapse.backend.flashcards.dto.FlashcardResponse;
+import com.synapse.backend.flashcards.dto.generate.FlashcardSourceNote;
 import com.synapse.backend.flashcards.dto.list.FlashcardListResponse;
 import com.synapse.backend.flashcards.dto.list.FlashcardWithIdResponse;
 import com.synapse.backend.flashcards.dto.list.SingleDeckResponse;
@@ -17,7 +18,6 @@ import com.synapse.backend.flashcards.entities.FlashcardDeck;
 import com.synapse.backend.flashcards.exceptions.DeckNotFound;
 import com.synapse.backend.flashcards.repositories.FlashcardDeckRepository;
 import com.synapse.backend.flashcards.repositories.FlashcardRepository;
-import com.synapse.backend.notes.dto.NoteSummaryResponse;
 
 import jakarta.transaction.Transactional;
 
@@ -43,7 +43,7 @@ public class FlashcardPersistenceService {
      * @return the deck id if available, else null.
      */
     @Transactional
-    public UUID saveFlashcardFromNote(List<FlashcardResponse> flashcards, Long userId, NoteSummaryResponse note) {
+    public UUID saveFlashcardFromNote(List<FlashcardResponse> flashcards, Long userId, FlashcardSourceNote note) {
         if (flashcards == null)
             return null;
 
