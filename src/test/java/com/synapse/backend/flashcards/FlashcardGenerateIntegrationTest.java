@@ -31,7 +31,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import com.synapse.backend.ai.clients.LLMClient;
 import com.synapse.backend.ai.clients.dto.LLMRequest;
 import com.synapse.backend.auth.dto.RegisterRequest;
-import com.synapse.backend.flashcards.dto.FlashcardGenerateNoteRequest;
+import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateNoteRequest;
 import com.synapse.backend.support.PostgresIntegrationTest;
 
 import tools.jackson.databind.ObjectMapper;
