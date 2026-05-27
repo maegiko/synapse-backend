@@ -13,7 +13,6 @@ import com.synapse.backend.ai.prompts.FlashcardGeneratePromptFactory;
 import com.synapse.backend.flashcards.dto.FlashcardResponse;
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateListResponse;
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateResponse;
-import com.synapse.backend.flashcards.dto.list.FlashcardListResponse;
 import com.synapse.backend.notes.NotesService;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
 
@@ -43,7 +42,8 @@ public class FlashcardService {
     }
 
     /**
-     * Create and generates a list of flashcards from a note and saves each flashcard to the DB.
+     * Creates and generates a list of flashcards from a note and saves each flashcard to the DB.
+     *
      * @param noteId the id of the note to generate flashcards from.
      * @param userId the id of the currently authenticated user.
      * @return the newly created list of flashcards.
@@ -86,10 +86,6 @@ public class FlashcardService {
                 .map(c -> new FlashcardResponse(c.name(), c.explanation()))
                 .toList()
         );
-    }
-
-    public FlashcardListResponse getAllFlashcards(Long userId) {
-        return persistenceService.getAllFlashcards(userId);
     }
 
 }
