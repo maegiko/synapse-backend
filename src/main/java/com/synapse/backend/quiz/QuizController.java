@@ -1,0 +1,72 @@
+package com.synapse.backend.quiz;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.synapse.backend.quiz.dto.GenerateQuizRequest;
+import com.synapse.backend.quiz.dto.QuizResponse;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import jakarta.validation.Valid;
+
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+
+
+@RestController
+@RequestMapping("/api/quiz")
+@SecurityRequirement(name = "bearerAuth")
+public class QuizController {
+    private final QuizService quizService;
+
+    public QuizController(QuizService quizService) {
+        this.quizService = quizService;
+    }
+
+    @PostMapping("/generate")
+    @Operation(
+        summary = "Generate a quiz from a note",
+        description = "Generates a quiz from a saved note owned by the currently authenticated user. "
+            + "Saves the generated quiz, questions, and answers to the database.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Successful quiz generation"),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Invalid quiz generation request",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Note not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "502",
+                description = "LLM provider error or invalid LLM response",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
+    public ResponseEntity<QuizResponse> generateQuizFromNote(
+        @RequestBody @Valid GenerateQuizRequest req,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        QuizResponse res = quizService.generateQuizFromNote(req.noteId(), userId);
+
+        return ResponseEntity.ok(res);
+    }
+
+}
