@@ -2,10 +2,13 @@ package com.synapse.backend.quiz;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
 import com.synapse.backend.quiz.dto.AnswerResponse;
+import com.synapse.backend.quiz.dto.ListQuizResponse;
 import com.synapse.backend.quiz.dto.QuestionResponse;
 import com.synapse.backend.quiz.dto.QuizResponse;
 import com.synapse.backend.quiz.dto.generated.GeneratedAnswerResponse;
@@ -123,6 +126,67 @@ public class QuizPersistenceService {
         }
 
         return answerRepository.saveAll(answers);
+    }
+
+    public ListQuizResponse getAllQuizzes(Long userId) {
+        List<Quiz> quizzes = quizRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        List<Long> quizIds = quizzes.stream().map(Quiz::getId).toList();
+
+        if (quizIds.isEmpty())
+            return new ListQuizResponse(List.of());
+
+        Map<Long, List<QuizQuestion>> quizQuestions = questionRepository
+            .findByQuizIdInOrderByQuizIdAscPositionAsc(quizIds)
+            .stream()
+            .collect(Collectors.groupingBy(QuizQuestion::getQuizId));
+
+        List<Long> questionIds = quizQuestions
+            .values()
+            .stream()
+            .flatMap(List::stream)
+            .map(QuizQuestion::getId)
+            .toList();
+
+        Map<Long, List<QuizAnswer>> questionAnswers = answerRepository
+            .findByQuestionIdInOrderByQuestionIdAscPositionAsc(questionIds)
+            .stream()
+            .collect(Collectors.groupingBy(QuizAnswer::getQuestionId));
+
+        List<QuizResponse> quizResponses = new ArrayList<>();
+        for (Quiz quiz : quizzes) {
+
+            List<QuestionResponse> questionResponses = new ArrayList<>();
+
+            for (QuizQuestion question : quizQuestions.getOrDefault(quiz.getId(), List.of())) {
+                List<QuizAnswer> answers = questionAnswers.getOrDefault(question.getId(), List.of());
+                List<AnswerResponse> answerResponses = answers
+                    .stream()
+                    .map(a -> new AnswerResponse(a.getPublicId(), a.getAnswerText(), a.isCorrect(), a.getCreatedAt()))
+                    .toList();
+
+                questionResponses.add(
+                    new QuestionResponse(
+                        question.getPublicId(),
+                        question.getQuestionText(),
+                        question.getQuestionType(),
+                        answerResponses,
+                        question.getCreatedAt()
+                    )
+                );
+            }
+
+            quizResponses.add(
+                new QuizResponse(
+                    quiz.getPublicId(),
+                    quiz.getTitle(),
+                    quiz.getDescription(),
+                    questionResponses,
+                    quiz.getCreatedAt()
+                )
+            );
+        }
+
+        return new ListQuizResponse(quizResponses);
     }
 
 }
