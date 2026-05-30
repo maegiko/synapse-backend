@@ -42,6 +42,14 @@ public class QuizService {
         this.persistenceService = persistenceService;
     }
 
+    /**
+     * Generates a quiz from a saved note and persists the quiz hierarchy.
+     *
+     * @param noteId the public id of the note to generate a quiz from.
+     * @param userId the id of the authenticated user.
+     * @return the generated quiz, including saved question and answer ids.
+     * @throws LLMResponseParsingException if the LLM response cannot be parsed or violates the quiz schema.
+     */
     public QuizResponse generateQuizFromNote(UUID noteId, Long userId) {
         NoteForGeneration note = notesService.getNoteForGeneration(noteId, userId);
 
@@ -64,6 +72,12 @@ public class QuizService {
         }
     }
 
+    /**
+     * Verifies that generated quiz data has the structure required before persistence.
+     *
+     * @param generatedQuiz parsed LLM quiz response.
+     * @throws LLMResponseParsingException if the generated quiz does not match the expected quiz shape.
+     */
     private void validateQuizStructure(GeneratedQuizResponse generatedQuiz) {
         if (generatedQuiz.questions() == null || generatedQuiz.questions().size() != 10)
             throw new LLMResponseParsingException("Failed to parse LLM response");

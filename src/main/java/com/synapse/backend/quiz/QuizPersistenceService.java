@@ -38,6 +38,14 @@ public class QuizPersistenceService {
         this.answerRepository = answerRepository;
     }
 
+    /**
+     * Saves a generated note-based quiz, including all questions and answers.
+     *
+     * @param generatedQuiz generated quiz data returned by the LLM.
+     * @param userId the id of the authenticated user who owns the quiz.
+     * @param noteId the internal id of the source note.
+     * @return the saved quiz response with public ids and timestamps.
+     */
     @Transactional
     public QuizResponse saveQuizFromNote(GeneratedQuizResponse generatedQuiz, Long userId, Long noteId) {
         Quiz quiz = new Quiz(generatedQuiz.title(), generatedQuiz.description(), userId, noteId, QuizSourceType.NOTE);
@@ -81,6 +89,14 @@ public class QuizPersistenceService {
         );
     }
 
+    /**
+     * Persists a generated question for a quiz at the given position.
+     *
+     * @param generatedQuestion generated question data.
+     * @param quizId internal id of the parent quiz.
+     * @param position zero-based question position within the quiz.
+     * @return the saved question entity.
+     */
     private QuizQuestion saveQuestion(GeneratedQuestionResponse generatedQuestion, Long quizId, int position) {
         String questionText = generatedQuestion.questionText();
         QuestionType questionType = generatedQuestion.questionType();
@@ -89,6 +105,13 @@ public class QuizPersistenceService {
         return questionRepository.save(question);
     }
 
+    /**
+     * Persists generated answers for a question, preserving their response order as position.
+     *
+     * @param generatedAnswers generated answer options.
+     * @param questionId internal id of the parent question.
+     * @return the saved answer entities.
+     */
     private List<QuizAnswer> saveAnswers(List<GeneratedAnswerResponse> generatedAnswers, Long questionId) {
         List<QuizAnswer> answers = new ArrayList<>();
 
@@ -103,4 +126,3 @@ public class QuizPersistenceService {
     }
 
 }
-
