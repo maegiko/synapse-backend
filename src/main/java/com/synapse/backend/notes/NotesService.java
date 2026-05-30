@@ -10,6 +10,7 @@ import com.synapse.backend.ai.clients.LLMClient;
 import com.synapse.backend.ai.clients.dto.LLMRequest;
 import com.synapse.backend.ai.exceptions.LLMResponseParsingException;
 import com.synapse.backend.ai.prompts.NoteSummaryPromptFactory;
+import com.synapse.backend.notes.dto.NoteForGeneration;
 import com.synapse.backend.notes.dto.NoteListResponse;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
 import com.synapse.backend.notes.exceptions.InvalidFileException;
@@ -103,6 +104,10 @@ public class NotesService {
      */
     public NoteSummaryResponse getNoteSummary(UUID noteId, Long userId) {
         return notesPersistenceService.getNoteSummary(noteId, userId);
+    }
+
+    public NoteForGeneration getNoteForGeneration(UUID noteId, Long userId) {
+        return notesPersistenceService.getNoteForGeneration(noteId, userId);
     }
 
 }
