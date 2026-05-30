@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.synapse.backend.quiz.dto.GenerateQuizRequest;
+import com.synapse.backend.quiz.dto.ListQuizResponse;
 import com.synapse.backend.quiz.dto.QuizResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,16 +19,18 @@ import jakarta.validation.Valid;
 
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-
+import org.springframework.web.bind.annotation.GetMapping;
 
 @RestController
 @RequestMapping("/api/quiz")
 @SecurityRequirement(name = "bearerAuth")
 public class QuizController {
     private final QuizService quizService;
+    private final QuizPersistenceService persistenceService;
 
-    public QuizController(QuizService quizService) {
+    public QuizController(QuizService quizService, QuizPersistenceService persistenceService) {
         this.quizService = quizService;
+        this.persistenceService = persistenceService;
     }
 
     @PostMapping("/generate")
@@ -65,6 +68,26 @@ public class QuizController {
     ) {
         Long userId = Long.valueOf(jwt.getSubject());
         QuizResponse res = quizService.generateQuizFromNote(req.noteId(), userId);
+
+        return ResponseEntity.ok(res);
+    }
+
+    @GetMapping("/list")
+    @Operation(
+        summary = "List quizzes",
+        description = "Lists all saved quizzes owned by the currently authenticated user, including questions and answers.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Successful quiz list retrieval"),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            )
+        }
+    )
+    public ResponseEntity<ListQuizResponse> getAllQuizzes(@AuthenticationPrincipal Jwt jwt) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        ListQuizResponse res = persistenceService.getAllQuizzes(userId);
 
         return ResponseEntity.ok(res);
     }
