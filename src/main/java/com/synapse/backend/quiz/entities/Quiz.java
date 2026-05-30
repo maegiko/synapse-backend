@@ -90,4 +90,8 @@ public class Quiz {
         return createdAt;
     }
 
+    public Long getId() {
+        return id;
+    }
+
 }

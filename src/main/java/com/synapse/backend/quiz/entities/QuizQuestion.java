@@ -82,4 +82,8 @@ public class QuizQuestion {
         return createdAt;
     }
 
+    public Long getId() {
+        return id;
+    }
+
 }
