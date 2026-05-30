@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 import com.synapse.backend.notes.dto.ConceptSummary;
+import com.synapse.backend.notes.dto.NoteForGeneration;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
 import com.synapse.backend.notes.entities.Note;
 import com.synapse.backend.notes.entities.NoteConcept;
@@ -192,6 +193,10 @@ public class NotesPersistenceService {
             .findByPublicIdAndUserId(noteId, userId)
             .orElseThrow(() -> new NoteNotFoundException("Requested note not found."));
 
+        return buildSummaryResponse(note);
+    }
+
+    private NoteSummaryResponse buildSummaryResponse(Note note) {
         List<NoteConcept> concepts = noteConceptRepository.findByNoteIdOrderByPositionAsc(note.getId());
         List<NoteKeypoint> keypoints = noteKeypointRepository.findByNoteIdOrderByPositionAsc(note.getId());
         List<NoteImportantTerm> importantTerms = noteImportantTermRepository.findByNoteIdOrderByPositionAsc(note.getId());
@@ -225,6 +230,14 @@ public class NotesPersistenceService {
 
         if (isDeleted == 0)
             throw new NoteNotFoundException("Note could not be found: " + noteId);
+    }
+
+    public NoteForGeneration getNoteForGeneration(UUID noteId, Long userId) {
+        Note note = noteRepository
+            .findByPublicIdAndUserId(noteId, userId)
+            .orElseThrow(() -> new NoteNotFoundException("Requested note not found."));
+
+        return new NoteForGeneration(note.getId(), buildSummaryResponse(note));
     }
 
 }
