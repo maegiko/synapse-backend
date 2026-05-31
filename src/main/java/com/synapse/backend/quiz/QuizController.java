@@ -20,6 +20,7 @@ import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 
 @RestController
 @RequestMapping("/api/quiz")
@@ -86,6 +87,31 @@ public class QuizController {
     public ResponseEntity<ListQuizResponse> getAllQuizzes(@AuthenticationPrincipal Jwt jwt) {
         Long userId = Long.valueOf(jwt.getSubject());
         ListQuizResponse res = quizService.getAllQuizzes(userId);
+
+        return ResponseEntity.ok(res);
+    }
+
+    @GetMapping("/{id}")
+    @Operation(
+        summary = "Get a single quiz",
+        description = "Gets a single saved quiz owned by the currently authenticated user, including questions and answers.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Successful quiz retrieval"),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Quiz not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
+    public ResponseEntity<QuizResponse> getQuizById(@PathVariable("id") String quizId, @AuthenticationPrincipal Jwt jwt) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        QuizResponse res = quizService.getQuizById(quizId, userId);
 
         return ResponseEntity.ok(res);
     }
