@@ -115,4 +115,14 @@ public class QuizService {
         return persistenceService.getQuizById(quizId, userId);
     }
 
+    /**
+     * Deletes a quiz owned by a user.
+     *
+     * @param quizId the public id of the quiz.
+     * @param userId the id of the authenticated user.
+     */
+    public void deleteQuizById(String quizId, Long userId) {
+        persistenceService.deleteQuizById(quizId, userId);
+    }
+
 }
