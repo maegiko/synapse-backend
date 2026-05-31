@@ -95,13 +95,24 @@ public class QuizService {
     }
 
     /**
-     * Returns a list of all quizzes and their questions owned by a user.
+     * Returns all quizzes owned by a user with question previews.
      *
-     * @param userId the user id of the currently authenticated user.
-     * @return a full list of quizzes and their questions.
+     * @param userId the id of the authenticated user.
+     * @return saved quizzes with question previews, excluding answer options.
      */
     public ListQuizResponse getAllQuizzes(Long userId) {
         return persistenceService.getAllQuizzes(userId);
+    }
+
+    /**
+     * Returns a full quiz owned by a user.
+     *
+     * @param quizId the public id of the quiz.
+     * @param userId the id of the authenticated user.
+     * @return the quiz with ordered questions and answers.
+     */
+    public QuizResponse getQuizById(String quizId, Long userId) {
+        return persistenceService.getQuizById(quizId, userId);
     }
 
 }
