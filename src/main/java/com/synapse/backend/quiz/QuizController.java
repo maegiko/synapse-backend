@@ -19,6 +19,7 @@ import jakarta.validation.Valid;
 
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
@@ -114,6 +115,31 @@ public class QuizController {
         QuizResponse res = quizService.getQuizById(quizId, userId);
 
         return ResponseEntity.ok(res);
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(
+        summary = "Delete a quiz",
+        description = "Deletes a saved quiz owned by the currently authenticated user, including its questions and answers.",
+        responses = {
+            @ApiResponse(responseCode = "204", description = "Successful quiz deletion"),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Quiz not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
+    public ResponseEntity<Void> deleteQuizById(@PathVariable("id") String quizId, @AuthenticationPrincipal Jwt jwt) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        quizService.deleteQuizById(quizId, userId);
+
+        return ResponseEntity.noContent().build();
     }
 
 }
