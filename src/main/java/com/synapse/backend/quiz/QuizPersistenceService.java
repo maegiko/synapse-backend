@@ -21,9 +21,11 @@ import com.synapse.backend.quiz.entities.QuizAnswer;
 import com.synapse.backend.quiz.entities.QuizQuestion;
 import com.synapse.backend.quiz.enums.QuestionType;
 import com.synapse.backend.quiz.enums.QuizSourceType;
+import com.synapse.backend.quiz.exceptions.QuizNotFound;
 import com.synapse.backend.quiz.repositories.QuizAnswerRepository;
 import com.synapse.backend.quiz.repositories.QuizQuestionRepository;
 import com.synapse.backend.quiz.repositories.QuizRepository;
+import com.synapse.backend.shared.exceptions.concrete.UserUnauthorised;
 
 import jakarta.transaction.Transactional;
 
@@ -131,10 +133,10 @@ public class QuizPersistenceService {
     }
 
     /**
-     * Returns a list of all quizzes and their questions owned by a user.
+     * Returns all quizzes owned by a user with question previews.
      *
-     * @param userId the user id of the currently authenticated user.
-     * @return a full list of quizzes and their questions.
+     * @param userId the id of the authenticated user.
+     * @return saved quizzes with question previews, excluding answer options.
      */
     public ListQuizResponse getAllQuizzes(Long userId) {
         List<Quiz> quizzes = quizRepository.findByUserIdOrderByCreatedAtDesc(userId);
@@ -169,6 +171,55 @@ public class QuizPersistenceService {
         }
 
         return new ListQuizResponse(quizResponses);
+    }
+
+    /**
+     * Returns a single quiz owned by a user.
+     *
+     * @param quizId the public id of the quiz.
+     * @param userId the id of the authenticated user.
+     * @return the quiz with ordered questions and answers.
+     * @throws QuizNotFound if no quiz with the given public id belongs to the user.
+     */
+    public QuizResponse getQuizById(String quizId, Long userId) {
+        if (userId == null)
+            throw new UserUnauthorised("User is not authenticated for this action.");
+
+        Quiz quiz = quizRepository
+            .findByPublicIdAndUserId(quizId, userId)
+            .orElseThrow(() -> new QuizNotFound("Quiz not found: " + quizId));
+
+        Long internalQuizId = quiz.getId();
+        List<QuizQuestion> quizQuestions = questionRepository.findByQuizIdOrderByPositionAsc(internalQuizId);
+
+        List<Long> questionIds = quizQuestions.stream().map(QuizQuestion::getId).toList();
+
+        Map<Long, List<QuizAnswer>> answers = answerRepository
+            .findByQuestionIdInOrderByQuestionIdAscPositionAsc(questionIds)
+            .stream()
+            .collect(Collectors.groupingBy(QuizAnswer::getQuestionId));
+
+        List<QuestionResponse> questions = new ArrayList<>();
+
+        for (QuizQuestion q : quizQuestions) {
+            List<AnswerResponse> quizAnswers = answers
+                .getOrDefault(q.getId(), List.of())
+                .stream().map(a -> new AnswerResponse(a.getPublicId(), a.getAnswerText(), a.isCorrect(), a.getCreatedAt()))
+                .toList();
+
+            questions.add(
+                new QuestionResponse(
+                    q.getPublicId(),
+                    q.getQuestionText(),
+                    q.getQuestionType(),
+                    quizAnswers,
+                    q.getCreatedAt()
+                )
+            );
+
+        }
+
+        return new QuizResponse(quiz.getPublicId(), quiz.getTitle(), quiz.getDescription(), questions, quiz.getCreatedAt());
     }
 
 }
