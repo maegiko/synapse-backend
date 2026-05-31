@@ -222,4 +222,22 @@ public class QuizPersistenceService {
         return new QuizResponse(quiz.getPublicId(), quiz.getTitle(), quiz.getDescription(), questions, quiz.getCreatedAt());
     }
 
+    /**
+     * Deletes a quiz owned by a user.
+     *
+     * @param quizId the public id of the quiz.
+     * @param userId the id of the authenticated user.
+     * @throws QuizNotFound if no quiz with the given public id belongs to the user.
+     */
+    @Transactional
+    public void deleteQuizById(String quizId, Long userId) {
+        if (userId == null)
+            throw new UserUnauthorised("User is not authenticated for this action.");
+
+        long isDeleted = quizRepository.deleteByPublicIdAndUserId(quizId, userId);
+
+        if (isDeleted == 0)
+            throw new QuizNotFound("Quiz not found: " + quizId);
+    }
+
 }
