@@ -63,7 +63,7 @@ class QuizListIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void getAllQuizzesReturnsCurrentUsersQuizzesWithQuestionsAndAnswersOrdered() throws Exception {
+    void getAllQuizzesReturnsCurrentUsersQuizzesWithQuestionPreviewsOrdered() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
         TestUser otherUser = register("Ada", "ada@example.com");
 
@@ -144,16 +144,11 @@ class QuizListIntegrationTest extends PostgresIntegrationTest {
             .andExpect(jsonPath("$.quizzes[0].questions", hasSize(2)))
             .andExpect(jsonPath("$.quizzes[0].questions[0].id").value("newq000001"))
             .andExpect(jsonPath("$.quizzes[0].questions[0].text").value("First question"))
-            .andExpect(jsonPath("$.quizzes[0].questions[0].questionType").value("MULTIPLE_CHOICE"))
             .andExpect(jsonPath("$.quizzes[0].questions[0].createdAt").value("2026-01-03T09:01:00"))
-            .andExpect(jsonPath("$.quizzes[0].questions[0].answers", hasSize(2)))
-            .andExpect(jsonPath("$.quizzes[0].questions[0].answers[0].id").value("newa000001"))
-            .andExpect(jsonPath("$.quizzes[0].questions[0].answers[0].text").value("First answer"))
-            .andExpect(jsonPath("$.quizzes[0].questions[0].answers[0].correct").value(true))
-            .andExpect(jsonPath("$.quizzes[0].questions[0].answers[0].createdAt").value("2026-01-03T09:01:01"))
-            .andExpect(jsonPath("$.quizzes[0].questions[0].answers[1].id").value("newa000002"))
+            .andExpect(jsonPath("$.quizzes[0].questions[0].questionType").doesNotExist())
+            .andExpect(jsonPath("$.quizzes[0].questions[0].answers").doesNotExist())
             .andExpect(jsonPath("$.quizzes[0].questions[1].id").value("newq000002"))
-            .andExpect(jsonPath("$.quizzes[0].questions[1].answers[0].id").value("newa000003"))
+            .andExpect(jsonPath("$.quizzes[0].questions[1].answers").doesNotExist())
             .andExpect(jsonPath("$.quizzes[1].id").value("quizold001"))
             .andExpect(jsonPath("$.quizzes[1].title").value("Older quiz"));
     }
