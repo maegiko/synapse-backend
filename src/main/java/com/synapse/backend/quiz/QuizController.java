@@ -7,8 +7,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.synapse.backend.quiz.dto.GenerateQuizRequest;
-import com.synapse.backend.quiz.dto.ListQuizResponse;
 import com.synapse.backend.quiz.dto.QuizResponse;
+import com.synapse.backend.quiz.dto.list.ListQuizResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -26,11 +26,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 @SecurityRequirement(name = "bearerAuth")
 public class QuizController {
     private final QuizService quizService;
-    private final QuizPersistenceService persistenceService;
 
-    public QuizController(QuizService quizService, QuizPersistenceService persistenceService) {
+    public QuizController(QuizService quizService) {
         this.quizService = quizService;
-        this.persistenceService = persistenceService;
     }
 
     @PostMapping("/generate")
@@ -75,7 +73,7 @@ public class QuizController {
     @GetMapping("/list")
     @Operation(
         summary = "List quizzes",
-        description = "Lists all saved quizzes owned by the currently authenticated user, including questions and answers.",
+        description = "Lists all saved quizzes owned by the currently authenticated user, including question previews.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Successful quiz list retrieval"),
             @ApiResponse(
@@ -87,7 +85,7 @@ public class QuizController {
     )
     public ResponseEntity<ListQuizResponse> getAllQuizzes(@AuthenticationPrincipal Jwt jwt) {
         Long userId = Long.valueOf(jwt.getSubject());
-        ListQuizResponse res = persistenceService.getAllQuizzes(userId);
+        ListQuizResponse res = quizService.getAllQuizzes(userId);
 
         return ResponseEntity.ok(res);
     }
