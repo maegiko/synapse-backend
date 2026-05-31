@@ -15,6 +15,7 @@ import com.synapse.backend.quiz.dto.QuizResponse;
 import com.synapse.backend.quiz.dto.generated.GeneratedAnswerResponse;
 import com.synapse.backend.quiz.dto.generated.GeneratedQuestionResponse;
 import com.synapse.backend.quiz.dto.generated.GeneratedQuizResponse;
+import com.synapse.backend.quiz.dto.list.ListQuizResponse;
 import com.synapse.backend.quiz.enums.QuestionType;
 
 import tools.jackson.core.JacksonException;
@@ -91,6 +92,16 @@ public class QuizService {
                 throw new LLMResponseParsingException("Failed to parse LLM response");
             }
         }
+    }
+
+    /**
+     * Returns a list of all quizzes and their questions owned by a user.
+     *
+     * @param userId the user id of the currently authenticated user.
+     * @return a full list of quizzes and their questions.
+     */
+    public ListQuizResponse getAllQuizzes(Long userId) {
+        return persistenceService.getAllQuizzes(userId);
     }
 
 }
