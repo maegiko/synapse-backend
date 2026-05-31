@@ -8,12 +8,14 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 import com.synapse.backend.quiz.dto.AnswerResponse;
-import com.synapse.backend.quiz.dto.ListQuizResponse;
 import com.synapse.backend.quiz.dto.QuestionResponse;
 import com.synapse.backend.quiz.dto.QuizResponse;
 import com.synapse.backend.quiz.dto.generated.GeneratedAnswerResponse;
 import com.synapse.backend.quiz.dto.generated.GeneratedQuestionResponse;
 import com.synapse.backend.quiz.dto.generated.GeneratedQuizResponse;
+import com.synapse.backend.quiz.dto.list.ListQuizResponse;
+import com.synapse.backend.quiz.dto.list.QuestionPreviewResponse;
+import com.synapse.backend.quiz.dto.list.QuizListItemResponse;
 import com.synapse.backend.quiz.entities.Quiz;
 import com.synapse.backend.quiz.entities.QuizAnswer;
 import com.synapse.backend.quiz.entities.QuizQuestion;
@@ -128,6 +130,12 @@ public class QuizPersistenceService {
         return answerRepository.saveAll(answers);
     }
 
+    /**
+     * Returns a list of all quizzes and their questions owned by a user.
+     *
+     * @param userId the user id of the currently authenticated user.
+     * @return a full list of quizzes and their questions.
+     */
     public ListQuizResponse getAllQuizzes(Long userId) {
         List<Quiz> quizzes = quizRepository.findByUserIdOrderByCreatedAtDesc(userId);
         List<Long> quizIds = quizzes.stream().map(Quiz::getId).toList();
@@ -140,43 +148,17 @@ public class QuizPersistenceService {
             .stream()
             .collect(Collectors.groupingBy(QuizQuestion::getQuizId));
 
-        List<Long> questionIds = quizQuestions
-            .values()
-            .stream()
-            .flatMap(List::stream)
-            .map(QuizQuestion::getId)
-            .toList();
+        List<QuizListItemResponse> quizResponses = new ArrayList<>();
 
-        Map<Long, List<QuizAnswer>> questionAnswers = answerRepository
-            .findByQuestionIdInOrderByQuestionIdAscPositionAsc(questionIds)
-            .stream()
-            .collect(Collectors.groupingBy(QuizAnswer::getQuestionId));
-
-        List<QuizResponse> quizResponses = new ArrayList<>();
         for (Quiz quiz : quizzes) {
-
-            List<QuestionResponse> questionResponses = new ArrayList<>();
-
-            for (QuizQuestion question : quizQuestions.getOrDefault(quiz.getId(), List.of())) {
-                List<QuizAnswer> answers = questionAnswers.getOrDefault(question.getId(), List.of());
-                List<AnswerResponse> answerResponses = answers
-                    .stream()
-                    .map(a -> new AnswerResponse(a.getPublicId(), a.getAnswerText(), a.isCorrect(), a.getCreatedAt()))
-                    .toList();
-
-                questionResponses.add(
-                    new QuestionResponse(
-                        question.getPublicId(),
-                        question.getQuestionText(),
-                        question.getQuestionType(),
-                        answerResponses,
-                        question.getCreatedAt()
-                    )
-                );
-            }
+            List<QuestionPreviewResponse> questionResponses = quizQuestions
+                .getOrDefault(quiz.getId(), List.of())
+                .stream()
+                .map(q -> new QuestionPreviewResponse(q.getPublicId(), q.getQuestionText(), q.getCreatedAt()))
+                .toList();
 
             quizResponses.add(
-                new QuizResponse(
+                new QuizListItemResponse(
                     quiz.getPublicId(),
                     quiz.getTitle(),
                     quiz.getDescription(),
