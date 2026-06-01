@@ -74,6 +74,10 @@ public class FlashcardPersistenceService {
      */
     public FlashcardListResponse getAllFlashcards(Long userId) {
         List<FlashcardDeck> decks = flashcardDeckRepository.findByUserIdOrderByCreatedAtDesc(userId);
+
+        if (decks.isEmpty())
+            return new FlashcardListResponse(List.of());
+
         List<Long> deckIds = decks.stream().map(FlashcardDeck::getId).toList();
 
         Map<Long, List<Flashcard>> flashcards = flashcardRepository.findByDeckIdInOrderByDeckIdAscPositionAsc(deckIds)
