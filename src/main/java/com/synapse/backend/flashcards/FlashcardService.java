@@ -15,9 +15,8 @@ import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateListResponse
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateResponse;
 import com.synapse.backend.flashcards.dto.generate.FlashcardSourceNote;
 import com.synapse.backend.notes.NotesService;
+import com.synapse.backend.notes.dto.NoteForGeneration;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
-import com.synapse.backend.notes.entities.Note;
-import com.synapse.backend.notes.exceptions.NoteNotFoundException;
 import com.synapse.backend.notes.repositories.NoteRepository;
 
 import tools.jackson.core.JacksonException;
@@ -26,7 +25,6 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class FlashcardService {
     private final NotesService notesService;
-    private final NoteRepository notesRepository;
     private final LLMClient llmClient;
     private final ObjectMapper objectMapper;
     private final FlashcardGeneratePromptFactory promptFactory;
@@ -41,7 +39,6 @@ public class FlashcardService {
         FlashcardPersistenceService persistenceService
     ) {
         this.notesService = notesService;
-        this.notesRepository = noteRepository;
         this.llmClient = llmClient;
         this.objectMapper = objectMapper;
         this.promptFactory = promptFactory;
@@ -56,12 +53,9 @@ public class FlashcardService {
      * @return the newly created list of flashcards.
      */
     public FlashcardGenerateResponse generateFlashCards(UUID noteId, Long userId) {
-        NoteSummaryResponse note = notesService.getNoteSummary(noteId, userId);
-        Note noteData = notesRepository
-            .findByPublicIdAndUserId(noteId, userId)
-            .orElseThrow(() -> new NoteNotFoundException("Requested note not found."));
+        NoteForGeneration note = notesService.getNoteForGeneration(noteId, userId);
 
-        List<FlashcardResponse> flashcards = getBasicFlashcardsFromNote(note);
+        List<FlashcardResponse> flashcards = getBasicFlashcardsFromNote(note.summary());
 
         LLMRequest req = new LLMRequest(
             "meta-llama/llama-4-scout-17b-16e-instruct",
@@ -82,7 +76,7 @@ public class FlashcardService {
             flashcards.addAll(generatedFlashcards.flashcards());
 
             UUID deckId = persistenceService
-                .saveFlashcardFromNote(flashcards, userId, new FlashcardSourceNote(noteData.getId(), noteData.getTitle()));
+                .saveFlashcardFromNote(flashcards, userId, new FlashcardSourceNote(note.id(), note.summary().title()));
 
             return new FlashcardGenerateResponse(deckId, flashcards);
         } catch (JacksonException e) {
