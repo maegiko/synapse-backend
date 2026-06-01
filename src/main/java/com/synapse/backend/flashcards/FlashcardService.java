@@ -17,7 +17,6 @@ import com.synapse.backend.flashcards.dto.generate.FlashcardSourceNote;
 import com.synapse.backend.notes.NotesService;
 import com.synapse.backend.notes.dto.NoteForGeneration;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
-import com.synapse.backend.notes.repositories.NoteRepository;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
@@ -32,7 +31,6 @@ public class FlashcardService {
 
     public FlashcardService(
         NotesService notesService,
-        NoteRepository noteRepository,
         LLMClient llmClient,
         ObjectMapper objectMapper,
         FlashcardGeneratePromptFactory promptFactory,
