@@ -10,6 +10,8 @@ import com.synapse.backend.ai.clients.LLMClient;
 import com.synapse.backend.ai.clients.dto.LLMRequest;
 import com.synapse.backend.ai.exceptions.LLMResponseParsingException;
 import com.synapse.backend.ai.prompts.FlashcardGeneratePromptFactory;
+import com.synapse.backend.flashcards.dto.AddFlashcardRequest;
+import com.synapse.backend.flashcards.dto.AddFlashcardResponse;
 import com.synapse.backend.flashcards.dto.FlashcardResponse;
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateListResponse;
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateResponse;
@@ -17,6 +19,7 @@ import com.synapse.backend.flashcards.dto.generate.FlashcardSourceNote;
 import com.synapse.backend.notes.NotesService;
 import com.synapse.backend.notes.dto.NoteForGeneration;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
+import com.synapse.backend.shared.exceptions.concrete.UserUnauthorised;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
@@ -89,6 +92,21 @@ public class FlashcardService {
                 .map(c -> new FlashcardResponse(c.name(), c.explanation()))
                 .toList()
         );
+    }
+
+    /**
+     * Adds a new flashcard to a deck owned by the currently authenticated user.
+     *
+     * @param deckId the public id of the deck to add the flashcard to.
+     * @param userId the id of the currently authenticated user.
+     * @param req the flashcard question and answer to save.
+     * @return the newly created flashcard.
+     */
+    public AddFlashcardResponse addFlashcard(UUID deckId, Long userId, AddFlashcardRequest req) {
+        if (userId == null)
+            throw new UserUnauthorised("User not authorised.");
+
+        return persistenceService.addFlashcard(deckId, userId, req);
     }
 
 }
