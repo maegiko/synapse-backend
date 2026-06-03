@@ -3,6 +3,9 @@ package com.synapse.backend.flashcards.entities;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -33,10 +36,12 @@ public class Flashcard {
     @Column(name = "public_id", nullable = false, unique = true)
     private UUID publicId;
 
-    @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at", nullable = false, insertable = false)
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     protected Flashcard() {}
@@ -63,6 +68,10 @@ public class Flashcard {
 
     public Integer getPosition() {
         return position;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 
     public UUID getPublicId() {
