@@ -8,6 +8,8 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
+import com.synapse.backend.flashcards.dto.AddFlashcardRequest;
+import com.synapse.backend.flashcards.dto.AddFlashcardResponse;
 import com.synapse.backend.flashcards.dto.FlashcardResponse;
 import com.synapse.backend.flashcards.dto.generate.FlashcardSourceNote;
 import com.synapse.backend.flashcards.dto.list.FlashcardListResponse;
@@ -135,6 +137,38 @@ public class FlashcardPersistenceService {
 
         if (isDeleted == 0)
             throw new DeckNotFound("Flashcard deck not found: " + publicId);
+    }
+
+    /**
+     * Persists a new flashcard in a deck owned by the given user.
+     *
+     * @param deckId the public id of the deck to add the flashcard to.
+     * @param userId the id of the currently authenticated user.
+     * @param req the flashcard question and answer to save.
+     * @return the newly created flashcard.
+     * @throws DeckNotFound if the deck doesn't exist for this user.
+     */
+    @Transactional
+    public AddFlashcardResponse addFlashcard(UUID deckId, Long userId, AddFlashcardRequest req) {
+        FlashcardDeck deck = flashcardDeckRepository
+            .findByPublicIdAndUserId(deckId, userId)
+            .orElseThrow(() -> new DeckNotFound("Deck not found: " + deckId));
+
+        Integer maxPosition = flashcardRepository.findMaxPositionByDeckId(deck.getId()).orElse(-1);
+        Integer newPosition = maxPosition + 1;
+
+        Flashcard newFlashcard = new Flashcard(deck.getId(), req.question(), req.answer(), newPosition, UUID.randomUUID());
+
+        Flashcard savedCard = flashcardRepository.save(newFlashcard);
+
+        flashcardDeckRepository.updateUpdatedAtById(deck.getId());
+
+        return new AddFlashcardResponse(
+            savedCard.getPublicId(),
+            savedCard.getQuestion(),
+            savedCard.getAnswer(),
+            savedCard.getCreatedAt()
+        );
     }
 
 }
