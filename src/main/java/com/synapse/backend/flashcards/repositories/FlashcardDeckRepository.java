@@ -5,6 +5,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.synapse.backend.flashcards.entities.FlashcardDeck;
 
@@ -17,5 +20,13 @@ public interface FlashcardDeckRepository extends JpaRepository<FlashcardDeck, Lo
     Optional<FlashcardDeck> findByPublicIdAndUserId(UUID publicId, Long userId);
 
     long deleteByPublicIdAndUserId(UUID publicId, Long userId);
+
+    @Modifying
+    @Query("""
+        UPDATE FlashcardDeck d
+        SET d.updatedAt = CURRENT_TIMESTAMP
+        WHERE d.id = :deckId
+    """)
+    long updateUpdatedAtById(@Param("deckId") Long deckId);
 
 }
