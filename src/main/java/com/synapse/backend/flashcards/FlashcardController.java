@@ -3,6 +3,8 @@ package com.synapse.backend.flashcards;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.synapse.backend.flashcards.dto.AddFlashcardRequest;
+import com.synapse.backend.flashcards.dto.AddFlashcardResponse;
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateNoteRequest;
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateResponse;
 import com.synapse.backend.flashcards.dto.list.FlashcardListResponse;
@@ -123,7 +125,7 @@ public class FlashcardController {
         return ResponseEntity.ok(res);
     }
 
-    @DeleteMapping("{deckId}")
+    @DeleteMapping("/{deckId}")
     @Operation(
         summary = "Delete a flashcard deck",
         description = "Deletes a flashcard deck owned by the currently authenticated user.",
@@ -146,6 +148,40 @@ public class FlashcardController {
         persistenceService.deleteDeck(deckId, userId);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{deckId}")
+    @Operation(
+        summary = "Add a flashcard to a deck",
+        description = "Adds a new flashcard to a saved deck owned by the currently authenticated user.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Successful flashcard creation"),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Invalid flashcard request",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Flashcard deck not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
+    public ResponseEntity<AddFlashcardResponse> addFlashcard(
+        @PathVariable UUID deckId,
+        @RequestBody @Valid AddFlashcardRequest req,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        AddFlashcardResponse res = flashcardService.addFlashcard(deckId, userId, req);
+
+        return ResponseEntity.ok(res);
     }
 
 }
