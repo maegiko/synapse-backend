@@ -18,6 +18,7 @@ import com.synapse.backend.flashcards.dto.list.SingleDeckResponse;
 import com.synapse.backend.flashcards.entities.Flashcard;
 import com.synapse.backend.flashcards.entities.FlashcardDeck;
 import com.synapse.backend.flashcards.exceptions.DeckNotFound;
+import com.synapse.backend.flashcards.exceptions.FlashcardNotFound;
 import com.synapse.backend.flashcards.repositories.FlashcardDeckRepository;
 import com.synapse.backend.flashcards.repositories.FlashcardRepository;
 
@@ -169,6 +170,20 @@ public class FlashcardPersistenceService {
             savedCard.getAnswer(),
             savedCard.getCreatedAt()
         );
+    }
+
+    @Transactional
+    public void deleteFlashcard(Long userId, UUID deckId, UUID flashcardId) {
+        FlashcardDeck deck = flashcardDeckRepository
+            .findByPublicIdAndUserId(deckId, userId)
+            .orElseThrow(() -> new DeckNotFound("Deck not found: " + deckId));
+
+        long isDeleted = flashcardRepository.deleteByPublicIdAndDeckId(flashcardId, deck.getId());
+
+        if (isDeleted == 0)
+            throw new FlashcardNotFound("Flashcard not found: " + flashcardId);
+
+        flashcardDeckRepository.updateUpdatedAtById(deck.getId());
     }
 
 }
