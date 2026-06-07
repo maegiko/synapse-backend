@@ -109,4 +109,8 @@ public class FlashcardService {
         return persistenceService.addFlashcard(deckId, userId, req);
     }
 
+    public void deleteFlashcard(Long userId, UUID deckId, UUID flashcardId) {
+        persistenceService.deleteFlashcard(userId, deckId, flashcardId);
+    }
+
 }
