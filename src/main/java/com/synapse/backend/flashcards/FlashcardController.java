@@ -184,4 +184,16 @@ public class FlashcardController {
         return ResponseEntity.ok(res);
     }
 
+    @DeleteMapping("/{deckId}/cards/{cardId}")
+    public ResponseEntity<Void> deleteFlashcard(
+        @PathVariable UUID deckId,
+        @PathVariable UUID cardId,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        flashcardService.deleteFlashcard(userId, deckId, cardId);
+
+        return ResponseEntity.noContent().build();
+    }
+
 }
