@@ -109,6 +109,13 @@ public class FlashcardService {
         return persistenceService.addFlashcard(deckId, userId, req);
     }
 
+    /**
+     * Deletes a flashcard from a deck owned by the currently authenticated user.
+     *
+     * @param userId the id of the currently authenticated user.
+     * @param deckId the public id of the flashcard deck.
+     * @param flashcardId the public id of the flashcard to delete.
+     */
     public void deleteFlashcard(Long userId, UUID deckId, UUID flashcardId) {
         persistenceService.deleteFlashcard(userId, deckId, flashcardId);
     }

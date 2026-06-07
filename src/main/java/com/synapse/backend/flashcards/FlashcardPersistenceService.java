@@ -172,6 +172,15 @@ public class FlashcardPersistenceService {
         );
     }
 
+    /**
+     * Deletes a flashcard from a deck owned by the given user.
+     *
+     * @param userId the id of the currently authenticated user.
+     * @param deckId the public id of the flashcard deck.
+     * @param flashcardId the public id of the flashcard to delete.
+     * @throws DeckNotFound if the deck doesn't exist for this user.
+     * @throws FlashcardNotFound if the flashcard doesn't exist in the deck.
+     */
     @Transactional
     public void deleteFlashcard(Long userId, UUID deckId, UUID flashcardId) {
         FlashcardDeck deck = flashcardDeckRepository
