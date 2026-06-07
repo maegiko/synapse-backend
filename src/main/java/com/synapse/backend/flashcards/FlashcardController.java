@@ -185,6 +185,23 @@ public class FlashcardController {
     }
 
     @DeleteMapping("/{deckId}/cards/{cardId}")
+    @Operation(
+        summary = "Delete a flashcard from a deck",
+        description = "Deletes a flashcard from a saved deck owned by the currently authenticated user.",
+        responses = {
+            @ApiResponse(responseCode = "204", description = "Successful deletion of flashcard"),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Flashcard deck or flashcard not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
     public ResponseEntity<Void> deleteFlashcard(
         @PathVariable UUID deckId,
         @PathVariable UUID cardId,
