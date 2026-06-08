@@ -184,6 +184,24 @@ public class QuizController {
     }
 
     @DeleteMapping("/{quizId}/questions/{questionId}")
+    @Operation(
+        summary = "Delete a quiz question",
+        description = "Deletes a question from a saved quiz owned by the currently authenticated user. "
+            + "Associated answers are deleted with the question.",
+        responses = {
+            @ApiResponse(responseCode = "204", description = "Successful question deletion"),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Quiz or question not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
     public ResponseEntity<Void> deleteQuestion(
         @PathVariable String quizId,
         @PathVariable String questionId,
