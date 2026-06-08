@@ -291,6 +291,15 @@ public class QuizPersistenceService {
         );
     }
 
+    /**
+     * Deletes a question from a quiz owned by the user and updates the quiz modified timestamp.
+     *
+     * @param userId the id of the authenticated user.
+     * @param quizId the public id of the quiz containing the question.
+     * @param questionId the public id of the question to delete.
+     * @throws QuizNotFound if no quiz with the given public id belongs to the user.
+     * @throws QuestionNotFound if the question does not exist in the quiz.
+     */
     @Transactional
     public void deleteQuestion(Long userId, String quizId, String questionId) {
         Quiz quiz = quizRepository

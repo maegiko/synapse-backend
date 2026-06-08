@@ -169,6 +169,13 @@ public class QuizService {
         return (answersLen == correctAnswersLen) && correctAnswerExists;
     }
 
+    /**
+     * Deletes a question from a quiz owned by the user.
+     *
+     * @param userId the id of the authenticated user.
+     * @param quizId the public id of the quiz containing the question.
+     * @param questionId the public id of the question to delete.
+     */
     public void deleteQuestion(Long userId, String quizId, String questionId) {
         if (userId == null)
             throw new UserUnauthorised("User is not authorised for this action.");
