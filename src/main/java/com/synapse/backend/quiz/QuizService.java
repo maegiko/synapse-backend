@@ -12,11 +12,16 @@ import com.synapse.backend.ai.prompts.QuizGeneratePromptFactory;
 import com.synapse.backend.notes.NotesService;
 import com.synapse.backend.notes.dto.NoteForGeneration;
 import com.synapse.backend.quiz.dto.QuizResponse;
+import com.synapse.backend.quiz.dto.create.CreateQuestionAnswer;
+import com.synapse.backend.quiz.dto.create.CreateQuestionRequest;
+import com.synapse.backend.quiz.dto.create.CreateQuestionResponse;
 import com.synapse.backend.quiz.dto.generated.GeneratedAnswerResponse;
 import com.synapse.backend.quiz.dto.generated.GeneratedQuestionResponse;
 import com.synapse.backend.quiz.dto.generated.GeneratedQuizResponse;
 import com.synapse.backend.quiz.dto.list.ListQuizResponse;
 import com.synapse.backend.quiz.enums.QuestionType;
+import com.synapse.backend.quiz.exceptions.CreateQuestionInputException;
+import com.synapse.backend.shared.exceptions.concrete.UserUnauthorised;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
@@ -123,6 +128,30 @@ public class QuizService {
      */
     public void deleteQuizById(String quizId, Long userId) {
         persistenceService.deleteQuizById(quizId, userId);
+    }
+
+    public CreateQuestionResponse createQuestion(Long userId, String quizId, CreateQuestionRequest req) {
+        if (userId == null)
+            throw new UserUnauthorised("User is not authenticated.");
+
+        if (!validateCreateQuestionInput(req.questionType(), req.answers())) {
+            throw new CreateQuestionInputException(
+                """
+                Request data is invalid. Only one correct answer is allowed.
+                Multiple choice questions must have 4 answers and boolean questions must have 2.
+                """
+            );
+        }
+
+        return persistenceService.createQuestion(userId, quizId, req);
+    }
+
+    private boolean validateCreateQuestionInput(QuestionType questionType, List<CreateQuestionAnswer> answers) {
+        int correctAnswersLen = (questionType == QuestionType.MULTIPLE_CHOICE) ? 4 : 2;
+        int answersLen = answers.size();
+        boolean correctAnswerExists = answers.stream().filter(a -> a.isCorrect()).count() == 1;
+
+        return (answersLen == correctAnswersLen) && correctAnswerExists;
     }
 
 }
