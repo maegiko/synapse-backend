@@ -169,4 +169,11 @@ public class QuizService {
         return (answersLen == correctAnswersLen) && correctAnswerExists;
     }
 
+    public void deleteQuestion(Long userId, String quizId, String questionId) {
+        if (userId == null)
+            throw new UserUnauthorised("User is not authorised for this action.");
+
+        persistenceService.deleteQuestion(userId, quizId, questionId);
+    }
+
 }
