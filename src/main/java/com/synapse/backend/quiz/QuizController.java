@@ -183,4 +183,16 @@ public class QuizController {
         return ResponseEntity.ok(res);
     }
 
+    @DeleteMapping("/{quizId}/questions/{questionId}")
+    public ResponseEntity<Void> deleteQuestion(
+        @PathVariable String quizId,
+        @PathVariable String questionId,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        quizService.deleteQuestion(userId, quizId, questionId);
+
+        return ResponseEntity.noContent().build();
+    }
+
 }
