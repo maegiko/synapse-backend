@@ -244,6 +244,15 @@ public class QuizPersistenceService {
             throw new QuizNotFound("Quiz not found: " + quizId);
     }
 
+    /**
+     * Persists a manually-created question and answer set for a quiz owned by the user.
+     *
+     * @param userId the id of the authenticated user.
+     * @param quizId the public id of the quiz to add the question to.
+     * @param req the validated question and answer data.
+     * @return the created question response with generated public ids.
+     * @throws QuizNotFound if no quiz with the given public id belongs to the user.
+     */
     @Transactional
     public CreateQuestionResponse createQuestion(Long userId, String quizId, CreateQuestionRequest req) {
         Quiz quiz = quizRepository

@@ -130,6 +130,14 @@ public class QuizService {
         persistenceService.deleteQuizById(quizId, userId);
     }
 
+    /**
+     * Validates and creates a new question with answers for a quiz owned by the user.
+     *
+     * @param userId the id of the authenticated user.
+     * @param quizId the public id of the quiz to add the question to.
+     * @param req the question and answer data to create.
+     * @return the created question with public ids for the question and answers.
+     */
     public CreateQuestionResponse createQuestion(Long userId, String quizId, CreateQuestionRequest req) {
         if (userId == null)
             throw new UserUnauthorised("User is not authenticated.");
@@ -146,6 +154,13 @@ public class QuizService {
         return persistenceService.createQuestion(userId, quizId, req);
     }
 
+    /**
+     * Checks question-type-specific answer count and correct-answer rules.
+     *
+     * @param questionType the type of question being created.
+     * @param answers the submitted answer options.
+     * @return true when the answer shape is valid for the question type.
+     */
     private boolean validateCreateQuestionInput(QuestionType questionType, List<CreateQuestionAnswer> answers) {
         int correctAnswersLen = (questionType == QuestionType.MULTIPLE_CHOICE) ? 4 : 2;
         int answersLen = answers.size();
