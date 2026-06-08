@@ -4,6 +4,9 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.synapse.backend.quiz.entities.Quiz;
 
@@ -14,5 +17,13 @@ public interface QuizRepository extends JpaRepository<Quiz, Long> {
     List<Quiz> findByUserIdOrderByCreatedAtDesc(Long userId);
 
     long deleteByPublicIdAndUserId(String publicId, Long userId);
+
+    @Modifying
+    @Query("""
+        UPDATE Quiz q
+        SET q.updatedAt = CURRENT_TIMESTAMP
+        WHERE q.id = :quizId
+    """)
+    long updateUpdatedAtById(@Param("quizId") Long quizId);
 
 }
