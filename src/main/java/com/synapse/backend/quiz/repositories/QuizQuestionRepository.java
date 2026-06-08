@@ -18,4 +18,6 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
     @Query("SELECT MAX(q.position) FROM QuizQuestion q WHERE q.quizId =:quizId")
     Optional<Integer> findMaxPositionByQuizId(@Param("quizId") Long quizId);
 
+    long deleteByPublicIdAndQuizId(String publicId, Long quizId);
+
 }
