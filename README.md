@@ -11,9 +11,9 @@ The API is secured with JWT bearer authentication, persists data in PostgreSQL, 
 - PDF note upload and AI-generated note summaries
 - Saved note listing, retrieval, and deletion
 - AI-generated flashcard decks from saved notes
-- Flashcard deck listing, retrieval, and deletion
+- Flashcard deck listing, retrieval, deletion, and manual card management
 - AI-generated quizzes from saved notes
-- Quiz listing, retrieval, and deletion
+- Quiz listing, retrieval, deletion, and manual question management
 - PostgreSQL persistence with Flyway migrations
 - Swagger/OpenAPI documentation
 - Integration tests using Testcontainers
@@ -119,6 +119,10 @@ The application imports `.env` using:
 spring.config.import=optional:file:.env[.properties]
 ```
 
+The development profile sets JWT access tokens to expire after `15m` and limits multipart uploads to `10MB`.
+
+Groq is the primary LLM client used by generation flows. Gemini client configuration is present as an alternate implementation, but Groq is currently selected by Spring.
+
 For production deployments, prefer setting secrets and profile values through environment variables rather than committing profile-specific configuration.
 
 ## API Overview 📚
@@ -158,7 +162,9 @@ Authorization: Bearer <accessToken>
 | `POST` | `/api/flashcards/generate` | Generate and save flashcards from a saved note | Yes |
 | `GET` | `/api/flashcards/list` | List saved flashcard decks | Yes |
 | `GET` | `/api/flashcards/{deckId}` | Get one flashcard deck | Yes |
+| `POST` | `/api/flashcards/{deckId}` | Add a flashcard to a deck | Yes |
 | `DELETE` | `/api/flashcards/{deckId}` | Delete a flashcard deck | Yes |
+| `DELETE` | `/api/flashcards/{deckId}/cards/{cardId}` | Delete a flashcard from a deck | Yes |
 
 ### Quizzes ❓
 
@@ -167,7 +173,9 @@ Authorization: Bearer <accessToken>
 | `POST` | `/api/quiz/generate` | Generate and save a quiz from a saved note | Yes |
 | `GET` | `/api/quiz/list` | List saved quizzes with question previews | Yes |
 | `GET` | `/api/quiz/{id}` | Get one quiz with questions and answers | Yes |
+| `POST` | `/api/quiz/{quizId}/questions` | Add a question and answers to a quiz | Yes |
 | `DELETE` | `/api/quiz/{id}` | Delete a quiz | Yes |
+| `DELETE` | `/api/quiz/{quizId}/questions/{questionId}` | Delete a question from a quiz | Yes |
 
 ## Example Flow 🔄
 
@@ -175,7 +183,8 @@ Authorization: Bearer <accessToken>
 2. Copy the returned `accessToken`.
 3. Upload a PDF to `/api/notes/summarise`.
 4. Use the saved note id to generate flashcards or a quiz.
-5. Retrieve saved learning resources from the list/get endpoints.
+5. Add or delete individual flashcards/questions as needed.
+6. Retrieve saved learning resources from the list/get endpoints.
 
 Example registration request:
 
@@ -205,6 +214,24 @@ curl -X POST http://localhost:8080/api/quiz/generate \
   -H "Content-Type: application/json" \
   -d '{
     "noteId": "00000000-0000-0000-0000-000000000000"
+}'
+```
+
+Example manual quiz question creation:
+
+```bash
+curl -X POST http://localhost:8080/api/quiz/<quizId>/questions \
+  -H "Authorization: Bearer <accessToken>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question": "What does a reinforcing loop do?",
+    "questionType": "MULTIPLE_CHOICE",
+    "answers": [
+      { "answer": "Amplifies change", "isCorrect": true },
+      { "answer": "Always reduces change", "isCorrect": false },
+      { "answer": "Stores uploaded PDFs", "isCorrect": false },
+      { "answer": "Expires JWT tokens", "isCorrect": false }
+    ]
   }'
 ```
 
