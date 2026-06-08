@@ -10,6 +10,10 @@ import org.springframework.stereotype.Service;
 import com.synapse.backend.quiz.dto.AnswerResponse;
 import com.synapse.backend.quiz.dto.QuestionResponse;
 import com.synapse.backend.quiz.dto.QuizResponse;
+import com.synapse.backend.quiz.dto.create.CreateAnswerResponse;
+import com.synapse.backend.quiz.dto.create.CreateQuestionAnswer;
+import com.synapse.backend.quiz.dto.create.CreateQuestionRequest;
+import com.synapse.backend.quiz.dto.create.CreateQuestionResponse;
 import com.synapse.backend.quiz.dto.generated.GeneratedAnswerResponse;
 import com.synapse.backend.quiz.dto.generated.GeneratedQuestionResponse;
 import com.synapse.backend.quiz.dto.generated.GeneratedQuizResponse;
@@ -238,6 +242,43 @@ public class QuizPersistenceService {
 
         if (isDeleted == 0)
             throw new QuizNotFound("Quiz not found: " + quizId);
+    }
+
+    @Transactional
+    public CreateQuestionResponse createQuestion(Long userId, String quizId, CreateQuestionRequest req) {
+        Quiz quiz = quizRepository
+            .findByPublicIdAndUserId(quizId, userId)
+            .orElseThrow(() -> new QuizNotFound("Quiz not found: " + quizId));
+
+        Integer maxPosition = questionRepository.findMaxPositionByQuizId(quiz.getId()).orElse(-1);
+
+        QuizQuestion question = new QuizQuestion(quiz.getId(), req.question(), req.questionType(), maxPosition + 1);
+
+        QuizQuestion newQuestion = questionRepository.save(question);
+
+        List<QuizAnswer> answers = new ArrayList<>();
+        for (int i = 0; i < req.answers().size(); i++) {
+            CreateQuestionAnswer answer = req.answers().get(i);
+
+            answers.add(new QuizAnswer(newQuestion.getId(), answer.answer(), answer.isCorrect(), i));
+        }
+
+        List<QuizAnswer> newAnswers = answerRepository.saveAll(answers);
+
+        quizRepository.updateUpdatedAtById(quiz.getId());
+
+        List<CreateAnswerResponse> answerResponses = newAnswers.
+            stream()
+            .map(a -> new CreateAnswerResponse(a.getPublicId(), a.getAnswerText(), a.isCorrect()))
+            .toList();
+
+        return new CreateQuestionResponse(
+            newQuestion.getPublicId(),
+            newQuestion.getQuestionText(),
+            newQuestion.getQuestionType(),
+            answerResponses,
+            newQuestion.getCreatedAt()
+        );
     }
 
 }
