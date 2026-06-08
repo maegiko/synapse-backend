@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.synapse.backend.quiz.dto.GenerateQuizRequest;
 import com.synapse.backend.quiz.dto.QuizResponse;
+import com.synapse.backend.quiz.dto.create.CreateQuestionRequest;
+import com.synapse.backend.quiz.dto.create.CreateQuestionResponse;
 import com.synapse.backend.quiz.dto.list.ListQuizResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -140,6 +142,18 @@ public class QuizController {
         quizService.deleteQuizById(quizId, userId);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{quizId}/questions")
+    public ResponseEntity<CreateQuestionResponse> createQuestion(
+        @PathVariable String quizId,
+        @AuthenticationPrincipal Jwt jwt,
+        @RequestBody @Valid CreateQuestionRequest req
+    ) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        CreateQuestionResponse res = quizService.createQuestion(userId, quizId, req);
+
+        return ResponseEntity.ok(res);
     }
 
 }
