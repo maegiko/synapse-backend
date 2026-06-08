@@ -25,6 +25,7 @@ import com.synapse.backend.quiz.entities.QuizAnswer;
 import com.synapse.backend.quiz.entities.QuizQuestion;
 import com.synapse.backend.quiz.enums.QuestionType;
 import com.synapse.backend.quiz.enums.QuizSourceType;
+import com.synapse.backend.quiz.exceptions.QuestionNotFound;
 import com.synapse.backend.quiz.exceptions.QuizNotFound;
 import com.synapse.backend.quiz.repositories.QuizAnswerRepository;
 import com.synapse.backend.quiz.repositories.QuizQuestionRepository;
@@ -288,6 +289,20 @@ public class QuizPersistenceService {
             answerResponses,
             newQuestion.getCreatedAt()
         );
+    }
+
+    @Transactional
+    public void deleteQuestion(Long userId, String quizId, String questionId) {
+        Quiz quiz = quizRepository
+            .findByPublicIdAndUserId(quizId, userId)
+            .orElseThrow(() -> new QuizNotFound("Quiz not found: " + quizId));
+
+        long isDeleted = questionRepository.deleteByPublicIdAndQuizId(questionId, quiz.getId());
+
+        if (isDeleted == 0)
+            throw new QuestionNotFound("Question not found: " + questionId);
+
+        quizRepository.updateUpdatedAtById(quiz.getId());
     }
 
 }
