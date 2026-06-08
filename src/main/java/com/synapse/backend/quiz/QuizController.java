@@ -145,6 +145,33 @@ public class QuizController {
     }
 
     @PostMapping("/{quizId}/questions")
+    @Operation(
+        summary = "Create a quiz question",
+        description = "Adds a manually-created question and its answers to a saved quiz owned by the currently "
+            + "authenticated user.",
+        responses = {
+            @ApiResponse(
+                responseCode = "200",
+                description = "Successful question creation",
+                content = @Content(schema = @Schema(implementation = CreateQuestionResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Invalid question creation request",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Quiz not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
     public ResponseEntity<CreateQuestionResponse> createQuestion(
         @PathVariable String quizId,
         @AuthenticationPrincipal Jwt jwt,
