@@ -314,6 +314,4 @@ public class QuizPersistenceService {
         quizRepository.updateUpdatedAtById(quiz.getId());
     }
 
-    // TODO: Scoring system, add the columns to the DB for score (potentially a list of most recent scores)
-
 }
