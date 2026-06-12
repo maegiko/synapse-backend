@@ -8,5 +8,6 @@ public record QuizResponse(
     String title,
     String description,
     List<QuestionResponse> questions,
+    Integer difficulty,
     LocalDateTime createdAt
 ) {}
