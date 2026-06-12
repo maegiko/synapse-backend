@@ -10,6 +10,7 @@ import com.synapse.backend.quiz.dto.GenerateQuizRequest;
 import com.synapse.backend.quiz.dto.QuizResponse;
 import com.synapse.backend.quiz.dto.create.CreateQuestionRequest;
 import com.synapse.backend.quiz.dto.create.CreateQuestionResponse;
+import com.synapse.backend.quiz.dto.difficulty.UpdateDifficultyRequest;
 import com.synapse.backend.quiz.dto.list.ListQuizResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,6 +25,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+
 
 @RestController
 @RequestMapping("/api/quiz")
@@ -209,6 +212,18 @@ public class QuizController {
     ) {
         Long userId = Long.valueOf(jwt.getSubject());
         quizService.deleteQuestion(userId, quizId, questionId);
+
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{quizId}/difficulty")
+    public ResponseEntity<Void> updateDifficulty(
+        @PathVariable String quizId,
+        @RequestBody @Valid UpdateDifficultyRequest req,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        quizService.updateDifficulty(userId, quizId, req.difficulty());
 
         return ResponseEntity.noContent().build();
     }
