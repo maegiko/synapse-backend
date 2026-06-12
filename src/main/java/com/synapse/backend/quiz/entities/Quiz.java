@@ -52,6 +52,9 @@ public class Quiz {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column
+    private Integer difficulty;
+
     protected Quiz() {}
 
     public Quiz(String title, String description, Long userId, Long noteId, QuizSourceType sourceType) {
@@ -97,6 +100,10 @@ public class Quiz {
 
     public Long getId() {
         return id;
+    }
+
+    public Integer getDifficulty() {
+        return difficulty;
     }
 
 }
