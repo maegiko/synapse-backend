@@ -183,4 +183,11 @@ public class QuizService {
         persistenceService.deleteQuestion(userId, quizId, questionId);
     }
 
+    public void updateDifficulty(Long userId, String quizId, Integer difficulty) {
+        if (userId == null)
+            throw new UserUnauthorised("User is not authorised for this action.");
+
+        persistenceService.updateDifficulty(userId, quizId, difficulty);
+    }
+
 }
