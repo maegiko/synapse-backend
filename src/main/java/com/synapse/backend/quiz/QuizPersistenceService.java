@@ -97,6 +97,7 @@ public class QuizPersistenceService {
             newQuiz.getTitle(),
             newQuiz.getDescription(),
             questions,
+            newQuiz.getDifficulty(),
             newQuiz.getCreatedAt()
         );
     }
@@ -170,6 +171,7 @@ public class QuizPersistenceService {
                     quiz.getTitle(),
                     quiz.getDescription(),
                     questionResponses,
+                    quiz.getDifficulty(),
                     quiz.getCreatedAt()
                 )
             );
@@ -224,7 +226,14 @@ public class QuizPersistenceService {
 
         }
 
-        return new QuizResponse(quiz.getPublicId(), quiz.getTitle(), quiz.getDescription(), questions, quiz.getCreatedAt());
+        return new QuizResponse(
+            quiz.getPublicId(),
+            quiz.getTitle(),
+            quiz.getDescription(),
+            questions,
+            quiz.getDifficulty(),
+            quiz.getCreatedAt()
+        );
     }
 
     /**
@@ -312,6 +321,15 @@ public class QuizPersistenceService {
             throw new QuestionNotFound("Question not found: " + questionId);
 
         quizRepository.updateUpdatedAtById(quiz.getId());
+    }
+
+    @Transactional
+    public void updateDifficulty(Long userId, String quizId, Integer difficulty) {
+        Quiz quiz = quizRepository
+            .findByPublicIdAndUserId(quizId, userId)
+            .orElseThrow(() -> new QuizNotFound("Quiz not found: " + quizId));
+
+        quizRepository.updateDifficultyById(quiz.getId(), difficulty);
     }
 
 }
