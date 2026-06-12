@@ -217,6 +217,29 @@ public class QuizController {
     }
 
     @PutMapping("/{quizId}/difficulty")
+    @Operation(
+        summary = "Update quiz difficulty",
+        description = "Sets the difficulty of a saved quiz owned by the currently authenticated user. "
+            + "Difficulty must be an integer from 1 to 5.",
+        responses = {
+            @ApiResponse(responseCode = "204", description = "Successful difficulty update"),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Difficulty is missing or outside the allowed range",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Quiz not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
     public ResponseEntity<Void> updateDifficulty(
         @PathVariable String quizId,
         @RequestBody @Valid UpdateDifficultyRequest req,
