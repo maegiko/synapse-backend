@@ -323,6 +323,14 @@ public class QuizPersistenceService {
         quizRepository.updateUpdatedAtById(quiz.getId());
     }
 
+    /**
+     * Persists a new difficulty for a quiz owned by the user.
+     *
+     * @param userId the id of the authenticated user.
+     * @param quizId the public id of the quiz to update.
+     * @param difficulty the validated difficulty from 1 to 5.
+     * @throws QuizNotFound if no quiz with the given public id belongs to the user.
+     */
     @Transactional
     public void updateDifficulty(Long userId, String quizId, Integer difficulty) {
         Quiz quiz = quizRepository

@@ -183,6 +183,13 @@ public class QuizService {
         persistenceService.deleteQuestion(userId, quizId, questionId);
     }
 
+    /**
+     * Updates the difficulty of a quiz owned by the authenticated user.
+     *
+     * @param userId the id of the authenticated user.
+     * @param quizId the public id of the quiz to update.
+     * @param difficulty the validated difficulty from 1 to 5.
+     */
     public void updateDifficulty(Long userId, String quizId, Integer difficulty) {
         if (userId == null)
             throw new UserUnauthorised("User is not authorised for this action.");
