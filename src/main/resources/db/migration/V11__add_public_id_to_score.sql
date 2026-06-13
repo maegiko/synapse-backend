@@ -1,0 +1,2 @@
+ALTER TABLE quiz_score
+ADD COLUMN public_id VARCHAR(10) NOT NULL UNIQUE;
