@@ -20,6 +20,7 @@ import com.synapse.backend.quiz.dto.generated.GeneratedQuizResponse;
 import com.synapse.backend.quiz.dto.list.ListQuizResponse;
 import com.synapse.backend.quiz.dto.list.QuestionPreviewResponse;
 import com.synapse.backend.quiz.dto.list.QuizListItemResponse;
+import com.synapse.backend.quiz.dto.score.ListQuizScoreResponse;
 import com.synapse.backend.quiz.dto.score.QuizScoreResponse;
 import com.synapse.backend.quiz.entities.Quiz;
 import com.synapse.backend.quiz.entities.QuizAnswer;
@@ -375,6 +376,27 @@ public class QuizPersistenceService {
             quizScore.getScore(),
             quizScore.getTotalQuestions(),
             quizScore.getCreatedAt()
+        );
+    }
+
+    public ListQuizScoreResponse getAllQuizScores(String quizId, Long userId) {
+        Quiz quiz = quizRepository
+            .findByPublicIdAndUserId(quizId, userId)
+            .orElseThrow(() -> new QuizNotFound("Quiz not found: " + quizId));
+
+        List<QuizScore> scores = scoreRepository.findByQuizIdOrderByCreatedAtDesc(quiz.getId());
+
+        return new ListQuizScoreResponse(
+            scores
+                .stream()
+                .map(s -> new QuizScoreResponse(
+                    s.getPublicId(),
+                    quiz.getPublicId(),
+                    s.getScore(),
+                    s.getTotalQuestions(),
+                    s.getCreatedAt())
+                )
+                .toList()
         );
     }
 
