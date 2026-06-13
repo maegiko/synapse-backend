@@ -293,6 +293,28 @@ public class QuizController {
     }
 
     @GetMapping("/{quizId}/score/list")
+    @Operation(
+        summary = "List quiz scores",
+        description = "Lists saved score attempts for a quiz owned by the currently authenticated user, "
+            + "ordered from newest to oldest.",
+        responses = {
+            @ApiResponse(
+                responseCode = "200",
+                description = "Successful quiz score list retrieval",
+                content = @Content(schema = @Schema(implementation = ListQuizScoreResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Quiz not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
     public ResponseEntity<ListQuizScoreResponse> getAllQuizScores(
         @PathVariable String quizId,
         @AuthenticationPrincipal Jwt jwt
