@@ -86,6 +86,8 @@ class QuizSaveScoreIntegrationTest extends PostgresIntegrationTest {
             .get("publicId")
             .asString();
 
+        assertEquals(10, scorePublicId.length());
+
         ScoreRow savedScore = findScore(scorePublicId);
         assertEquals(quizId, savedScore.quizId());
         assertEquals(user.id(), savedScore.userId());
