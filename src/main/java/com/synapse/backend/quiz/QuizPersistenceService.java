@@ -379,6 +379,14 @@ public class QuizPersistenceService {
         );
     }
 
+    /**
+     * Retrieves score history for a quiz owned by the user.
+     *
+     * @param quizId the public id of the quiz.
+     * @param userId the id of the authenticated user.
+     * @return saved score attempts ordered from newest to oldest with their question-count snapshots.
+     * @throws QuizNotFound if no quiz with the given public id belongs to the user.
+     */
     public ListQuizScoreResponse getAllQuizScores(String quizId, Long userId) {
         Quiz quiz = quizRepository
             .findByPublicIdAndUserId(quizId, userId)

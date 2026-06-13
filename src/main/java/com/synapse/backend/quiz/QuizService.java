@@ -214,6 +214,13 @@ public class QuizService {
         return persistenceService.saveScore(quizId, userId, score);
     }
 
+    /**
+     * Returns the score history for a quiz owned by the authenticated user.
+     *
+     * @param quizId the public id of the quiz.
+     * @param userId the id of the authenticated user.
+     * @return saved score attempts ordered from newest to oldest.
+     */
     public ListQuizScoreResponse getAllQuizScores(String quizId, Long userId) {
         if (userId == null)
             throw new UserUnauthorised("User is not authorised for this action.");
