@@ -13,7 +13,8 @@ The API is secured with JWT bearer authentication, persists data in PostgreSQL, 
 - AI-generated flashcard decks from saved notes
 - Flashcard deck listing, retrieval, deletion, and manual card management
 - AI-generated quizzes from saved notes
-- Quiz listing, retrieval, deletion, and manual question management
+- Quiz listing, retrieval, deletion, difficulty settings, and manual question management
+- Personal-practice score saving and newest-first score history
 - PostgreSQL persistence with Flyway migrations
 - Swagger/OpenAPI documentation
 - Integration tests using Testcontainers
@@ -172,10 +173,13 @@ Authorization: Bearer <accessToken>
 | --- | --- | --- | --- |
 | `POST` | `/api/quiz/generate` | Generate and save a quiz from a saved note | Yes |
 | `GET` | `/api/quiz/list` | List saved quizzes with question previews | Yes |
-| `GET` | `/api/quiz/{id}` | Get one quiz with questions and answers | Yes |
+| `GET` | `/api/quiz/{quizId}` | Get one quiz with questions and answers | Yes |
 | `POST` | `/api/quiz/{quizId}/questions` | Add a question and answers to a quiz | Yes |
-| `DELETE` | `/api/quiz/{id}` | Delete a quiz | Yes |
+| `DELETE` | `/api/quiz/{quizId}` | Delete a quiz | Yes |
 | `DELETE` | `/api/quiz/{quizId}/questions/{questionId}` | Delete a question from a quiz | Yes |
+| `PUT` | `/api/quiz/{quizId}/difficulty` | Set quiz difficulty from 1 to 5 | Yes |
+| `POST` | `/api/quiz/{quizId}/score` | Save a personal-practice score | Yes |
+| `GET` | `/api/quiz/{quizId}/score/list` | List saved scores from newest to oldest | Yes |
 
 ## Example Flow 🔄
 
@@ -184,7 +188,9 @@ Authorization: Bearer <accessToken>
 3. Upload a PDF to `/api/notes/summarise`.
 4. Use the saved note id to generate flashcards or a quiz.
 5. Add or delete individual flashcards/questions as needed.
-6. Retrieve saved learning resources from the list/get endpoints.
+6. Set the quiz difficulty and complete the quiz in the client.
+7. Save the practice score and retrieve previous attempts.
+8. Retrieve saved learning resources from the list/get endpoints.
 
 Example registration request:
 
@@ -235,6 +241,37 @@ curl -X POST http://localhost:8080/api/quiz/<quizId>/questions \
   }'
 ```
 
+Example difficulty update:
+
+```bash
+curl -X PUT http://localhost:8080/api/quiz/<quizId>/difficulty \
+  -H "Authorization: Bearer <accessToken>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "difficulty": 3
+  }'
+```
+
+Example score creation:
+
+```bash
+curl -X POST http://localhost:8080/api/quiz/<quizId>/score \
+  -H "Authorization: Bearer <accessToken>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "score": 8
+  }'
+```
+
+Scores are calculated by the client for personal practice. The backend verifies that a score is non-negative and does not exceed the quiz question count. Each attempt stores the question count at completion time so historical results remain meaningful if the quiz changes later.
+
+Example score history retrieval:
+
+```bash
+curl http://localhost:8080/api/quiz/<quizId>/score/list \
+  -H "Authorization: Bearer <accessToken>"
+```
+
 ## Database Migrations 🗄️
 
 Flyway migrations are stored in:
@@ -249,6 +286,7 @@ Current migration coverage includes:
 - Notes
 - Flashcards
 - Quizzes
+- Quiz difficulty and score history
 
 The development profile uses:
 
@@ -292,6 +330,8 @@ The test suite covers:
 - Note summary/list/get/delete flows
 - Flashcard generate/list/get/delete flows
 - Quiz generate/list/get/delete flows
+- Quiz question creation/deletion and difficulty updates
+- Quiz score creation, validation, ownership, ordering, and history retrieval
 - PDF text extraction
 
 LLM-backed endpoint tests mock the `LLMClient`, so tests do not require real LLM API calls or tokens.
