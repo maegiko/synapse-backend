@@ -33,13 +33,16 @@ public class QuizScore {
     @Column(nullable = false)
     private int score;
 
+    @Column(name = "total_questions", nullable = false)
+    private int totalQuestions;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     protected QuizScore() {}
 
-    public QuizScore(Long quizId, Long userId, int score) {
+    public QuizScore(Long quizId, Long userId, int score, int totalQuestions) {
         this.publicId = NanoIdUtils.randomNanoId(
             NanoIdUtils.DEFAULT_NUMBER_GENERATOR,
             NanoIdUtils.DEFAULT_ALPHABET,
@@ -48,6 +51,7 @@ public class QuizScore {
         this.quizId = quizId;
         this.score = score;
         this.userId = userId;
+        this.totalQuestions = totalQuestions;
     }
 
     public Long getId() {
@@ -72,6 +76,10 @@ public class QuizScore {
 
     public Long getUserId() {
         return userId;
+    }
+
+    public int getTotalQuestions() {
+        return totalQuestions;
     }
 
 }

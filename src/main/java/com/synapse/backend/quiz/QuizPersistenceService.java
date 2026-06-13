@@ -357,13 +357,13 @@ public class QuizPersistenceService {
         if (score > numQuestions)
             throw new InvalidQuizScoreException("Score cannot be greater than number of questions.");
 
-        QuizScore quizScore = scoreRepository.save(new QuizScore(quiz.getId(), userId, score));
+        QuizScore quizScore = scoreRepository.save(new QuizScore(quiz.getId(), userId, score, numQuestions));
 
         return new QuizScoreResponse(
             quizScore.getPublicId(),
             quiz.getPublicId(),
             quizScore.getScore(),
-            numQuestions,
+            quizScore.getTotalQuestions(),
             quizScore.getCreatedAt()
         );
     }

@@ -90,6 +90,7 @@ class QuizSaveScoreIntegrationTest extends PostgresIntegrationTest {
         assertEquals(quizId, savedScore.quizId());
         assertEquals(user.id(), savedScore.userId());
         assertEquals(2, savedScore.score());
+        assertEquals(3, savedScore.totalQuestions());
     }
 
     @Test
@@ -276,14 +277,15 @@ class QuizSaveScoreIntegrationTest extends PostgresIntegrationTest {
     private ScoreRow findScore(String publicId) {
         return jdbcTemplate.queryForObject(
             """
-            SELECT quiz_id, user_id, score
+            SELECT quiz_id, user_id, score, total_questions
             FROM quiz_score
             WHERE public_id = ?
             """,
             (rs, rowNum) -> new ScoreRow(
                 rs.getLong("quiz_id"),
                 rs.getLong("user_id"),
-                rs.getInt("score")
+                rs.getInt("score"),
+                rs.getInt("total_questions")
             ),
             publicId
         );
@@ -309,6 +311,7 @@ class QuizSaveScoreIntegrationTest extends PostgresIntegrationTest {
     private record ScoreRow(
         Long quizId,
         Long userId,
-        int score
+        int score,
+        int totalQuestions
     ) {}
 }
