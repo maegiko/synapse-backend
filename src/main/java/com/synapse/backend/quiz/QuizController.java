@@ -254,6 +254,33 @@ public class QuizController {
     }
 
     @PostMapping("/{quizId}/score")
+    @Operation(
+        summary = "Save a quiz score",
+        description = "Saves a completed quiz score for a quiz owned by the currently authenticated user. "
+            + "The score must be between zero and the quiz question count.",
+        responses = {
+            @ApiResponse(
+                responseCode = "200",
+                description = "Successful score creation",
+                content = @Content(schema = @Schema(implementation = QuizScoreResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Score is missing, negative, or greater than the quiz question count",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Quiz not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
     public ResponseEntity<QuizScoreResponse> saveScore(
         @RequestBody @Valid SaveScoreRequest req,
         @PathVariable String quizId,
