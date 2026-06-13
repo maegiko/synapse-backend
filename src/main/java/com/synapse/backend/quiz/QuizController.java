@@ -12,6 +12,8 @@ import com.synapse.backend.quiz.dto.create.CreateQuestionRequest;
 import com.synapse.backend.quiz.dto.create.CreateQuestionResponse;
 import com.synapse.backend.quiz.dto.difficulty.UpdateDifficultyRequest;
 import com.synapse.backend.quiz.dto.list.ListQuizResponse;
+import com.synapse.backend.quiz.dto.score.QuizScoreResponse;
+import com.synapse.backend.quiz.dto.score.SaveScoreRequest;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -249,6 +251,18 @@ public class QuizController {
         quizService.updateDifficulty(userId, quizId, req.difficulty());
 
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{quizId}/score")
+    public ResponseEntity<QuizScoreResponse> saveScore(
+        @RequestBody @Valid SaveScoreRequest req,
+        @PathVariable String quizId,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        QuizScoreResponse res = quizService.saveScore(quizId, userId, req.score());
+
+        return ResponseEntity.ok(res);
     }
 
 }
