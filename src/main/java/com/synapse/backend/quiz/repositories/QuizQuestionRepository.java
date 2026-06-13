@@ -20,4 +20,6 @@ public interface QuizQuestionRepository extends JpaRepository<QuizQuestion, Long
 
     long deleteByPublicIdAndQuizId(String publicId, Long quizId);
 
+    int countByQuizId(Long quizId);
+
 }
