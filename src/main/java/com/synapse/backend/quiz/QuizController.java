@@ -97,7 +97,7 @@ public class QuizController {
         return ResponseEntity.ok(res);
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/{quizId}")
     @Operation(
         summary = "Get a single quiz",
         description = "Gets a single saved quiz owned by the currently authenticated user, including questions and answers.",
@@ -115,14 +115,14 @@ public class QuizController {
             )
         }
     )
-    public ResponseEntity<QuizResponse> getQuizById(@PathVariable("id") String quizId, @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<QuizResponse> getQuizById(@PathVariable String quizId, @AuthenticationPrincipal Jwt jwt) {
         Long userId = Long.valueOf(jwt.getSubject());
         QuizResponse res = quizService.getQuizById(quizId, userId);
 
         return ResponseEntity.ok(res);
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{quizId}")
     @Operation(
         summary = "Delete a quiz",
         description = "Deletes a saved quiz owned by the currently authenticated user, including its questions and answers.",
@@ -140,7 +140,7 @@ public class QuizController {
             )
         }
     )
-    public ResponseEntity<Void> deleteQuizById(@PathVariable("id") String quizId, @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<Void> deleteQuizById(@PathVariable String quizId, @AuthenticationPrincipal Jwt jwt) {
         Long userId = Long.valueOf(jwt.getSubject());
         quizService.deleteQuizById(quizId, userId);
 
