@@ -12,6 +12,7 @@ import com.synapse.backend.quiz.dto.create.CreateQuestionRequest;
 import com.synapse.backend.quiz.dto.create.CreateQuestionResponse;
 import com.synapse.backend.quiz.dto.difficulty.UpdateDifficultyRequest;
 import com.synapse.backend.quiz.dto.list.ListQuizResponse;
+import com.synapse.backend.quiz.dto.score.ListQuizScoreResponse;
 import com.synapse.backend.quiz.dto.score.QuizScoreResponse;
 import com.synapse.backend.quiz.dto.score.SaveScoreRequest;
 
@@ -28,7 +29,6 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
-
 
 @RestController
 @RequestMapping("/api/quiz")
@@ -288,6 +288,17 @@ public class QuizController {
     ) {
         Long userId = Long.valueOf(jwt.getSubject());
         QuizScoreResponse res = quizService.saveScore(quizId, userId, req.score());
+
+        return ResponseEntity.ok(res);
+    }
+
+    @GetMapping("/{quizId}/score/list")
+    public ResponseEntity<ListQuizScoreResponse> getAllQuizScores(
+        @PathVariable String quizId,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        ListQuizScoreResponse res = quizService.getAllQuizScores(quizId, userId);
 
         return ResponseEntity.ok(res);
     }
