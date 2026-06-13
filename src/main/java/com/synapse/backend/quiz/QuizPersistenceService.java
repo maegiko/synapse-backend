@@ -347,6 +347,16 @@ public class QuizPersistenceService {
         quizRepository.updateDifficultyById(quiz.getId(), difficulty);
     }
 
+    /**
+     * Persists a score and question-count snapshot for a quiz owned by the user.
+     *
+     * @param quizId the public id of the completed quiz.
+     * @param userId the id of the authenticated user.
+     * @param score the validated non-negative score to save.
+     * @return the saved score with its quiz id, question-count snapshot, and creation time.
+     * @throws QuizNotFound if no quiz with the given public id belongs to the user.
+     * @throws InvalidQuizScoreException if the score exceeds the number of quiz questions.
+     */
     public QuizScoreResponse saveScore(String quizId, Long userId, int score) {
         Quiz quiz = quizRepository
             .findByPublicIdAndUserId(quizId, userId)

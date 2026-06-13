@@ -198,6 +198,14 @@ public class QuizService {
         persistenceService.updateDifficulty(userId, quizId, difficulty);
     }
 
+    /**
+     * Saves a completed score for a quiz owned by the authenticated user.
+     *
+     * @param quizId the public id of the completed quiz.
+     * @param userId the id of the authenticated user.
+     * @param score the number of correctly answered questions.
+     * @return the saved score with its quiz id, question-count snapshot, and creation time.
+     */
     public QuizScoreResponse saveScore(String quizId, Long userId, int score) {
         if (userId == null)
             throw new UserUnauthorised("User is not authorised for this action.");
