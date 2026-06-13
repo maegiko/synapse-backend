@@ -19,6 +19,7 @@ import com.synapse.backend.quiz.dto.generated.GeneratedAnswerResponse;
 import com.synapse.backend.quiz.dto.generated.GeneratedQuestionResponse;
 import com.synapse.backend.quiz.dto.generated.GeneratedQuizResponse;
 import com.synapse.backend.quiz.dto.list.ListQuizResponse;
+import com.synapse.backend.quiz.dto.score.ListQuizScoreResponse;
 import com.synapse.backend.quiz.dto.score.QuizScoreResponse;
 import com.synapse.backend.quiz.enums.QuestionType;
 import com.synapse.backend.quiz.exceptions.CreateQuestionInputException;
@@ -211,6 +212,13 @@ public class QuizService {
             throw new UserUnauthorised("User is not authorised for this action.");
 
         return persistenceService.saveScore(quizId, userId, score);
+    }
+
+    public ListQuizScoreResponse getAllQuizScores(String quizId, Long userId) {
+        if (userId == null)
+            throw new UserUnauthorised("User is not authorised for this action.");
+
+        return persistenceService.getAllQuizScores(quizId, userId);
     }
 
 }
