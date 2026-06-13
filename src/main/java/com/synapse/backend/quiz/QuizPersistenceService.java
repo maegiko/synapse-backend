@@ -20,16 +20,20 @@ import com.synapse.backend.quiz.dto.generated.GeneratedQuizResponse;
 import com.synapse.backend.quiz.dto.list.ListQuizResponse;
 import com.synapse.backend.quiz.dto.list.QuestionPreviewResponse;
 import com.synapse.backend.quiz.dto.list.QuizListItemResponse;
+import com.synapse.backend.quiz.dto.score.QuizScoreResponse;
 import com.synapse.backend.quiz.entities.Quiz;
 import com.synapse.backend.quiz.entities.QuizAnswer;
 import com.synapse.backend.quiz.entities.QuizQuestion;
+import com.synapse.backend.quiz.entities.QuizScore;
 import com.synapse.backend.quiz.enums.QuestionType;
 import com.synapse.backend.quiz.enums.QuizSourceType;
+import com.synapse.backend.quiz.exceptions.InvalidQuizScoreException;
 import com.synapse.backend.quiz.exceptions.QuestionNotFound;
 import com.synapse.backend.quiz.exceptions.QuizNotFound;
 import com.synapse.backend.quiz.repositories.QuizAnswerRepository;
 import com.synapse.backend.quiz.repositories.QuizQuestionRepository;
 import com.synapse.backend.quiz.repositories.QuizRepository;
+import com.synapse.backend.quiz.repositories.QuizScoreRepository;
 import com.synapse.backend.shared.exceptions.concrete.UserUnauthorised;
 
 import jakarta.transaction.Transactional;
@@ -39,15 +43,18 @@ public class QuizPersistenceService {
     private final QuizRepository quizRepository;
     private final QuizQuestionRepository questionRepository;
     private final QuizAnswerRepository answerRepository;
+    private final QuizScoreRepository scoreRepository;
 
     public QuizPersistenceService(
         QuizRepository quizRepository,
         QuizQuestionRepository questionRepository,
-        QuizAnswerRepository answerRepository
+        QuizAnswerRepository answerRepository,
+        QuizScoreRepository scoreRepository
     ) {
         this.quizRepository = quizRepository;
         this.questionRepository = questionRepository;
         this.answerRepository = answerRepository;
+        this.scoreRepository = scoreRepository;
     }
 
     /**
@@ -338,6 +345,27 @@ public class QuizPersistenceService {
             .orElseThrow(() -> new QuizNotFound("Quiz not found: " + quizId));
 
         quizRepository.updateDifficultyById(quiz.getId(), difficulty);
+    }
+
+    public QuizScoreResponse saveScore(String quizId, Long userId, int score) {
+        Quiz quiz = quizRepository
+            .findByPublicIdAndUserId(quizId, userId)
+            .orElseThrow(() -> new QuizNotFound("Quiz not found: " + quizId));
+
+        int numQuestions = questionRepository.countByQuizId(quiz.getId());
+
+        if (score > numQuestions)
+            throw new InvalidQuizScoreException("Score cannot be greater than number of questions.");
+
+        QuizScore quizScore = scoreRepository.save(new QuizScore(quiz.getId(), userId, score));
+
+        return new QuizScoreResponse(
+            quizScore.getPublicId(),
+            quiz.getPublicId(),
+            quizScore.getScore(),
+            numQuestions,
+            quizScore.getCreatedAt()
+        );
     }
 
 }
