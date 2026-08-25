@@ -1,8 +1,12 @@
 package com.synapse.backend.support;
 
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+
+import com.synapse.backend.shared.ratelimit.RateLimitService;
 
 @SuppressWarnings("resource")
 public abstract class PostgresIntegrationTest {
@@ -16,6 +20,14 @@ public abstract class PostgresIntegrationTest {
 
     static {
         POSTGRES.start();
+    }
+
+    @Autowired
+    private RateLimitService rateLimitService;
+
+    @BeforeEach
+    void resetRateLimits() {
+        rateLimitService.reset();
     }
 
     @DynamicPropertySource

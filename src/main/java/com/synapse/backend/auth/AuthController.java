@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
@@ -43,11 +44,19 @@ public class AuthController {
                 responseCode = "409",
                 description = "Email is already registered",
                 content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "429",
+                description = "Too many registrations from this address",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
             )
         }
     )
-    public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest registerRequest) {
-        RegisterResponse res = authService.registerUser(registerRequest);
+    public ResponseEntity<RegisterResponse> register(
+        @Valid @RequestBody RegisterRequest registerRequest,
+        HttpServletRequest httpRequest
+    ) {
+        RegisterResponse res = authService.registerUser(registerRequest, httpRequest.getRemoteAddr());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(res);
     }
@@ -67,11 +76,19 @@ public class AuthController {
                 responseCode = "401",
                 description = "Invalid credentials",
                 content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "429",
+                description = "Too many login attempts",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
             )
         }
     )
-    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
-        LoginResponse res = authService.loginUser(loginRequest);
+    public ResponseEntity<LoginResponse> login(
+        @Valid @RequestBody LoginRequest loginRequest,
+        HttpServletRequest httpRequest
+    ) {
+        LoginResponse res = authService.loginUser(loginRequest, httpRequest.getRemoteAddr());
 
         return ResponseEntity.status(HttpStatus.OK).body(res);
     }

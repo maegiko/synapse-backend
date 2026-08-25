@@ -1,5 +1,6 @@
 package com.synapse.backend.shared;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -10,6 +11,7 @@ import com.synapse.backend.shared.exceptions.BadGatewayException;
 import com.synapse.backend.shared.exceptions.BadRequestException;
 import com.synapse.backend.shared.exceptions.ConflictException;
 import com.synapse.backend.shared.exceptions.NotFoundException;
+import com.synapse.backend.shared.exceptions.TooManyRequestsException;
 import com.synapse.backend.shared.exceptions.UnauthorisedException;
 
 @RestControllerAdvice
@@ -38,6 +40,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BadGatewayException.class)
     public ResponseEntity<ErrorResponse> handleBadGateway(BadGatewayException ex) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(new ErrorResponse(ex.getMessage()));
+    }
+
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<ErrorResponse> handleTooManyRequests(TooManyRequestsException ex) {
+        return ResponseEntity
+                .status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(new ErrorResponse(ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

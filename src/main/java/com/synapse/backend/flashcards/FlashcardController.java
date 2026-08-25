@@ -61,6 +61,11 @@ public class FlashcardController {
                 content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
             ),
             @ApiResponse(
+                responseCode = "429",
+                description = "Too many generation requests",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
                 responseCode = "502",
                 description = "LLM provider error or invalid LLM response",
                 content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))

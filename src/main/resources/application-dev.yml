@@ -23,6 +23,29 @@ ai:
   groq:
     api-key: ${GROQ_API_KEY}
 
+ratelimit:
+  enabled: true
+
+  ai:
+    limit: 3
+    window: 1m
+
+  ai-daily:
+    limit: 50
+    window: 1d
+
+  login:
+    limit: 10
+    window: 15m
+
+  register:
+    limit: 3
+    window: 1h
+
+  api:
+    limit: 120
+    window: 1m
+
 jwt:
   issuer: synapse
   access-token-ttl: 15m
