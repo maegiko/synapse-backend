@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -115,15 +116,49 @@ class NotesSummaryIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void summariseNotesReturnsStructuredSummaryForTextFile() throws Exception {
+        when(llmClient.generate(any(LLMRequest.class))).thenReturn(validSummaryJson());
+        String accessToken = registerAndGetAccessToken("Kenneth", "kenneth@example.com");
+        MockMultipartFile file = new MockMultipartFile(
+            "file",
+            "notes.txt",
+            "text/plain",
+            "Behavioural modelling lecture notes".getBytes(StandardCharsets.UTF_8)
+        );
+
+        MvcResult result = mockMvc.perform(multipart(SUMMARY_ENDPOINT)
+                .file(file)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").isString())
+            .andExpect(jsonPath("$.title").value("Behavioural Modelling"))
+            .andExpect(jsonPath("$.overview").value("A short overview."))
+            .andReturn();
+
+        String noteId = objectMapper
+            .readTree(result.getResponse().getContentAsString())
+            .get("id")
+            .asString();
+
+        Integer savedNoteCount = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM note WHERE public_id = ?",
+            Integer.class,
+            noteId
+        );
+
+        org.assertj.core.api.Assertions.assertThat(savedNoteCount).isEqualTo(1);
+    }
+
+    @Test
     void summariseNotesReturnsBadRequestWhenFileTypeIsUnsupported() throws Exception {
         String accessToken = registerAndGetAccessToken("Kenneth", "kenneth@example.com");
-        MockMultipartFile file = new MockMultipartFile("file", "notes.txt", "text/plain", "notes".getBytes());
+        MockMultipartFile file = new MockMultipartFile("file", "notes.png", "image/png", "notes".getBytes());
 
         mockMvc.perform(multipart(SUMMARY_ENDPOINT)
                 .file(file)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("The filetype text/plain is not supported."));
+            .andExpect(jsonPath("$.message").value("The filetype image/png is not supported."));
     }
 
     @Test
