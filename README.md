@@ -18,6 +18,7 @@ The API is secured with JWT bearer authentication, persists data in PostgreSQL, 
 - PostgreSQL persistence with Flyway migrations
 - Swagger/OpenAPI documentation
 - Integration tests using Testcontainers
+- In-memory per-user and per-IP rate limiting
 - Checkstyle linting
 
 ## Tech Stack 🛠️
@@ -34,6 +35,7 @@ The API is secured with JWT bearer authentication, persists data in PostgreSQL, 
 - Testcontainers
 - PDFBox
 - Apache POI
+- Caffeine
 - springdoc-openapi
 - Groq/Gemini-ready LLM client configuration
 
@@ -333,6 +335,7 @@ The test suite covers:
 - Quiz generate/list/get/delete flows
 - Quiz question creation/deletion and difficulty updates
 - Quiz score creation, validation, ownership, ordering, and history retrieval
+- Rate limiting of AI, authenticated, login, and registration requests
 - PDF, DOCX, plain text, and Markdown extraction
 
 LLM-backed endpoint tests mock the `LLMClient`, so tests do not require real LLM API calls or tokens.
@@ -396,10 +399,50 @@ http://localhost:8080/v3/api-docs
 - Keep persistence mapping/query logic in persistence services.
 - Run `./gradlew test lint` before opening a pull request.
 
+## Rate Limiting 🚦
+
+Requests are counted in a bounded in-memory Caffeine cache per application instance, in fixed windows. Exceeding a limit
+returns HTTP 429 with the standard error body and a `Retry-After` header holding the seconds until the window resets,
+rounded up.
+
+| Scope | Limit | Counted per |
+| --- | --- | --- |
+| `POST /api/notes/summarise`, `POST /api/flashcards/generate`, `POST /api/quiz/generate` | 3 per minute and 50 per day | JWT user id |
+| Other authenticated `/api/**` requests | 120 per minute | JWT user id |
+| `POST /api/auth/login` | 10 per 15 minutes | Normalized email, and separately client address |
+| `POST /api/auth/register` | 3 per hour | Client address |
+
+CORS preflight requests are not rate limited.
+
+Limits are configured in `src/main/resources/application-dev.yml`:
+
+```yaml
+ratelimit:
+  enabled: true
+  ai:
+    limit: 3
+    window: 1m
+  ai-daily:
+    limit: 50
+    window: 1d
+  login:
+    limit: 10
+    window: 15m
+  register:
+    limit: 3
+    window: 1h
+  api:
+    limit: 120
+    window: 1m
+```
+
+Setting `ratelimit.enabled` to `false` turns limiting off.
+
 ## Current Limitations ⚠️
 
 - Only PDF, DOCX, plain text (`text/plain`), and Markdown (`text/markdown`) uploads are currently supported for note summarisation.
 - Legacy `.doc` Word files are not supported, only `.docx`.
 - LLM generation quality depends on the configured provider and prompt behavior.
-- Rate limiting is not currently implemented for generation endpoints.
+- Rate limiting is in-memory and single-instance. Counters are not shared between instances and are lost on restart.
+- Rate limiting uses the direct client address, so a reverse proxy must be accounted for before deploying behind one.
 - The local application profile is development-oriented and should be adjusted for production deployment.
