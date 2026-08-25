@@ -94,7 +94,7 @@ public class FlashcardPersistenceService {
                 .toList();
 
             flashcardList.add(
-                new SingleDeckResponse(deck.getPublicId(), cards)
+                new SingleDeckResponse(deck.getPublicId(), deck.getTitle(), cards)
             );
         }
 
@@ -120,7 +120,7 @@ public class FlashcardPersistenceService {
                 .map(f -> new FlashcardWithIdResponse(f.getPublicId(), f.getQuestion(), f.getAnswer()))
                 .toList();
 
-        return new SingleDeckResponse(publicId, flashcardList);
+        return new SingleDeckResponse(publicId, deck.getTitle(), flashcardList);
     }
 
     /**
