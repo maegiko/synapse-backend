@@ -13,7 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
+import com.aventrix.jnanoid.jnanoid.NanoIdUtils;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -99,7 +99,7 @@ class FlashcardGenerateIntegrationTest extends PostgresIntegrationTest {
         Long deckId = ((Number) deck.get("id")).longValue();
 
         assertEquals(deck.get("public_id").toString(), responseDeckId);
-        UUID.fromString(responseDeckId);
+        assertEquals(10, responseDeckId.length());
         assertEquals(user.id(), deck.get("user_id"));
         assertEquals(note.id(), deck.get("note_id"));
         assertEquals("Biology notes", deck.get("title"));
@@ -166,7 +166,7 @@ class FlashcardGenerateIntegrationTest extends PostgresIntegrationTest {
         mockMvc.perform(post(GENERATE_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new FlashcardGenerateNoteRequest(
-                    UUID.fromString("00000000-0000-0000-0000-000000000001")
+                    "notegen001"
                 ))))
             .andExpect(status().isUnauthorized());
 
@@ -193,11 +193,15 @@ class FlashcardGenerateIntegrationTest extends PostgresIntegrationTest {
     }
 
     private TestNote createNote(Long userId, String title, String overview) {
-        UUID publicId = UUID.randomUUID();
+        String publicId = NanoIdUtils.randomNanoId(
+            NanoIdUtils.DEFAULT_NUMBER_GENERATOR,
+            NanoIdUtils.DEFAULT_ALPHABET,
+            10
+        );
         Long id = jdbcTemplate.queryForObject(
             """
             INSERT INTO note (user_id, public_id, title, overview)
-            VALUES (?, ?::uuid, ?, ?)
+            VALUES (?, ?, ?, ?)
             RETURNING id
             """,
             Long.class,
@@ -273,6 +277,6 @@ class FlashcardGenerateIntegrationTest extends PostgresIntegrationTest {
 
     private record TestNote(
         Long id,
-        UUID publicId
+        String publicId
     ) {}
 }

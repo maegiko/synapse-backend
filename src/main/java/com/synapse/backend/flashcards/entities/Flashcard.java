@@ -1,10 +1,11 @@
 package com.synapse.backend.flashcards.entities;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+
+import com.aventrix.jnanoid.jnanoid.NanoIdUtils;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -33,8 +34,8 @@ public class Flashcard {
     @Column(nullable = false)
     private Integer position;
 
-    @Column(name = "public_id", nullable = false, unique = true)
-    private UUID publicId;
+    @Column(name = "public_id", nullable = false, unique = true, length = 10)
+    private String publicId;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -46,12 +47,16 @@ public class Flashcard {
 
     protected Flashcard() {}
 
-    public Flashcard(Long deckId, String question, String answer, Integer position, UUID publicId) {
+    public Flashcard(Long deckId, String question, String answer, Integer position) {
         this.deckId = deckId;
         this.question = question;
         this.answer = answer;
         this.position = position;
-        this.publicId = publicId;
+        this.publicId = NanoIdUtils.randomNanoId(
+            NanoIdUtils.DEFAULT_NUMBER_GENERATOR,
+            NanoIdUtils.DEFAULT_ALPHABET,
+            10
+        );
     }
 
     public Long getDeckId() {
@@ -74,7 +79,7 @@ public class Flashcard {
         return createdAt;
     }
 
-    public UUID getPublicId() {
+    public String getPublicId() {
         return publicId;
     }
 

@@ -12,7 +12,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -71,8 +70,8 @@ class FlashcardAddIntegrationTest extends PostgresIntegrationTest {
     @Test
     void addFlashcardCreatesCardInCurrentUsersDeckAndReturnsCreatedCard() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
-        UUID deckPublicId = UUID.fromString("00000000-0000-0000-0000-000000001901");
-        UUID existingCardPublicId = UUID.fromString("00000000-0000-0000-0000-000000001902");
+        String deckPublicId = "deckadd001";
+        String existingCardPublicId = "cardadd001";
         LocalDateTime originalDeckUpdatedAt = LocalDateTime.of(2026, 1, 2, 9, 0);
         Long deckId = createDeck(user.id(), deckPublicId, "Systems deck", originalDeckUpdatedAt);
         createFlashcard(
@@ -98,7 +97,7 @@ class FlashcardAddIntegrationTest extends PostgresIntegrationTest {
             .andReturn();
 
         JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
-        UUID newCardPublicId = UUID.fromString(response.get("id").asString());
+        String newCardPublicId = response.get("id").asString();
 
         mockMvc.perform(get(DECK_ENDPOINT, deckPublicId)
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
@@ -118,7 +117,7 @@ class FlashcardAddIntegrationTest extends PostgresIntegrationTest {
     void addFlashcardDoesNotAddCardToDeckOwnedByOtherUser() throws Exception {
         TestUser currentUser = register("Kenneth", "kenneth@example.com");
         TestUser otherUser = register("Ada", "ada@example.com");
-        UUID otherUsersDeckPublicId = UUID.fromString("00000000-0000-0000-0000-000000002001");
+        String otherUsersDeckPublicId = "deckadd002";
         Long otherUsersDeckId = createDeck(
             otherUser.id(),
             otherUsersDeckPublicId,
@@ -142,7 +141,7 @@ class FlashcardAddIntegrationTest extends PostgresIntegrationTest {
     @Test
     void addFlashcardReturnsBadRequestWhenQuestionIsBlank() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
-        UUID deckPublicId = UUID.fromString("00000000-0000-0000-0000-000000002101");
+        String deckPublicId = "deckadd003";
         createDeck(user.id(), deckPublicId, "Systems deck", LocalDateTime.of(2026, 1, 4, 9, 0));
 
         mockMvc.perform(post(DECK_ENDPOINT, deckPublicId)
@@ -158,7 +157,7 @@ class FlashcardAddIntegrationTest extends PostgresIntegrationTest {
     @Test
     void addFlashcardReturnsNotFoundWhenDeckDoesNotExist() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
-        UUID missingDeckPublicId = UUID.fromString("00000000-0000-0000-0000-000000002201");
+        String missingDeckPublicId = "deckadd004";
 
         mockMvc.perform(post(DECK_ENDPOINT, missingDeckPublicId)
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken()))
@@ -173,7 +172,7 @@ class FlashcardAddIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void addFlashcardReturnsUnauthorizedWhenTokenIsMissing() throws Exception {
-        mockMvc.perform(post(DECK_ENDPOINT, UUID.fromString("00000000-0000-0000-0000-000000002301"))
+        mockMvc.perform(post(DECK_ENDPOINT, "deckadd005")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of(
                     "question", "What is a stock?",
@@ -200,11 +199,11 @@ class FlashcardAddIntegrationTest extends PostgresIntegrationTest {
         return new TestUser(userId, accessToken);
     }
 
-    private Long createDeck(Long userId, UUID publicId, String title, LocalDateTime updatedAt) {
+    private Long createDeck(Long userId, String publicId, String title, LocalDateTime updatedAt) {
         return jdbcTemplate.queryForObject(
             """
             INSERT INTO flashcard_deck (user_id, title, source_type, public_id, created_at, updated_at)
-            VALUES (?, ?, 'NOTE', ?::uuid, ?::timestamp, ?::timestamp)
+            VALUES (?, ?, 'NOTE', ?, ?::timestamp, ?::timestamp)
             RETURNING id
             """,
             Long.class,
@@ -216,11 +215,11 @@ class FlashcardAddIntegrationTest extends PostgresIntegrationTest {
         );
     }
 
-    private void createFlashcard(Long deckId, UUID publicId, String question, String answer, int position) {
+    private void createFlashcard(Long deckId, String publicId, String question, String answer, int position) {
         jdbcTemplate.update(
             """
             INSERT INTO flashcard (deck_id, question, answer, position, public_id)
-            VALUES (?, ?, ?, ?, ?::uuid)
+            VALUES (?, ?, ?, ?, ?)
             """,
             deckId,
             question,

@@ -15,7 +15,7 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
+import com.aventrix.jnanoid.jnanoid.NanoIdUtils;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -257,7 +257,7 @@ class QuizGenerateIntegrationTest extends PostgresIntegrationTest {
         mockMvc.perform(post(GENERATE_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new GenerateQuizRequest(
-                    UUID.fromString("00000000-0000-0000-0000-000000000001")
+                    "notegen001"
                 ))))
             .andExpect(status().isUnauthorized());
 
@@ -284,11 +284,15 @@ class QuizGenerateIntegrationTest extends PostgresIntegrationTest {
     }
 
     private TestNote createNote(Long userId, String title, String overview) {
-        UUID publicId = UUID.randomUUID();
+        String publicId = NanoIdUtils.randomNanoId(
+            NanoIdUtils.DEFAULT_NUMBER_GENERATOR,
+            NanoIdUtils.DEFAULT_ALPHABET,
+            10
+        );
         Long id = jdbcTemplate.queryForObject(
             """
             INSERT INTO note (user_id, public_id, title, overview)
-            VALUES (?, ?::uuid, ?, ?)
+            VALUES (?, ?, ?, ?)
             RETURNING id
             """,
             Long.class,
@@ -480,6 +484,6 @@ class QuizGenerateIntegrationTest extends PostgresIntegrationTest {
 
     private record TestNote(
         Long id,
-        UUID publicId
+        String publicId
     ) {}
 }

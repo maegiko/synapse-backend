@@ -12,7 +12,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -71,10 +70,10 @@ class FlashcardCardDeleteIntegrationTest extends PostgresIntegrationTest {
     @Test
     void deleteFlashcardRemovesOnlySelectedCardAndUpdatesDeckTimestamp() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
-        UUID deckPublicId = UUID.fromString("00000000-0000-0000-0000-000000002401");
-        UUID firstCardPublicId = UUID.fromString("00000000-0000-0000-0000-000000002402");
-        UUID deletedCardPublicId = UUID.fromString("00000000-0000-0000-0000-000000002403");
-        UUID lastCardPublicId = UUID.fromString("00000000-0000-0000-0000-000000002404");
+        String deckPublicId = "deckdel001";
+        String firstCardPublicId = "carddel001";
+        String deletedCardPublicId = "carddel002";
+        String lastCardPublicId = "carddel003";
         LocalDateTime originalUpdatedAt = LocalDateTime.of(2026, 1, 5, 9, 0);
         Long deckId = createDeck(user.id(), deckPublicId, "Systems deck", originalUpdatedAt);
         createFlashcard(deckId, firstCardPublicId, "First question", "First answer", 0);
@@ -100,9 +99,9 @@ class FlashcardCardDeleteIntegrationTest extends PostgresIntegrationTest {
     @Test
     void deleteFlashcardDoesNotDeleteCardFromAnotherDeck() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
-        UUID requestedDeckPublicId = UUID.fromString("00000000-0000-0000-0000-000000002501");
-        UUID cardDeckPublicId = UUID.fromString("00000000-0000-0000-0000-000000002502");
-        UUID cardPublicId = UUID.fromString("00000000-0000-0000-0000-000000002503");
+        String requestedDeckPublicId = "deckdel002";
+        String cardDeckPublicId = "deckdel003";
+        String cardPublicId = "carddel004";
         LocalDateTime cardDeckUpdatedAt = LocalDateTime.of(2026, 1, 6, 9, 0);
         createDeck(user.id(), requestedDeckPublicId, "Requested deck", LocalDateTime.of(2026, 1, 5, 9, 0));
         Long cardDeckId = createDeck(user.id(), cardDeckPublicId, "Card deck", cardDeckUpdatedAt);
@@ -120,8 +119,8 @@ class FlashcardCardDeleteIntegrationTest extends PostgresIntegrationTest {
     void deleteFlashcardDoesNotDeleteCardFromDeckOwnedByAnotherUser() throws Exception {
         TestUser currentUser = register("Kenneth", "kenneth@example.com");
         TestUser otherUser = register("Ada", "ada@example.com");
-        UUID deckPublicId = UUID.fromString("00000000-0000-0000-0000-000000002601");
-        UUID cardPublicId = UUID.fromString("00000000-0000-0000-0000-000000002602");
+        String deckPublicId = "deckdel004";
+        String cardPublicId = "carddel005";
         LocalDateTime originalUpdatedAt = LocalDateTime.of(2026, 1, 7, 9, 0);
         Long deckId = createDeck(otherUser.id(), deckPublicId, "Private deck", originalUpdatedAt);
         createFlashcard(deckId, cardPublicId, "Private question", "Private answer", 0);
@@ -137,8 +136,8 @@ class FlashcardCardDeleteIntegrationTest extends PostgresIntegrationTest {
     @Test
     void deleteFlashcardReturnsNotFoundWhenCardDoesNotExist() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
-        UUID deckPublicId = UUID.fromString("00000000-0000-0000-0000-000000002701");
-        UUID missingCardPublicId = UUID.fromString("00000000-0000-0000-0000-000000002702");
+        String deckPublicId = "deckdel005";
+        String missingCardPublicId = "carddel006";
         LocalDateTime originalUpdatedAt = LocalDateTime.of(2026, 1, 8, 9, 0);
         Long deckId = createDeck(user.id(), deckPublicId, "Systems deck", originalUpdatedAt);
 
@@ -155,8 +154,8 @@ class FlashcardCardDeleteIntegrationTest extends PostgresIntegrationTest {
 
         mockMvc.perform(delete(
                 CARD_ENDPOINT,
-                UUID.fromString("00000000-0000-0000-0000-000000002801"),
-                UUID.fromString("00000000-0000-0000-0000-000000002802")
+                "deckdel006",
+                "carddel007"
             )
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isNotFound());
@@ -166,23 +165,10 @@ class FlashcardCardDeleteIntegrationTest extends PostgresIntegrationTest {
     void deleteFlashcardReturnsUnauthorizedWhenTokenIsMissing() throws Exception {
         mockMvc.perform(delete(
                 CARD_ENDPOINT,
-                UUID.fromString("00000000-0000-0000-0000-000000002901"),
-                UUID.fromString("00000000-0000-0000-0000-000000002902")
+                "deckdel007",
+                "carddel008"
             ))
             .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void deleteFlashcardReturnsBadRequestWhenCardIdIsNotUuid() throws Exception {
-        TestUser user = register("Kenneth", "kenneth@example.com");
-
-        mockMvc.perform(delete(
-                CARD_ENDPOINT,
-                UUID.fromString("00000000-0000-0000-0000-000000003001"),
-                "not-a-uuid"
-            )
-                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
-            .andExpect(status().isBadRequest());
     }
 
     private TestUser register(String fullName, String email) throws Exception {
@@ -203,11 +189,11 @@ class FlashcardCardDeleteIntegrationTest extends PostgresIntegrationTest {
         return new TestUser(userId, accessToken);
     }
 
-    private Long createDeck(Long userId, UUID publicId, String title, LocalDateTime updatedAt) {
+    private Long createDeck(Long userId, String publicId, String title, LocalDateTime updatedAt) {
         return jdbcTemplate.queryForObject(
             """
             INSERT INTO flashcard_deck (user_id, title, source_type, public_id, created_at, updated_at)
-            VALUES (?, ?, 'NOTE', ?::uuid, ?::timestamp, ?::timestamp)
+            VALUES (?, ?, 'NOTE', ?, ?::timestamp, ?::timestamp)
             RETURNING id
             """,
             Long.class,
@@ -219,11 +205,11 @@ class FlashcardCardDeleteIntegrationTest extends PostgresIntegrationTest {
         );
     }
 
-    private void createFlashcard(Long deckId, UUID publicId, String question, String answer, int position) {
+    private void createFlashcard(Long deckId, String publicId, String question, String answer, int position) {
         jdbcTemplate.update(
             """
             INSERT INTO flashcard (deck_id, question, answer, position, public_id)
-            VALUES (?, ?, ?, ?, ?::uuid)
+            VALUES (?, ?, ?, ?, ?)
             """,
             deckId,
             question,
@@ -233,9 +219,9 @@ class FlashcardCardDeleteIntegrationTest extends PostgresIntegrationTest {
         );
     }
 
-    private Long countFlashcard(UUID publicId) {
+    private Long countFlashcard(String publicId) {
         return jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM flashcard WHERE public_id = ?::uuid",
+            "SELECT COUNT(*) FROM flashcard WHERE public_id = ?",
             Long.class,
             publicId
         );

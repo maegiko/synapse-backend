@@ -7,8 +7,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.UUID;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -65,10 +63,10 @@ class FlashcardListIntegrationTest extends PostgresIntegrationTest {
     @Test
     void listFlashcardsReturnsCurrentUsersDecksAndCards() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
-        UUID firstDeckPublicId = UUID.fromString("00000000-0000-0000-0000-000000000101");
-        UUID secondDeckPublicId = UUID.fromString("00000000-0000-0000-0000-000000000102");
-        UUID firstCardPublicId = UUID.fromString("00000000-0000-0000-0000-000000000201");
-        UUID secondCardPublicId = UUID.fromString("00000000-0000-0000-0000-000000000202");
+        String firstDeckPublicId = "decklst001";
+        String secondDeckPublicId = "decklst002";
+        String firstCardPublicId = "cardlst001";
+        String secondCardPublicId = "cardlst002";
 
         Long olderDeckId = createDeck(
             user.id(),
@@ -127,9 +125,9 @@ class FlashcardListIntegrationTest extends PostgresIntegrationTest {
     void listFlashcardsDoesNotReturnFlashcardsOwnedByOtherUsers() throws Exception {
         TestUser currentUser = register("Kenneth", "kenneth@example.com");
         TestUser otherUser = register("Ada", "ada@example.com");
-        UUID visibleDeckPublicId = UUID.fromString("00000000-0000-0000-0000-000000000301");
-        UUID hiddenDeckPublicId = UUID.fromString("00000000-0000-0000-0000-000000000302");
-        UUID visibleCardPublicId = UUID.fromString("00000000-0000-0000-0000-000000000401");
+        String visibleDeckPublicId = "decklst003";
+        String hiddenDeckPublicId = "decklst004";
+        String visibleCardPublicId = "cardlst003";
 
         Long visibleDeckId = createDeck(
             currentUser.id(),
@@ -146,7 +144,7 @@ class FlashcardListIntegrationTest extends PostgresIntegrationTest {
         createFlashcard(visibleDeckId, visibleCardPublicId, "Visible question", "Visible answer", 0);
         createFlashcard(
             hiddenDeckId,
-            UUID.fromString("00000000-0000-0000-0000-000000000402"),
+            "cardlst004",
             "Hidden question",
             "Hidden answer",
             0
@@ -194,11 +192,11 @@ class FlashcardListIntegrationTest extends PostgresIntegrationTest {
         return new TestUser(userId, accessToken);
     }
 
-    private Long createDeck(Long userId, UUID publicId, String title, String createdAt) {
+    private Long createDeck(Long userId, String publicId, String title, String createdAt) {
         return jdbcTemplate.queryForObject(
             """
             INSERT INTO flashcard_deck (user_id, title, source_type, public_id, created_at, updated_at)
-            VALUES (?, ?, 'NOTE', ?::uuid, ?::timestamp, ?::timestamp)
+            VALUES (?, ?, 'NOTE', ?, ?::timestamp, ?::timestamp)
             RETURNING id
             """,
             Long.class,
@@ -210,11 +208,11 @@ class FlashcardListIntegrationTest extends PostgresIntegrationTest {
         );
     }
 
-    private void createFlashcard(Long deckId, UUID publicId, String question, String answer, int position) {
+    private void createFlashcard(Long deckId, String publicId, String question, String answer, int position) {
         jdbcTemplate.update(
             """
             INSERT INTO flashcard (deck_id, question, answer, position, public_id)
-            VALUES (?, ?, ?, ?, ?::uuid)
+            VALUES (?, ?, ?, ?, ?)
             """,
             deckId,
             question,

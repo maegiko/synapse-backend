@@ -1,7 +1,6 @@
 package com.synapse.backend.notes;
 
 import java.util.List;
-import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -100,11 +99,11 @@ public class NotesService {
      * @param userId the user ID of the user requesting the note.
      * @return the note belonging to the user of a given noteId.
      */
-    public NoteSummaryResponse getNoteSummary(UUID noteId, Long userId) {
+    public NoteSummaryResponse getNoteSummary(String noteId, Long userId) {
         return notesPersistenceService.getNoteSummary(noteId, userId);
     }
 
-    public NoteForGeneration getNoteForGeneration(UUID noteId, Long userId) {
+    public NoteForGeneration getNoteForGeneration(String noteId, Long userId) {
         return notesPersistenceService.getNoteForGeneration(noteId, userId);
     }
 

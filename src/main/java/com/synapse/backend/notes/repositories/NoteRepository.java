@@ -2,7 +2,6 @@ package com.synapse.backend.notes.repositories;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -14,8 +13,8 @@ public interface NoteRepository extends JpaRepository<Note, Long> {
 
     Optional<Note> findByIdAndUserId(Long noteId, Long userId);
 
-    Optional<Note> findByPublicIdAndUserId(UUID noteId, Long userId);
+    Optional<Note> findByPublicIdAndUserId(String noteId, Long userId);
 
-    long deleteByPublicIdAndUserId(UUID noteId, Long userId);
+    long deleteByPublicIdAndUserId(String noteId, Long userId);
 
 }

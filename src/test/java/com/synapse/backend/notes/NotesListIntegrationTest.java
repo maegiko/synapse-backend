@@ -7,7 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.UUID;
+import com.aventrix.jnanoid.jnanoid.NanoIdUtils;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -175,11 +175,15 @@ class NotesListIntegrationTest extends PostgresIntegrationTest {
     }
 
     private TestNote createNote(Long userId, String title, String overview, String createdAt) {
-        UUID publicId = UUID.randomUUID();
+        String publicId = NanoIdUtils.randomNanoId(
+            NanoIdUtils.DEFAULT_NUMBER_GENERATOR,
+            NanoIdUtils.DEFAULT_ALPHABET,
+            10
+        );
         Long id = jdbcTemplate.queryForObject(
             """
             INSERT INTO note (user_id, public_id, title, overview, created_at, updated_at)
-            VALUES (?, ?::uuid, ?, ?, ?::timestamp, ?::timestamp)
+            VALUES (?, ?, ?, ?, ?::timestamp, ?::timestamp)
             RETURNING id
             """,
             Long.class,
@@ -233,6 +237,6 @@ class NotesListIntegrationTest extends PostgresIntegrationTest {
 
     private record TestNote(
         Long id,
-        UUID publicId
+        String publicId
     ) {}
 }

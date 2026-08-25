@@ -1,7 +1,8 @@
 package com.synapse.backend.notes.entities;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
+
+import com.aventrix.jnanoid.jnanoid.NanoIdUtils;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -18,8 +19,8 @@ public class Note {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "public_id", nullable = false, unique = true)
-    private UUID publicId;
+    @Column(name = "public_id", nullable = false, unique = true, length = 10)
+    private String publicId;
 
     @Column(name = "user_id", nullable = false)
     private Long userId;
@@ -38,11 +39,15 @@ public class Note {
 
     protected Note() {}
 
-    public Note(Long userId, String title, String overview, UUID publicId) {
+    public Note(Long userId, String title, String overview) {
         this.userId = userId;
         this.title = title;
         this.overview = overview;
-        this.publicId = publicId;
+        this.publicId = NanoIdUtils.randomNanoId(
+            NanoIdUtils.DEFAULT_NUMBER_GENERATOR,
+            NanoIdUtils.DEFAULT_ALPHABET,
+            10
+        );
     }
 
     public Long getId() {
@@ -61,7 +66,7 @@ public class Note {
         return overview;
     }
 
-    public UUID getPublicId() {
+    public String getPublicId() {
         return publicId;
     }
 

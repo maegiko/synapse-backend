@@ -3,7 +3,6 @@ package com.synapse.backend.notes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -51,8 +50,7 @@ public class NotesPersistenceService {
      */
     @Transactional
     public NoteSummaryResponse saveNoteSummary(NoteSummaryResponse summary, Long userId) {
-        UUID publicId = UUID.randomUUID();
-        Note note = new Note(userId, summary.title(), summary.overview(), publicId);
+        Note note = new Note(userId, summary.title(), summary.overview());
 
         Note newNote = noteRepository.save(note);
 
@@ -62,7 +60,7 @@ public class NotesPersistenceService {
         saveNoteImportantTerms(summary.importantTerms(), noteId);
 
         return new NoteSummaryResponse(
-            publicId,
+            newNote.getPublicId(),
             summary.title(),
             summary.overview(),
             summary.keypoints(),
@@ -199,7 +197,7 @@ public class NotesPersistenceService {
      * @return the note belonging to the user of a given noteId.
      * @throws NoteNotFoundException if a note with noteId belonging to user with userId does not exist.
      */
-    public NoteSummaryResponse getNoteSummary(UUID noteId, Long userId) {
+    public NoteSummaryResponse getNoteSummary(String noteId, Long userId) {
         Note note = noteRepository
             .findByPublicIdAndUserId(noteId, userId)
             .orElseThrow(() -> new NoteNotFoundException("Requested note not found."));
@@ -236,14 +234,14 @@ public class NotesPersistenceService {
      * @throws NoteNotFound if the note doesn't exist.
      */
     @Transactional
-    public void deleteNote(UUID noteId, Long userId) {
+    public void deleteNote(String noteId, Long userId) {
         long isDeleted = noteRepository.deleteByPublicIdAndUserId(noteId, userId);
 
         if (isDeleted == 0)
             throw new NoteNotFoundException("Note could not be found: " + noteId);
     }
 
-    public NoteForGeneration getNoteForGeneration(UUID noteId, Long userId) {
+    public NoteForGeneration getNoteForGeneration(String noteId, Long userId) {
         Note note = noteRepository
             .findByPublicIdAndUserId(noteId, userId)
             .orElseThrow(() -> new NoteNotFoundException("Requested note not found."));

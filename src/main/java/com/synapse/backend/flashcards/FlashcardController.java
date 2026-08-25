@@ -17,8 +17,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 
-import java.util.UUID;
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -117,7 +115,7 @@ public class FlashcardController {
         }
     )
     public ResponseEntity<SingleDeckResponse> getSingleFlashcardDeck(
-        @PathVariable UUID deckId, @AuthenticationPrincipal Jwt jwt
+        @PathVariable String deckId, @AuthenticationPrincipal Jwt jwt
     ) {
         Long userId = Long.valueOf(jwt.getSubject());
         SingleDeckResponse res = persistenceService.getSingleFlashcardDeck(deckId, userId);
@@ -143,7 +141,7 @@ public class FlashcardController {
             )
         }
     )
-    public ResponseEntity<Void> deleteDeck(@PathVariable UUID deckId, @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<Void> deleteDeck(@PathVariable String deckId, @AuthenticationPrincipal Jwt jwt) {
         Long userId = Long.valueOf(jwt.getSubject());
         persistenceService.deleteDeck(deckId, userId);
 
@@ -174,7 +172,7 @@ public class FlashcardController {
         }
     )
     public ResponseEntity<AddFlashcardResponse> addFlashcard(
-        @PathVariable UUID deckId,
+        @PathVariable String deckId,
         @RequestBody @Valid AddFlashcardRequest req,
         @AuthenticationPrincipal Jwt jwt
     ) {
@@ -203,8 +201,8 @@ public class FlashcardController {
         }
     )
     public ResponseEntity<Void> deleteFlashcard(
-        @PathVariable UUID deckId,
-        @PathVariable UUID cardId,
+        @PathVariable String deckId,
+        @PathVariable String cardId,
         @AuthenticationPrincipal Jwt jwt
     ) {
         Long userId = Long.valueOf(jwt.getSubject());

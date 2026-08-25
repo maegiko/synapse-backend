@@ -3,7 +3,6 @@ package com.synapse.backend.flashcards;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -46,13 +45,11 @@ public class FlashcardPersistenceService {
      * @return the deck id if available, else null.
      */
     @Transactional
-    public UUID saveFlashcardFromNote(List<FlashcardResponse> flashcards, Long userId, FlashcardSourceNote note) {
+    public String saveFlashcardFromNote(List<FlashcardResponse> flashcards, Long userId, FlashcardSourceNote note) {
         if (flashcards == null)
             return null;
 
-        UUID deckId = UUID.randomUUID();
-
-        FlashcardDeck flashcardDeck = new FlashcardDeck(userId, note.id(), note.title(), "NOTE", deckId);
+        FlashcardDeck flashcardDeck = new FlashcardDeck(userId, note.id(), note.title(), "NOTE");
         FlashcardDeck newFlashcardDeck = flashcardDeckRepository.save(flashcardDeck);
 
         List<Flashcard> newFlashcards = new ArrayList<>();
@@ -60,13 +57,13 @@ public class FlashcardPersistenceService {
         for (int i = 0; i < flashcards.size(); i++) {
             FlashcardResponse flashcard = flashcards.get(i);
             newFlashcards.add(
-                new Flashcard(newFlashcardDeck.getId(), flashcard.title(), flashcard.answer(), i, UUID.randomUUID())
+                new Flashcard(newFlashcardDeck.getId(), flashcard.title(), flashcard.answer(), i)
             );
         }
 
         flashcardRepository.saveAll(newFlashcards);
 
-        return deckId;
+        return newFlashcardDeck.getPublicId();
     }
 
     /**
@@ -111,7 +108,7 @@ public class FlashcardPersistenceService {
      * @return a deck id and a list of flashcards in the deck.
      * @throws DeckNotFound if a deck with a given public deck id doesn't exist for this user.
      */
-    public SingleDeckResponse getSingleFlashcardDeck(UUID publicId, Long userId) {
+    public SingleDeckResponse getSingleFlashcardDeck(String publicId, Long userId) {
         FlashcardDeck deck = flashcardDeckRepository
             .findByPublicIdAndUserId(publicId, userId)
             .orElseThrow(() -> new DeckNotFound("Flashcard deck not found: " + publicId));
@@ -133,7 +130,7 @@ public class FlashcardPersistenceService {
      * @throws DeckNotFound if the deck doesn't exist.
      */
     @Transactional
-    public void deleteDeck(UUID publicId, Long userId) {
+    public void deleteDeck(String publicId, Long userId) {
         long isDeleted = flashcardDeckRepository.deleteByPublicIdAndUserId(publicId, userId);
 
         if (isDeleted == 0)
@@ -150,7 +147,7 @@ public class FlashcardPersistenceService {
      * @throws DeckNotFound if the deck doesn't exist for this user.
      */
     @Transactional
-    public AddFlashcardResponse addFlashcard(UUID deckId, Long userId, AddFlashcardRequest req) {
+    public AddFlashcardResponse addFlashcard(String deckId, Long userId, AddFlashcardRequest req) {
         FlashcardDeck deck = flashcardDeckRepository
             .findByPublicIdAndUserId(deckId, userId)
             .orElseThrow(() -> new DeckNotFound("Deck not found: " + deckId));
@@ -158,7 +155,7 @@ public class FlashcardPersistenceService {
         Integer maxPosition = flashcardRepository.findMaxPositionByDeckId(deck.getId()).orElse(-1);
         Integer newPosition = maxPosition + 1;
 
-        Flashcard newFlashcard = new Flashcard(deck.getId(), req.question(), req.answer(), newPosition, UUID.randomUUID());
+        Flashcard newFlashcard = new Flashcard(deck.getId(), req.question(), req.answer(), newPosition);
 
         Flashcard savedCard = flashcardRepository.save(newFlashcard);
 
@@ -182,7 +179,7 @@ public class FlashcardPersistenceService {
      * @throws FlashcardNotFound if the flashcard doesn't exist in the deck.
      */
     @Transactional
-    public void deleteFlashcard(Long userId, UUID deckId, UUID flashcardId) {
+    public void deleteFlashcard(Long userId, String deckId, String flashcardId) {
         FlashcardDeck deck = flashcardDeckRepository
             .findByPublicIdAndUserId(deckId, userId)
             .orElseThrow(() -> new DeckNotFound("Deck not found: " + deckId));

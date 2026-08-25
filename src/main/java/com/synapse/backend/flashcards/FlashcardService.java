@@ -2,7 +2,6 @@ package com.synapse.backend.flashcards;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
@@ -53,7 +52,7 @@ public class FlashcardService {
      * @param userId the id of the currently authenticated user.
      * @return the newly created list of flashcards.
      */
-    public FlashcardGenerateResponse generateFlashCards(UUID noteId, Long userId) {
+    public FlashcardGenerateResponse generateFlashCards(String noteId, Long userId) {
         NoteForGeneration note = notesService.getNoteForGeneration(noteId, userId);
 
         List<FlashcardResponse> flashcards = getBasicFlashcardsFromNote(note.summary());
@@ -76,7 +75,7 @@ public class FlashcardService {
 
             flashcards.addAll(generatedFlashcards.flashcards());
 
-            UUID deckId = persistenceService
+            String deckId = persistenceService
                 .saveFlashcardFromNote(flashcards, userId, new FlashcardSourceNote(note.id(), note.summary().title()));
 
             return new FlashcardGenerateResponse(deckId, flashcards);
@@ -102,7 +101,7 @@ public class FlashcardService {
      * @param req the flashcard question and answer to save.
      * @return the newly created flashcard.
      */
-    public AddFlashcardResponse addFlashcard(UUID deckId, Long userId, AddFlashcardRequest req) {
+    public AddFlashcardResponse addFlashcard(String deckId, Long userId, AddFlashcardRequest req) {
         if (userId == null)
             throw new UserUnauthorised("User not authorised.");
 
@@ -116,7 +115,7 @@ public class FlashcardService {
      * @param deckId the public id of the flashcard deck.
      * @param flashcardId the public id of the flashcard to delete.
      */
-    public void deleteFlashcard(Long userId, UUID deckId, UUID flashcardId) {
+    public void deleteFlashcard(Long userId, String deckId, String flashcardId) {
         persistenceService.deleteFlashcard(userId, deckId, flashcardId);
     }
 

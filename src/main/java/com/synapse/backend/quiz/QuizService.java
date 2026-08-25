@@ -1,7 +1,6 @@
 package com.synapse.backend.quiz;
 
 import java.util.List;
-import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
@@ -58,7 +57,7 @@ public class QuizService {
      * @return the generated quiz, including saved question and answer ids.
      * @throws LLMResponseParsingException if the LLM response cannot be parsed or violates the quiz schema.
      */
-    public QuizResponse generateQuizFromNote(UUID noteId, Long userId) {
+    public QuizResponse generateQuizFromNote(String noteId, Long userId) {
         NoteForGeneration note = notesService.getNoteForGeneration(noteId, userId);
 
         LLMRequest req = new LLMRequest(

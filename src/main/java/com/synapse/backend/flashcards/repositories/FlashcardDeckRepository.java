@@ -2,7 +2,6 @@ package com.synapse.backend.flashcards.repositories;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -17,9 +16,9 @@ public interface FlashcardDeckRepository extends JpaRepository<FlashcardDeck, Lo
 
     Optional<FlashcardDeck> findByIdAndUserId(Long deckId, Long userId);
 
-    Optional<FlashcardDeck> findByPublicIdAndUserId(UUID publicId, Long userId);
+    Optional<FlashcardDeck> findByPublicIdAndUserId(String publicId, Long userId);
 
-    long deleteByPublicIdAndUserId(UUID publicId, Long userId);
+    long deleteByPublicIdAndUserId(String publicId, Long userId);
 
     @Modifying
     @Query("""

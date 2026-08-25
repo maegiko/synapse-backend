@@ -7,8 +7,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.UUID;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -65,9 +63,9 @@ class FlashcardGetIntegrationTest extends PostgresIntegrationTest {
     @Test
     void getSingleFlashcardDeckReturnsCurrentUsersDeckAndCardsOrderedByPosition() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
-        UUID deckPublicId = UUID.fromString("00000000-0000-0000-0000-000000000501");
-        UUID firstCardPublicId = UUID.fromString("00000000-0000-0000-0000-000000000601");
-        UUID secondCardPublicId = UUID.fromString("00000000-0000-0000-0000-000000000602");
+        String deckPublicId = "deckget001";
+        String firstCardPublicId = "cardget001";
+        String secondCardPublicId = "cardget002";
         Long deckId = createDeck(user.id(), deckPublicId, "Systems deck", "2026-01-02 09:00:00");
         createFlashcard(deckId, secondCardPublicId, "What is a stock?", "A quantity measured at one point.", 1);
         createFlashcard(deckId, firstCardPublicId, "What is feedback?", "A closed chain of cause and effect.", 0);
@@ -89,7 +87,7 @@ class FlashcardGetIntegrationTest extends PostgresIntegrationTest {
     void getSingleFlashcardDeckDoesNotReturnDeckOwnedByOtherUser() throws Exception {
         TestUser currentUser = register("Kenneth", "kenneth@example.com");
         TestUser otherUser = register("Ada", "ada@example.com");
-        UUID otherUsersDeckPublicId = UUID.fromString("00000000-0000-0000-0000-000000000701");
+        String otherUsersDeckPublicId = "deckget002";
         Long otherUsersDeckId = createDeck(
             otherUser.id(),
             otherUsersDeckPublicId,
@@ -98,7 +96,7 @@ class FlashcardGetIntegrationTest extends PostgresIntegrationTest {
         );
         createFlashcard(
             otherUsersDeckId,
-            UUID.fromString("00000000-0000-0000-0000-000000000801"),
+            "cardget003",
             "Hidden question",
             "Hidden answer",
             0
@@ -113,7 +111,7 @@ class FlashcardGetIntegrationTest extends PostgresIntegrationTest {
     @Test
     void getSingleFlashcardDeckReturnsNotFoundWhenDeckDoesNotExist() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
-        UUID missingDeckPublicId = UUID.fromString("00000000-0000-0000-0000-000000000901");
+        String missingDeckPublicId = "deckget003";
 
         mockMvc.perform(get(DECK_ENDPOINT, missingDeckPublicId)
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
@@ -123,24 +121,15 @@ class FlashcardGetIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void getSingleFlashcardDeckReturnsUnauthorizedWhenTokenIsMissing() throws Exception {
-        mockMvc.perform(get(DECK_ENDPOINT, UUID.fromString("00000000-0000-0000-0000-000000001001")))
+        mockMvc.perform(get(DECK_ENDPOINT, "deckget004"))
             .andExpect(status().isUnauthorized());
     }
 
     @Test
     void getSingleFlashcardDeckReturnsUnauthorizedWhenTokenIsInvalid() throws Exception {
-        mockMvc.perform(get(DECK_ENDPOINT, UUID.fromString("00000000-0000-0000-0000-000000001101"))
+        mockMvc.perform(get(DECK_ENDPOINT, "deckget005")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"))
             .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void getSingleFlashcardDeckReturnsBadRequestWhenDeckIdIsNotUuid() throws Exception {
-        TestUser user = register("Kenneth", "kenneth@example.com");
-
-        mockMvc.perform(get(DECK_ENDPOINT, "not-a-uuid")
-                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
-            .andExpect(status().isBadRequest());
     }
 
     private TestUser register(String fullName, String email) throws Exception {
@@ -161,11 +150,11 @@ class FlashcardGetIntegrationTest extends PostgresIntegrationTest {
         return new TestUser(userId, accessToken);
     }
 
-    private Long createDeck(Long userId, UUID publicId, String title, String createdAt) {
+    private Long createDeck(Long userId, String publicId, String title, String createdAt) {
         return jdbcTemplate.queryForObject(
             """
             INSERT INTO flashcard_deck (user_id, title, source_type, public_id, created_at, updated_at)
-            VALUES (?, ?, 'NOTE', ?::uuid, ?::timestamp, ?::timestamp)
+            VALUES (?, ?, 'NOTE', ?, ?::timestamp, ?::timestamp)
             RETURNING id
             """,
             Long.class,
@@ -177,11 +166,11 @@ class FlashcardGetIntegrationTest extends PostgresIntegrationTest {
         );
     }
 
-    private void createFlashcard(Long deckId, UUID publicId, String question, String answer, int position) {
+    private void createFlashcard(Long deckId, String publicId, String question, String answer, int position) {
         jdbcTemplate.update(
             """
             INSERT INTO flashcard (deck_id, question, answer, position, public_id)
-            VALUES (?, ?, ?, ?, ?::uuid)
+            VALUES (?, ?, ?, ?, ?)
             """,
             deckId,
             question,

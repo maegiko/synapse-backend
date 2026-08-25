@@ -9,7 +9,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.UUID;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -85,9 +84,9 @@ class NotesSummaryIntegrationTest extends PostgresIntegrationTest {
             .get("id")
             .asString();
 
-        UUID.fromString(noteId);
+        org.assertj.core.api.Assertions.assertThat(noteId).hasSize(10);
         Integer savedNoteCount = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM note WHERE public_id = ?::uuid",
+            "SELECT COUNT(*) FROM note WHERE public_id = ?",
             Integer.class,
             noteId
         );

@@ -11,7 +11,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.UUID;
+import com.aventrix.jnanoid.jnanoid.NanoIdUtils;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -112,7 +112,7 @@ class NotesGetIntegrationTest extends PostgresIntegrationTest {
     @Test
     void getNoteReturnsNotFoundWhenNoteDoesNotExist() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
-        UUID missingNoteId = UUID.fromString("00000000-0000-0000-0000-000000009999");
+        String missingNoteId = "noteget999";
 
         mockMvc.perform(get(NOTES_ENDPOINT + missingNoteId)
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
@@ -122,7 +122,7 @@ class NotesGetIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void getNoteReturnsUnauthorizedWhenTokenIsMissing() throws Exception {
-        mockMvc.perform(get(NOTES_ENDPOINT + UUID.fromString("00000000-0000-0000-0000-000000000001")))
+        mockMvc.perform(get(NOTES_ENDPOINT + "noteget001"))
             .andExpect(status().isUnauthorized());
     }
 
@@ -145,11 +145,15 @@ class NotesGetIntegrationTest extends PostgresIntegrationTest {
     }
 
     private TestNote createNote(Long userId, String title, String overview, String createdAt) {
-        UUID publicId = UUID.randomUUID();
+        String publicId = NanoIdUtils.randomNanoId(
+            NanoIdUtils.DEFAULT_NUMBER_GENERATOR,
+            NanoIdUtils.DEFAULT_ALPHABET,
+            10
+        );
         Long id = jdbcTemplate.queryForObject(
             """
             INSERT INTO note (user_id, public_id, title, overview, created_at, updated_at)
-            VALUES (?, ?::uuid, ?, ?, ?::timestamp, ?::timestamp)
+            VALUES (?, ?, ?, ?, ?::timestamp, ?::timestamp)
             RETURNING id
             """,
             Long.class,
@@ -203,6 +207,6 @@ class NotesGetIntegrationTest extends PostgresIntegrationTest {
 
     private record TestNote(
         Long id,
-        UUID publicId
+        String publicId
     ) {}
 }

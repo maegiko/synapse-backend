@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.UUID;
+import com.aventrix.jnanoid.jnanoid.NanoIdUtils;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -74,12 +74,12 @@ class NotesDeleteIntegrationTest extends PostgresIntegrationTest {
         Long deckId = createDeck(
             user.id(),
             note.id(),
-            UUID.fromString("00000000-0000-0000-0000-000000002101"),
+            "deckdlt001",
             "Systems deck"
         );
         createFlashcard(
             deckId,
-            UUID.fromString("00000000-0000-0000-0000-000000002201"),
+            "carddlt001",
             "What is feedback?",
             "A closed chain of cause and effect.",
             0
@@ -137,7 +137,7 @@ class NotesDeleteIntegrationTest extends PostgresIntegrationTest {
     @Test
     void deleteNoteReturnsNotFoundWhenNoteDoesNotExist() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
-        UUID missingNoteId = UUID.fromString("00000000-0000-0000-0000-000000002301");
+        String missingNoteId = "notedlt001";
 
         mockMvc.perform(delete(NOTE_ENDPOINT, missingNoteId)
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
@@ -147,24 +147,15 @@ class NotesDeleteIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void deleteNoteReturnsUnauthorizedWhenTokenIsMissing() throws Exception {
-        mockMvc.perform(delete(NOTE_ENDPOINT, UUID.fromString("00000000-0000-0000-0000-000000002401")))
+        mockMvc.perform(delete(NOTE_ENDPOINT, "notedlt002"))
             .andExpect(status().isUnauthorized());
     }
 
     @Test
     void deleteNoteReturnsUnauthorizedWhenTokenIsInvalid() throws Exception {
-        mockMvc.perform(delete(NOTE_ENDPOINT, UUID.fromString("00000000-0000-0000-0000-000000002501"))
+        mockMvc.perform(delete(NOTE_ENDPOINT, "notedlt003")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token"))
             .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void deleteNoteReturnsBadRequestWhenNoteIdIsNotUuid() throws Exception {
-        TestUser user = register("Kenneth", "kenneth@example.com");
-
-        mockMvc.perform(delete(NOTE_ENDPOINT, "not-a-uuid")
-                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
-            .andExpect(status().isBadRequest());
     }
 
     private TestUser register(String fullName, String email) throws Exception {
@@ -186,11 +177,15 @@ class NotesDeleteIntegrationTest extends PostgresIntegrationTest {
     }
 
     private TestNote createNote(Long userId, String title, String overview, String createdAt) {
-        UUID publicId = UUID.randomUUID();
+        String publicId = NanoIdUtils.randomNanoId(
+            NanoIdUtils.DEFAULT_NUMBER_GENERATOR,
+            NanoIdUtils.DEFAULT_ALPHABET,
+            10
+        );
         Long id = jdbcTemplate.queryForObject(
             """
             INSERT INTO note (user_id, public_id, title, overview, created_at, updated_at)
-            VALUES (?, ?::uuid, ?, ?, ?::timestamp, ?::timestamp)
+            VALUES (?, ?, ?, ?, ?::timestamp, ?::timestamp)
             RETURNING id
             """,
             Long.class,
@@ -233,11 +228,11 @@ class NotesDeleteIntegrationTest extends PostgresIntegrationTest {
         );
     }
 
-    private Long createDeck(Long userId, Long noteId, UUID publicId, String title) {
+    private Long createDeck(Long userId, Long noteId, String publicId, String title) {
         return jdbcTemplate.queryForObject(
             """
             INSERT INTO flashcard_deck (user_id, note_id, title, source_type, public_id)
-            VALUES (?, ?, ?, 'NOTE', ?::uuid)
+            VALUES (?, ?, ?, 'NOTE', ?)
             RETURNING id
             """,
             Long.class,
@@ -248,11 +243,11 @@ class NotesDeleteIntegrationTest extends PostgresIntegrationTest {
         );
     }
 
-    private void createFlashcard(Long deckId, UUID publicId, String question, String answer, int position) {
+    private void createFlashcard(Long deckId, String publicId, String question, String answer, int position) {
         jdbcTemplate.update(
             """
             INSERT INTO flashcard (deck_id, question, answer, position, public_id)
-            VALUES (?, ?, ?, ?, ?::uuid)
+            VALUES (?, ?, ?, ?, ?)
             """,
             deckId,
             question,
@@ -289,6 +284,6 @@ class NotesDeleteIntegrationTest extends PostgresIntegrationTest {
 
     private record TestNote(
         Long id,
-        UUID publicId
+        String publicId
     ) {}
 }
