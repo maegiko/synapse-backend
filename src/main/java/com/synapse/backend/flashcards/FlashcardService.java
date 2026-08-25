@@ -59,7 +59,7 @@ public class FlashcardService {
         List<FlashcardResponse> flashcards = getBasicFlashcardsFromNote(note.summary());
 
         LLMRequest req = new LLMRequest(
-            "meta-llama/llama-4-scout-17b-16e-instruct",
+            "openai/gpt-oss-120b",
             promptFactory.createFlashcardSystemPrompt(),
             promptFactory.createFlashcardUserPrompt(
                 objectMapper.writeValueAsString(note),

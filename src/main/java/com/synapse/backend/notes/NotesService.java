@@ -56,9 +56,7 @@ public class NotesService {
         String extractedText = fileParsingService.extractText(file);
         NoteSummaryResponse res = generateSummary(extractedText);
 
-        notesPersistenceService.saveNoteSummary(res, userId);
-
-        return res;
+        return notesPersistenceService.saveNoteSummary(res, userId);
     }
 
     /**
@@ -70,7 +68,7 @@ public class NotesService {
      */
     private NoteSummaryResponse generateSummary(String extractedText) {
         LLMRequest req = new LLMRequest(
-            "meta-llama/llama-4-scout-17b-16e-instruct",
+            "openai/gpt-oss-120b",
             promptFactory.createNoteSummarySystemPrompt(),
             promptFactory.createNoteSummaryUserPrompt(extractedText)
         );

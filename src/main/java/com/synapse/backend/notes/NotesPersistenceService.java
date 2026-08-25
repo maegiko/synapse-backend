@@ -47,10 +47,12 @@ public class NotesPersistenceService {
      *
      * @param summary summary of notes.
      * @param userId the ID of the user.
+     * @return saved summary with the generated public note id.
      */
     @Transactional
-    public void saveNoteSummary(NoteSummaryResponse summary, Long userId) {
-        Note note = new Note(userId, summary.title(), summary.overview(), UUID.randomUUID());
+    public NoteSummaryResponse saveNoteSummary(NoteSummaryResponse summary, Long userId) {
+        UUID publicId = UUID.randomUUID();
+        Note note = new Note(userId, summary.title(), summary.overview(), publicId);
 
         Note newNote = noteRepository.save(note);
 
@@ -58,6 +60,15 @@ public class NotesPersistenceService {
         saveNoteKeypoints(summary.keypoints(), noteId);
         saveNoteConcepts(summary.concepts(), noteId);
         saveNoteImportantTerms(summary.importantTerms(), noteId);
+
+        return new NoteSummaryResponse(
+            publicId,
+            summary.title(),
+            summary.overview(),
+            summary.keypoints(),
+            summary.concepts(),
+            summary.importantTerms()
+        );
     }
 
     private void saveNoteKeypoints(List<String> keypoints, Long noteId) {

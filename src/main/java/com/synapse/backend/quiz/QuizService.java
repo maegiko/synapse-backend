@@ -62,7 +62,7 @@ public class QuizService {
         NoteForGeneration note = notesService.getNoteForGeneration(noteId, userId);
 
         LLMRequest req = new LLMRequest(
-            "meta-llama/llama-4-scout-17b-16e-instruct",
+            "openai/gpt-oss-120b",
             promptFactory.createSystemPrompt(),
             promptFactory.createUserPrompt(
                 objectMapper.writeValueAsString(note.summary())

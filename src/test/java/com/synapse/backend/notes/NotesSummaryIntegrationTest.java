@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.UUID;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -66,16 +67,32 @@ class NotesSummaryIntegrationTest extends PostgresIntegrationTest {
         String accessToken = registerAndGetAccessToken("Kenneth", "kenneth@example.com");
         MockMultipartFile file = pdfFile("notes.pdf", "Behavioural modelling lecture notes");
 
-        mockMvc.perform(multipart(SUMMARY_ENDPOINT)
+        MvcResult result = mockMvc.perform(multipart(SUMMARY_ENDPOINT)
                 .file(file)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").isString())
             .andExpect(jsonPath("$.title").value("Behavioural Modelling"))
             .andExpect(jsonPath("$.overview").value("A short overview."))
             .andExpect(jsonPath("$.keypoints[0]").value("Models simplify behaviour."))
             .andExpect(jsonPath("$.concepts[0].name").value("Model"))
             .andExpect(jsonPath("$.concepts[0].explanation").value("A simplified representation."))
-            .andExpect(jsonPath("$.importantTerms[0]").value("behaviour"));
+            .andExpect(jsonPath("$.importantTerms[0]").value("behaviour"))
+            .andReturn();
+
+        String noteId = objectMapper
+            .readTree(result.getResponse().getContentAsString())
+            .get("id")
+            .asString();
+
+        UUID.fromString(noteId);
+        Integer savedNoteCount = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM note WHERE public_id = ?::uuid",
+            Integer.class,
+            noteId
+        );
+
+        org.assertj.core.api.Assertions.assertThat(savedNoteCount).isEqualTo(1);
     }
 
     @Test
