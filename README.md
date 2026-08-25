@@ -219,7 +219,7 @@ curl -X POST http://localhost:8080/api/quiz/generate \
   -H "Authorization: Bearer <accessToken>" \
   -H "Content-Type: application/json" \
   -d '{
-    "noteId": "00000000-0000-0000-0000-000000000000"
+    "noteId": "<noteId>"
 }'
 ```
 
