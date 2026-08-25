@@ -74,6 +74,7 @@ class FlashcardGetIntegrationTest extends PostgresIntegrationTest {
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deckId").value(deckPublicId.toString()))
+            .andExpect(jsonPath("$.title").value("Systems deck"))
             .andExpect(jsonPath("$.flashcards", hasSize(2)))
             .andExpect(jsonPath("$.flashcards[0].id").value(firstCardPublicId.toString()))
             .andExpect(jsonPath("$.flashcards[0].title").value("What is feedback?"))
