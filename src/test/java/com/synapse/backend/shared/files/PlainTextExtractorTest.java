@@ -28,8 +28,15 @@ class PlainTextExtractorTest {
     }
 
     @Test
+    void supportsMarkdownContentType() {
+        assertThat(extractor.supports("text/markdown")).isTrue();
+        assertThat(extractor.supports("text/markdown;charset=UTF-8")).isTrue();
+    }
+
+    @Test
     void doesNotSupportOtherContentTypes() {
         assertThat(extractor.supports("application/pdf")).isFalse();
+        assertThat(extractor.supports("text/html")).isFalse();
         assertThat(extractor.supports(null)).isFalse();
     }
 
@@ -48,6 +55,20 @@ class PlainTextExtractorTest {
         String text = extractor.extractText(file);
 
         assertThat(text).isEqualTo("Quarterly planning notes");
+    }
+
+    @Test
+    void extractTextReturnsMarkdownText() {
+        MultipartFile file = new MockMultipartFile(
+            "file",
+            "notes.md",
+            "text/markdown",
+            "# Quarterly planning\n\n- Review targets".getBytes(StandardCharsets.UTF_8)
+        );
+
+        String text = extractor.extractText(file);
+
+        assertThat(text).isEqualTo("# Quarterly planning\n\n- Review targets");
     }
 
     @Test

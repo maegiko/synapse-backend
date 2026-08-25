@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
@@ -14,13 +15,16 @@ import com.synapse.backend.shared.files.exceptions.FileParsingException;
 
 @Component
 public class PlainTextExtractor implements FileTextExtractor {
+    private static final List<MediaType> SUPPORTED_TYPES = List.of(MediaType.TEXT_PLAIN, MediaType.TEXT_MARKDOWN);
 
     @Override
     public boolean supports(String fileType) {
         if (fileType == null) return false;
 
         try {
-            return MediaType.TEXT_PLAIN.equalsTypeAndSubtype(MediaType.parseMediaType(fileType));
+            MediaType mediaType = MediaType.parseMediaType(fileType);
+
+            return SUPPORTED_TYPES.stream().anyMatch(supported -> supported.equalsTypeAndSubtype(mediaType));
         } catch (InvalidMediaTypeException e) {
             return false;
         }
