@@ -1,6 +1,6 @@
 # Synapse Backend 🧠
 
-Synapse is a Spring Boot backend for turning uploaded study notes into structured learning resources. Users can register, upload PDF or plain text notes, generate AI-powered summaries, create flashcard decks, and generate quizzes from saved notes.
+Synapse is a Spring Boot backend for turning uploaded study notes into structured learning resources. Users can register, upload PDF, plain text, or Markdown notes, generate AI-powered summaries, create flashcard decks, and generate quizzes from saved notes.
 
 The API is secured with JWT bearer authentication, persists data in PostgreSQL, manages schema changes with Flyway, and exposes interactive OpenAPI documentation through Swagger UI.
 
@@ -8,7 +8,7 @@ The API is secured with JWT bearer authentication, persists data in PostgreSQL, 
 
 - JWT-based registration and login
 - Authenticated user profile endpoint
-- PDF and plain text (`.txt`) note upload and AI-generated note summaries
+- PDF, plain text (`.txt`), and Markdown (`.md`) note upload and AI-generated note summaries
 - Saved note listing, retrieval, and deletion
 - AI-generated flashcard decks from saved notes
 - Flashcard deck listing, retrieval, deletion, and manual card management
@@ -151,7 +151,7 @@ Authorization: Bearer <accessToken>
 
 | Method | Endpoint | Description | Auth |
 | --- | --- | --- | --- |
-| `POST` | `/api/notes/summarise` | Upload a PDF or `.txt` note, generate a summary, and save it | Yes |
+| `POST` | `/api/notes/summarise` | Upload a PDF, `.txt`, or `.md` note, generate a summary, and save it | Yes |
 | `GET` | `/api/notes/list` | List saved note summaries | Yes |
 | `GET` | `/api/notes/{id}` | Get one saved note summary | Yes |
 | `DELETE` | `/api/notes/{id}` | Delete a saved note | Yes |
@@ -185,7 +185,7 @@ Authorization: Bearer <accessToken>
 
 1. Register or log in.
 2. Copy the returned `accessToken`.
-3. Upload a PDF or `.txt` file to `/api/notes/summarise`.
+3. Upload a PDF, `.txt`, or `.md` file to `/api/notes/summarise`.
 4. Use the saved note id to generate flashcards or a quiz.
 5. Add or delete individual flashcards/questions as needed.
 6. Set the quiz difficulty and complete the quiz in the client.
@@ -332,7 +332,7 @@ The test suite covers:
 - Quiz generate/list/get/delete flows
 - Quiz question creation/deletion and difficulty updates
 - Quiz score creation, validation, ownership, ordering, and history retrieval
-- PDF and plain text extraction
+- PDF, plain text, and Markdown extraction
 
 LLM-backed endpoint tests mock the `LLMClient`, so tests do not require real LLM API calls or tokens.
 
@@ -397,7 +397,7 @@ http://localhost:8080/v3/api-docs
 
 ## Current Limitations ⚠️
 
-- Only PDF and plain text (`text/plain`) uploads are currently supported for note summarisation.
+- Only PDF, plain text (`text/plain`), and Markdown (`text/markdown`) uploads are currently supported for note summarisation.
 - LLM generation quality depends on the configured provider and prompt behavior.
 - Rate limiting is not currently implemented for generation endpoints.
 - The local application profile is development-oriented and should be adjusted for production deployment.
