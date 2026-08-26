@@ -60,7 +60,9 @@ public class RefreshTokenPersistenceService {
      * Revokes a valid refresh token so it cannot be used again.
      *
      * <p>Used when rotating a refresh token, so the presented token is consumed
-     * before a replacement is issued.</p>
+     * before a replacement is issued. Revocation is a single conditional update
+     * that also checks expiry, so concurrent refreshes with the same token race
+     * for one database row and only the first one is allowed to rotate it.</p>
      *
      * @param token the raw refresh token presented by the client.
      * @return the internal id of the user the token belonged to.
@@ -68,33 +70,27 @@ public class RefreshTokenPersistenceService {
      */
     @Transactional
     public Long consumeRefreshToken(String token) {
-        RefreshToken refreshToken = refreshTokenRepository.findByTokenHash(hashToken(token))
-            .orElseThrow(() -> new InvalidRefreshTokenException());
+        String tokenHash = hashToken(token);
 
-        if (refreshToken.getRevokedAt() != null || refreshToken.getExpiresAt().isBefore(LocalDateTime.now()))
+        if (refreshTokenRepository.revokeActiveByTokenHash(tokenHash) == 0)
             throw new InvalidRefreshTokenException();
 
-        refreshToken.revoke();
-        refreshTokenRepository.save(refreshToken);
-
-        return refreshToken.getUserId();
+        return refreshTokenRepository.findByTokenHash(tokenHash)
+            .orElseThrow(() -> new InvalidRefreshTokenException())
+            .getUserId();
     }
 
     /**
      * Revokes a refresh token if it is still active.
      *
-     * <p>Unknown and already revoked tokens are ignored so logout stays idempotent.</p>
+     * <p>Unknown, expired, and already revoked tokens are ignored so logout stays
+     * idempotent.</p>
      *
      * @param token the raw refresh token presented by the client.
      */
     @Transactional
     public void revokeRefreshToken(String token) {
-        refreshTokenRepository.findByTokenHash(hashToken(token))
-            .filter(refreshToken -> refreshToken.getRevokedAt() == null)
-            .ifPresent(refreshToken -> {
-                refreshToken.revoke();
-                refreshTokenRepository.save(refreshToken);
-            });
+        refreshTokenRepository.revokeActiveByTokenHash(hashToken(token));
     }
 
     private String hashToken(String token) {
