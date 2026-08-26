@@ -8,5 +8,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record JwtProperties(
     String issuer,
     Duration accessTokenTtl,
+    Duration refreshTokenTtl,
     String secret
 ) {}
