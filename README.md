@@ -171,7 +171,10 @@ user, expiry, and revocation state.
 
 `POST /api/auth/refresh` rotates the token it is given: the presented refresh token is revoked and a replacement cookie
 is issued, so each refresh token can be used only once. A missing, expired, revoked, or already used token returns
-`401`. Browser clients must send the request with credentials included so the cookie is attached.
+`401`. Revocation is a single conditional update, so if two requests race with the same refresh token, exactly one
+rotates it and the other receives `401`. Rotation is transactional, so a failure partway through leaves the
+presented token usable instead of ending the session. Browser clients must send the request with credentials included so the cookie
+is attached.
 
 ### User 👤
 
@@ -368,7 +371,7 @@ Integration tests use Testcontainers with PostgreSQL, so Docker must be running 
 The test suite covers:
 
 - Authentication
-- Refresh token issuing, rotation, expiry, revocation, and logout
+- Refresh token issuing, rotation, expiry, revocation, concurrent rotation, rotation rollback, and logout
 - User details
 - Note summary/list/get/delete flows
 - Flashcard generate/list/get/delete flows
