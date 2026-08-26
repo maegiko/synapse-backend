@@ -4,8 +4,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.synapse.backend.auth.dto.LoginRequest;
 import com.synapse.backend.auth.dto.LoginResponse;
+import com.synapse.backend.auth.dto.LoginResult;
+import com.synapse.backend.auth.dto.RefreshResponse;
+import com.synapse.backend.auth.dto.RefreshResult;
 import com.synapse.backend.auth.dto.RegisterRequest;
 import com.synapse.backend.auth.dto.RegisterResponse;
+import com.synapse.backend.auth.dto.RegisterResult;
+import com.synapse.backend.security.jwt.JwtProperties;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -14,8 +19,11 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,16 +31,28 @@ import org.springframework.web.bind.annotation.RequestMapping;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
-    private final AuthService authService;
 
-    public AuthController(AuthService authService) {
+    private static final String REFRESH_COOKIE_NAME = "refreshToken";
+    private static final String REFRESH_COOKIE_PATH = "/api/auth";
+
+    private final AuthService authService;
+    private final RefreshCookieProperties refreshCookieProperties;
+    private final JwtProperties jwtProperties;
+
+    public AuthController(
+        AuthService authService,
+        RefreshCookieProperties refreshCookieProperties,
+        JwtProperties jwtProperties
+    ) {
         this.authService = authService;
+        this.refreshCookieProperties = refreshCookieProperties;
+        this.jwtProperties = jwtProperties;
     }
 
     @PostMapping("/register")
     @Operation(
         summary = "Register a new user",
-        description = "Creates a user account and returns a JWT access token.",
+        description = "Creates a user account, returns a JWT access token, and sets a refresh token cookie.",
         responses = {
             @ApiResponse(responseCode = "201", description = "User registered"),
             @ApiResponse(
@@ -56,15 +76,17 @@ public class AuthController {
         @Valid @RequestBody RegisterRequest registerRequest,
         HttpServletRequest httpRequest
     ) {
-        RegisterResponse res = authService.registerUser(registerRequest, httpRequest.getRemoteAddr());
+        RegisterResult res = authService.registerUser(registerRequest, httpRequest.getRemoteAddr());
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(res);
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .header(HttpHeaders.SET_COOKIE, refreshTokenCookie(res.refreshToken()).toString())
+            .body(res.response());
     }
 
     @PostMapping("/login")
     @Operation(
         summary = "Log in a user",
-        description = "Logs in a user and returns a JWT access token.",
+        description = "Logs in a user, returns a JWT access token, and sets a refresh token cookie.",
         responses = {
             @ApiResponse(responseCode = "200", description = "User logged in"),
             @ApiResponse(
@@ -88,9 +110,68 @@ public class AuthController {
         @Valid @RequestBody LoginRequest loginRequest,
         HttpServletRequest httpRequest
     ) {
-        LoginResponse res = authService.loginUser(loginRequest, httpRequest.getRemoteAddr());
+        LoginResult res = authService.loginUser(loginRequest, httpRequest.getRemoteAddr());
 
-        return ResponseEntity.status(HttpStatus.OK).body(res);
+        return ResponseEntity.status(HttpStatus.OK)
+            .header(HttpHeaders.SET_COOKIE, refreshTokenCookie(res.refreshToken()).toString())
+            .body(res.response());
+    }
+
+    @PostMapping("/refresh")
+    @Operation(
+        summary = "Refresh an access token",
+        description = "Exchanges the refresh token cookie for a new access token and rotates the refresh token.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Access token refreshed"),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Missing, expired, revoked, or already used refresh token",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
+    public ResponseEntity<RefreshResponse> refresh(
+        @CookieValue(name = REFRESH_COOKIE_NAME, required = false) String refreshToken
+    ) {
+        RefreshResult res = authService.refreshAccessToken(refreshToken);
+
+        return ResponseEntity.status(HttpStatus.OK)
+            .header(HttpHeaders.SET_COOKIE, refreshTokenCookie(res.refreshToken()).toString())
+            .body(res.response());
+    }
+
+    @PostMapping("/logout")
+    @Operation(
+        summary = "Log out a user",
+        description = "Revokes the refresh token cookie and clears it from the client.",
+        responses = {
+            @ApiResponse(responseCode = "204", description = "User logged out")
+        }
+    )
+    public ResponseEntity<Void> logout(
+        @CookieValue(name = REFRESH_COOKIE_NAME, required = false) String refreshToken
+    ) {
+        authService.logoutUser(refreshToken);
+
+        return ResponseEntity.status(HttpStatus.NO_CONTENT)
+            .header(HttpHeaders.SET_COOKIE, clearedRefreshTokenCookie().toString())
+            .build();
+    }
+
+    private ResponseCookie refreshTokenCookie(String refreshToken) {
+        return buildRefreshTokenCookie(refreshToken).maxAge(jwtProperties.refreshTokenTtl()).build();
+    }
+
+    private ResponseCookie clearedRefreshTokenCookie() {
+        return buildRefreshTokenCookie("").maxAge(0).build();
+    }
+
+    private ResponseCookie.ResponseCookieBuilder buildRefreshTokenCookie(String refreshToken) {
+        return ResponseCookie.from(REFRESH_COOKIE_NAME, refreshToken)
+            .httpOnly(true)
+            .secure(refreshCookieProperties.secure())
+            .sameSite(refreshCookieProperties.sameSite())
+            .path(REFRESH_COOKIE_PATH);
     }
 
 }
