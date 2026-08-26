@@ -23,6 +23,8 @@ import com.synapse.backend.shared.ratelimit.RateLimitService;
 import com.synapse.backend.user.User;
 import com.synapse.backend.user.UserRepository;
 
+import jakarta.transaction.Transactional;
+
 @Service
 public class AuthService {
 
@@ -131,12 +133,15 @@ public class AuthService {
      * Issues a new access token from a refresh token and rotates the refresh token.
      *
      * <p>The presented refresh token is revoked before a replacement is issued, so
-     * each refresh token can only be used once.</p>
+     * each refresh token can only be used once. Revoking the old token and saving
+     * the new one share one transaction, so a failure partway through leaves the
+     * presented token usable instead of logging the user out.</p>
      *
      * @param refreshToken the raw refresh token from the client cookie, or null if absent.
      * @return a new access token, plus the replacement refresh token for the client cookie.
      * @throws InvalidRefreshTokenException if the token is missing, unknown, revoked, or expired.
      */
+    @Transactional
     public RefreshResult refreshAccessToken(String refreshToken) {
         if (refreshToken == null)
             throw new InvalidRefreshTokenException();
