@@ -2,11 +2,12 @@
 
 Synapse is a Spring Boot backend for turning uploaded study notes into structured learning resources. Users can register, upload PDF, Word (`.docx`), plain text, or Markdown notes, generate AI-powered summaries, create flashcard decks, and generate quizzes from saved notes.
 
-The API is secured with JWT bearer authentication, persists data in PostgreSQL, manages schema changes with Flyway, and exposes interactive OpenAPI documentation through Swagger UI.
+The API is secured with short-lived JWT bearer access tokens and rotating refresh token cookies, persists data in PostgreSQL, manages schema changes with Flyway, and exposes interactive OpenAPI documentation through Swagger UI.
 
 ## Features ✨
 
 - JWT-based registration and login
+- Short-lived access tokens with rotating refresh tokens in `HttpOnly` cookies, plus refresh and logout endpoints
 - Authenticated user profile endpoint
 - PDF, Word (`.docx`), plain text (`.txt`), and Markdown (`.md`) note upload and AI-generated note summaries
 - Saved note listing, retrieval, and deletion
@@ -123,7 +124,25 @@ The application imports `.env` using:
 spring.config.import=optional:file:.env[.properties]
 ```
 
-The development profile sets JWT access tokens to expire after `15m` and limits multipart uploads to `10MB`.
+The development profile sets JWT access tokens to expire after `15m`, refresh tokens to expire after `30d`, and limits
+multipart uploads to `10MB`:
+
+```yaml
+jwt:
+  issuer: synapse
+  access-token-ttl: 15m
+  refresh-token-ttl: 30d
+  secret: ${JWT_SECRET}
+
+auth:
+  refresh-cookie:
+    secure: true
+    same-site: None
+```
+
+`auth.refresh-cookie` controls the `Secure` and `SameSite` attributes of the refresh token cookie. The defaults suit a
+browser frontend served from a different origin over HTTPS. Set `same-site` to `Lax` when the frontend and API are
+served from the same site.
 
 Groq is the primary LLM client used by generation flows. Gemini client configuration is present as an alternate implementation, but Groq is currently selected by Spring.
 
@@ -143,6 +162,16 @@ Authorization: Bearer <accessToken>
 | --- | --- | --- | --- |
 | `POST` | `/api/auth/register` | Register a new user and receive an access token | No |
 | `POST` | `/api/auth/login` | Log in and receive an access token | No |
+| `POST` | `/api/auth/refresh` | Exchange the refresh token cookie for a new access token | No |
+| `POST` | `/api/auth/logout` | Revoke the current refresh token and clear the cookie | No |
+
+Register and login also set a `refreshToken` cookie. The cookie is `HttpOnly`, `Secure`, `SameSite`-restricted, scoped
+to `/api/auth`, and valid for 30 days. Only a SHA-256 hash of each refresh token is stored server-side, alongside its
+user, expiry, and revocation state.
+
+`POST /api/auth/refresh` rotates the token it is given: the presented refresh token is revoked and a replacement cookie
+is issued, so each refresh token can be used only once. A missing, expired, revoked, or already used token returns
+`401`. Browser clients must send the request with credentials included so the cookie is attached.
 
 ### User 👤
 
@@ -187,13 +216,14 @@ Authorization: Bearer <accessToken>
 ## Example Flow 🔄
 
 1. Register or log in.
-2. Copy the returned `accessToken`.
+2. Copy the returned `accessToken` and keep the `refreshToken` cookie.
 3. Upload a PDF, `.docx`, `.txt`, or `.md` file to `/api/notes/summarise`.
 4. Use the saved note id to generate flashcards or a quiz.
 5. Add or delete individual flashcards/questions as needed.
 6. Set the quiz difficulty and complete the quiz in the client.
 7. Save the practice score and retrieve previous attempts.
 8. Retrieve saved learning resources from the list/get endpoints.
+9. Call `/api/auth/refresh` when the access token expires, and `/api/auth/logout` to end the session.
 
 Example registration request:
 
@@ -205,6 +235,14 @@ curl -X POST http://localhost:8080/api/auth/register \
     "email": "ada@example.com",
     "password": "password123"
   }'
+```
+
+Example refresh request, reusing the cookie saved at login:
+
+```bash
+curl -X POST http://localhost:8080/api/auth/refresh \
+  -b cookies.txt \
+  -c cookies.txt
 ```
 
 Example note upload:
@@ -290,6 +328,7 @@ Current migration coverage includes:
 - Flashcards
 - Quizzes
 - Quiz difficulty and score history
+- Refresh tokens
 
 The development profile uses:
 
@@ -329,6 +368,7 @@ Integration tests use Testcontainers with PostgreSQL, so Docker must be running 
 The test suite covers:
 
 - Authentication
+- Refresh token issuing, rotation, expiry, revocation, and logout
 - User details
 - Note summary/list/get/delete flows
 - Flashcard generate/list/get/delete flows
@@ -345,7 +385,7 @@ LLM-backed endpoint tests mock the `LLMClient`, so tests do not require real LLM
 ```text
 src/main/java/com/synapse/backend
 ├── ai             # LLM client abstractions, provider clients, prompts, and AI exceptions
-├── auth           # Registration, login, auth DTOs, and auth exceptions
+├── auth           # Registration, login, refresh tokens, logout, auth DTOs, and auth exceptions
 ├── config         # Shared application configuration
 ├── docs           # Swagger/OpenAPI configuration and docs redirect
 ├── flashcards     # Flashcard controllers, services, DTOs, entities, and repositories
@@ -445,4 +485,6 @@ Setting `ratelimit.enabled` to `false` turns limiting off.
 - LLM generation quality depends on the configured provider and prompt behavior.
 - Rate limiting is in-memory and single-instance. Counters are not shared between instances and are lost on restart.
 - Rate limiting uses the direct client address, so a reverse proxy must be accounted for before deploying behind one.
+- Expired and revoked refresh tokens are kept in the database. There is no scheduled cleanup job yet.
+- Refresh token reuse is rejected but does not revoke the rest of that user's active refresh tokens.
 - The local application profile is development-oriented and should be adjusted for production deployment.
