@@ -66,9 +66,11 @@ public class SecurityConfig {
     /**
      * Configures HTTP security for the API.
      *
-     * <p>Swagger documentation, registration, and login are public. All other
-     * requests require JWT authentication. Sessions are stateless and CSRF is
-     * disabled because the API authenticates with bearer tokens.</p>
+     * <p>Swagger documentation, registration, login, refresh, and logout are
+     * public. All other requests require JWT authentication. Sessions are
+     * stateless and CSRF is disabled because the API authenticates with bearer
+     * tokens; refresh and logout are the only routes that read a cookie, and
+     * they are protected by the SameSite attribute on that cookie.</p>
      *
      * @param http the Spring Security HTTP configuration builder.
      * @return the configured security filter chain.
@@ -86,6 +88,8 @@ public class SecurityConfig {
                 .requestMatchers("/", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
@@ -95,8 +99,9 @@ public class SecurityConfig {
     /**
      * Configures cross-origin access for the browser-based frontend.
      *
-     * <p>Allows the local frontend to call API routes with bearer authentication
-     * and caches successful preflight responses for one hour.</p>
+     * <p>Allows the local frontend to call API routes with bearer authentication,
+     * send the refresh token cookie on auth routes, and caches successful
+     * preflight responses for one hour.</p>
      *
      * @return the CORS configuration source used by Spring Security.
      */
@@ -121,7 +126,7 @@ public class SecurityConfig {
             "Content-Type"
         ));
 
-        config.setAllowCredentials(false);
+        config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
