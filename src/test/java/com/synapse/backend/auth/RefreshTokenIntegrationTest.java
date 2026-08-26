@@ -10,9 +10,14 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -223,6 +228,19 @@ class RefreshTokenIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void concurrentRefreshWithTheSameTokenRotatesItOnlyOnce() throws Exception {
+        long userId = createUser("Kenneth", EMAIL, VALID_PASSWORD);
+        String refreshToken = refreshCookieValue(login());
+
+        List<Integer> statuses = refreshConcurrently(refreshToken, 2);
+
+        assertThat(statuses).containsExactlyInAnyOrder(200, 401);
+        assertThat(tokenRow(refreshToken).get("revoked_at")).isNotNull();
+        assertThat(countTokens(userId, "revoked_at IS NULL")).isEqualTo(1);
+        assertThat(countTokens(userId, "1 = 1")).isEqualTo(2);
+    }
+
+    @Test
     void logoutWithoutRefreshCookieSucceeds() throws Exception {
         mockMvc.perform(post(LOGOUT_ENDPOINT))
             .andExpect(status().isNoContent());
@@ -242,6 +260,41 @@ class RefreshTokenIntegrationTest extends PostgresIntegrationTest {
 
         mockMvc.perform(post(REFRESH_ENDPOINT).cookie(refreshCookie(secondSessionToken)))
             .andExpect(status().isOk());
+    }
+
+    private List<Integer> refreshConcurrently(String refreshToken, int attempts) throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(attempts);
+        CyclicBarrier barrier = new CyclicBarrier(attempts);
+        List<Future<Integer>> results = new ArrayList<>();
+
+        for (int i = 0; i < attempts; i++) {
+            results.add(executor.submit(() -> {
+                barrier.await();
+
+                return mockMvc.perform(post(REFRESH_ENDPOINT).cookie(refreshCookie(refreshToken)))
+                    .andReturn()
+                    .getResponse()
+                    .getStatus();
+            }));
+        }
+
+        List<Integer> statuses = new ArrayList<>();
+
+        for (Future<Integer> result : results) {
+            statuses.add(result.get());
+        }
+
+        executor.shutdown();
+
+        return statuses;
+    }
+
+    private int countTokens(long userId, String condition) {
+        return jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM refresh_token WHERE user_id = ? AND " + condition,
+            Integer.class,
+            userId
+        );
     }
 
     private MvcResult login() throws Exception {
