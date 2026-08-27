@@ -2,6 +2,7 @@ package com.synapse.backend.auth;
 
 import org.springframework.web.bind.annotation.RestController;
 
+import com.synapse.backend.auth.dto.ChangePasswordRequest;
 import com.synapse.backend.auth.dto.LoginRequest;
 import com.synapse.backend.auth.dto.LoginResponse;
 import com.synapse.backend.auth.dto.LoginResult;
@@ -16,6 +17,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
@@ -23,8 +25,11 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 
@@ -152,6 +157,43 @@ public class AuthController {
         @CookieValue(name = REFRESH_COOKIE_NAME, required = false) String refreshToken
     ) {
         authService.logoutUser(refreshToken);
+
+        return ResponseEntity.status(HttpStatus.NO_CONTENT)
+            .header(HttpHeaders.SET_COOKIE, clearedRefreshTokenCookie().toString())
+            .build();
+    }
+
+    @PutMapping("/password")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(
+        summary = "Change the current user's password",
+        description = "Changes the password of the currently authenticated user, revokes all of their refresh "
+            + "tokens, and clears the refresh token cookie. The client must discard its access token.",
+        responses = {
+            @ApiResponse(responseCode = "204", description = "Password changed"),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Invalid password change request",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user or incorrect current password",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "User not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
+    public ResponseEntity<Void> changePassword(
+        @Valid @RequestBody ChangePasswordRequest changePasswordRequest,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        authService.changePassword(userId, changePasswordRequest);
 
         return ResponseEntity.status(HttpStatus.NO_CONTENT)
             .header(HttpHeaders.SET_COOKIE, clearedRefreshTokenCookie().toString())
