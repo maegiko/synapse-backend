@@ -164,6 +164,7 @@ Authorization: Bearer <accessToken>
 | `POST` | `/api/auth/login` | Log in and receive an access token | No |
 | `POST` | `/api/auth/refresh` | Exchange the refresh token cookie for a new access token | No |
 | `POST` | `/api/auth/logout` | Revoke the current refresh token and clear the cookie | No |
+| `PUT` | `/api/auth/password` | Change the authenticated user's password | Yes |
 
 Register and login also set a `refreshToken` cookie. The cookie is `HttpOnly`, `Secure`, `SameSite`-restricted, scoped
 to `/api/auth`, and valid for 30 days. Only a SHA-256 hash of each refresh token is stored server-side, alongside its
@@ -176,11 +177,22 @@ rotates it and the other receives `401`. Rotation is transactional, so a failure
 presented token usable instead of ending the session. Browser clients must send the request with credentials included so the cookie
 is attached.
 
+`PUT /api/auth/password` takes `currentPassword` and `newPassword`, verifies the current password, and returns `401` if
+it is wrong. On success it returns `204`, revokes every refresh token belonging to the user, and clears the refresh
+cookie, so a password change signs every session out. The client must discard its access token as well, because
+existing access tokens stay valid until they expire.
+
 ### User 👤
 
 | Method | Endpoint | Description | Auth |
 | --- | --- | --- | --- |
 | `GET` | `/api/user/details` | Get the authenticated user's details | Yes |
+| `PATCH` | `/api/user/details` | Update the authenticated user's full name and/or email | Yes |
+
+`PATCH /api/user/details` accepts an optional `fullName` and an optional `email`, and requires at least one of them.
+Only the supplied fields are changed. The full name is trimmed, the email is trimmed and lowercased, and the length and
+format limits apply to those normalised values. An email that already belongs to another user returns `409`. The response is the updated details; no new access token is issued, so
+`GET /api/user/details` stays the source of current profile data.
 
 ### Notes 📝
 
