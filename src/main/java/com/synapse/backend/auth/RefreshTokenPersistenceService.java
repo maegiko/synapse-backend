@@ -93,6 +93,19 @@ public class RefreshTokenPersistenceService {
         refreshTokenRepository.revokeActiveByTokenHash(hashToken(token));
     }
 
+    /**
+     * Revokes every active refresh token belonging to a user.
+     *
+     * <p>Used when credentials change, so sessions started with the old password
+     * can no longer be refreshed.</p>
+     *
+     * @param userId the internal id of the user whose tokens are revoked.
+     */
+    @Transactional
+    public void revokeAllRefreshTokens(Long userId) {
+        refreshTokenRepository.revokeActiveByUserId(userId);
+    }
+
     private String hashToken(String token) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

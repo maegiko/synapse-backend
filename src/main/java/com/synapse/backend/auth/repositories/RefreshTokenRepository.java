@@ -23,4 +23,13 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     """)
     long revokeActiveByTokenHash(@Param("tokenHash") String tokenHash);
 
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+        UPDATE RefreshToken r
+        SET r.revokedAt = CURRENT_TIMESTAMP
+        WHERE r.userId = :userId
+            AND r.revokedAt IS NULL
+    """)
+    long revokeActiveByUserId(@Param("userId") Long userId);
+
 }
