@@ -106,7 +106,7 @@ public class SecurityConfig {
      * @return the CORS configuration source used by Spring Security.
      */
     @Bean
-    public UrlBasedCorsConfigurationSource corsConfigSource() {
+    public UrlBasedCorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
         config.setAllowedOrigins(List.of(
