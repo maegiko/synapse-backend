@@ -189,12 +189,14 @@ class RateLimitIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void preflightRequestsAreNotLimited() throws Exception {
+    void preflightRequestsAreNotLimitedAndIncludeCorsHeaders() throws Exception {
         for (int i = 0; i < API_REQUESTS_PER_MINUTE + 2; i++) {
             mockMvc.perform(options(NOTES_LIST_ENDPOINT)
                     .header(HttpHeaders.ORIGIN, "http://localhost:5173")
                     .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:5173"))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true"));
         }
     }
 
