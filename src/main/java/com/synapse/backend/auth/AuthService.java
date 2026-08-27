@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.synapse.backend.auth.dto.ChangePasswordRequest;
 import com.synapse.backend.auth.dto.LoginRequest;
 import com.synapse.backend.auth.dto.LoginResponse;
 import com.synapse.backend.auth.dto.LoginResult;
@@ -15,6 +16,7 @@ import com.synapse.backend.auth.dto.RegisterRequest;
 import com.synapse.backend.auth.dto.RegisterResponse;
 import com.synapse.backend.auth.dto.RegisterResult;
 import com.synapse.backend.auth.exceptions.EmailAlreadyExistsException;
+import com.synapse.backend.auth.exceptions.IncorrectPasswordException;
 import com.synapse.backend.auth.exceptions.InvalidRefreshTokenException;
 import com.synapse.backend.auth.exceptions.LoginFailException;
 import com.synapse.backend.security.jwt.JwtService;
@@ -22,6 +24,7 @@ import com.synapse.backend.shared.ratelimit.RateLimitProperties;
 import com.synapse.backend.shared.ratelimit.RateLimitService;
 import com.synapse.backend.user.User;
 import com.synapse.backend.user.UserRepository;
+import com.synapse.backend.user.exceptions.UserNotFoundException;
 
 import jakarta.transaction.Transactional;
 
@@ -171,6 +174,31 @@ public class AuthService {
             return;
 
         refreshTokenPersistenceService.revokeRefreshToken(refreshToken);
+    }
+
+    /**
+     * Changes the password of the authenticated user.
+     *
+     * <p>Every active refresh token of the user is revoked once the new password
+     * is saved, so sessions started with the old password cannot be refreshed.
+     * The caller is expected to discard its access token as well.</p>
+     *
+     * @param userId the id of the authenticated user.
+     * @param changePasswordRequest the validated current and new passwords.
+     * @throws UserNotFoundException if the user ID does not exist in DB.
+     * @throws IncorrectPasswordException if the current password does not match.
+     */
+    @Transactional
+    public void changePassword(Long userId, ChangePasswordRequest changePasswordRequest) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+
+        if (!doesPasswordMatch(changePasswordRequest.currentPassword(), user.getPasswordHash()))
+            throw new IncorrectPasswordException();
+
+        user.updatePasswordHash(passwordEncoder.encode(changePasswordRequest.newPassword()));
+        userRepository.save(user);
+
+        refreshTokenPersistenceService.revokeAllRefreshTokens(userId);
     }
 
     private Optional<User> findUserByEmail(String email) {
