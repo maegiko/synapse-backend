@@ -3,6 +3,7 @@ package com.synapse.backend.user;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.synapse.backend.user.dto.UpdateUserDetailsRequest;
 import com.synapse.backend.user.dto.UserDetailsResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -10,11 +11,14 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import jakarta.validation.Valid;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 
 
 @RestController
@@ -48,6 +52,45 @@ public class UserController {
     public ResponseEntity<UserDetailsResponse> getUserDetails(@AuthenticationPrincipal Jwt jwt) {
         Long userId = Long.valueOf(jwt.getSubject());
         UserDetailsResponse res = userService.getUserDetails(userId);
+
+        return ResponseEntity.ok(res);
+    }
+
+    @PatchMapping("/details")
+    @Operation(
+        summary = "Update user details",
+        description = "Updates the full name and/or email of the currently logged in user. "
+            + "Only the supplied fields are changed and at least one must be supplied.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Updated user details"),
+            @ApiResponse(
+                responseCode = "400",
+                description = "No field supplied, or a supplied field is invalid",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "User not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "409",
+                description = "Email is already registered to another user",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
+    public ResponseEntity<UserDetailsResponse> updateUserDetails(
+        @RequestBody @Valid UpdateUserDetailsRequest req,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        UserDetailsResponse res = userService.updateUserDetails(userId, req);
 
         return ResponseEntity.ok(res);
     }
