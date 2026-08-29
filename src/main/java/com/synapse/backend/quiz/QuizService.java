@@ -23,6 +23,7 @@ import com.synapse.backend.quiz.dto.score.QuizScoreResponse;
 import com.synapse.backend.quiz.enums.QuestionType;
 import com.synapse.backend.quiz.exceptions.CreateQuestionInputException;
 import com.synapse.backend.shared.exceptions.concrete.UserUnauthorised;
+import com.synapse.backend.streak.StreakService;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
@@ -34,23 +35,28 @@ public class QuizService {
     private final NotesService notesService;
     private final QuizGeneratePromptFactory promptFactory;
     private final QuizPersistenceService persistenceService;
+    private final StreakService streakService;
 
     public QuizService(
         LLMClient llmClient,
         ObjectMapper objectMapper,
         NotesService notesService,
         QuizGeneratePromptFactory promptFactory,
-        QuizPersistenceService persistenceService
+        QuizPersistenceService persistenceService,
+        StreakService streakService
     ) {
         this.llmClient = llmClient;
         this.objectMapper = objectMapper;
         this.notesService = notesService;
         this.promptFactory = promptFactory;
         this.persistenceService = persistenceService;
+        this.streakService = streakService;
     }
 
     /**
      * Generates a quiz from a saved note and persists the quiz hierarchy.
+     *
+     * <p>Study activity is recorded once the quiz has been saved.</p>
      *
      * @param noteId the public id of the note to generate a quiz from.
      * @param userId the id of the authenticated user.
@@ -73,7 +79,10 @@ public class QuizService {
             GeneratedQuizResponse generatedQuiz = objectMapper.readValue(res, GeneratedQuizResponse.class);
             validateQuizStructure(generatedQuiz);
 
-            return persistenceService.saveQuizFromNote(generatedQuiz, userId, note.id());
+            QuizResponse savedQuiz = persistenceService.saveQuizFromNote(generatedQuiz, userId, note.id());
+            streakService.recordActivity(userId);
+
+            return savedQuiz;
         } catch (JacksonException e) {
             throw new LLMResponseParsingException("Failed to parse LLM response");
         }
@@ -201,6 +210,8 @@ public class QuizService {
     /**
      * Saves a completed score for a quiz owned by the authenticated user.
      *
+     * <p>Study activity is recorded once the score has been saved.</p>
+     *
      * @param quizId the public id of the completed quiz.
      * @param userId the id of the authenticated user.
      * @param score the number of correctly answered questions.
@@ -210,7 +221,10 @@ public class QuizService {
         if (userId == null)
             throw new UserUnauthorised("User is not authorised for this action.");
 
-        return persistenceService.saveScore(quizId, userId, score);
+        QuizScoreResponse savedScore = persistenceService.saveScore(quizId, userId, score);
+        streakService.recordActivity(userId);
+
+        return savedScore;
     }
 
     /**

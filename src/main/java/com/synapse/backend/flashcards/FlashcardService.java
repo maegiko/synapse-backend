@@ -19,6 +19,7 @@ import com.synapse.backend.notes.NotesService;
 import com.synapse.backend.notes.dto.NoteForGeneration;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
 import com.synapse.backend.shared.exceptions.concrete.UserUnauthorised;
+import com.synapse.backend.streak.StreakService;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
@@ -30,23 +31,28 @@ public class FlashcardService {
     private final ObjectMapper objectMapper;
     private final FlashcardGeneratePromptFactory promptFactory;
     private final FlashcardPersistenceService persistenceService;
+    private final StreakService streakService;
 
     public FlashcardService(
         NotesService notesService,
         LLMClient llmClient,
         ObjectMapper objectMapper,
         FlashcardGeneratePromptFactory promptFactory,
-        FlashcardPersistenceService persistenceService
+        FlashcardPersistenceService persistenceService,
+        StreakService streakService
     ) {
         this.notesService = notesService;
         this.llmClient = llmClient;
         this.objectMapper = objectMapper;
         this.promptFactory = promptFactory;
         this.persistenceService = persistenceService;
+        this.streakService = streakService;
     }
 
     /**
      * Creates and generates a list of flashcards from a note and saves each flashcard to the DB.
+     *
+     * <p>Study activity is recorded once the deck has been saved.</p>
      *
      * @param noteId the id of the note to generate flashcards from.
      * @param userId the id of the currently authenticated user.
@@ -77,6 +83,8 @@ public class FlashcardService {
 
             String deckId = persistenceService
                 .saveFlashcardFromNote(flashcards, userId, new FlashcardSourceNote(note.id(), note.summary().title()));
+
+            streakService.recordActivity(userId);
 
             return new FlashcardGenerateResponse(deckId, flashcards);
         } catch (JacksonException e) {
@@ -117,6 +125,21 @@ public class FlashcardService {
      */
     public void deleteFlashcard(Long userId, String deckId, String flashcardId) {
         persistenceService.deleteFlashcard(userId, deckId, flashcardId);
+    }
+
+    /**
+     * Completes a flashcard deck owned by the currently authenticated user.
+     *
+     * <p>Completing a deck records study activity for the current day. Completing the same deck
+     * again on the same day is safe and does not add another streak day.</p>
+     *
+     * @param deckId the public id of the completed deck.
+     * @param userId the id of the currently authenticated user.
+     */
+    public void completeDeck(String deckId, Long userId) {
+        persistenceService.verifyDeckOwnership(deckId, userId);
+
+        streakService.recordActivity(userId);
     }
 
 }

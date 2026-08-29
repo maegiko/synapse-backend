@@ -216,4 +216,31 @@ public class FlashcardController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{deckId}/complete")
+    @Operation(
+        summary = "Complete a flashcard deck",
+        description = "Marks a flashcard deck owned by the currently authenticated user as completed and "
+            + "records study activity for the current day. Completing the same deck again on the same day "
+            + "does not add another streak day.",
+        responses = {
+            @ApiResponse(responseCode = "204", description = "Successful flashcard deck completion"),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Flashcard deck not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
+    public ResponseEntity<Void> completeDeck(@PathVariable String deckId, @AuthenticationPrincipal Jwt jwt) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        flashcardService.completeDeck(deckId, userId);
+
+        return ResponseEntity.noContent().build();
+    }
+
 }

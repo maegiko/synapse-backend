@@ -170,6 +170,19 @@ public class FlashcardPersistenceService {
     }
 
     /**
+     * Verifies that a deck exists and belongs to the given user.
+     *
+     * @param deckId the public id of the deck.
+     * @param userId the id of the currently authenticated user.
+     * @throws DeckNotFound if the deck doesn't exist for this user.
+     */
+    public void verifyDeckOwnership(String deckId, Long userId) {
+        flashcardDeckRepository
+            .findByPublicIdAndUserId(deckId, userId)
+            .orElseThrow(() -> new DeckNotFound("Deck not found: " + deckId));
+    }
+
+    /**
      * Deletes a flashcard from a deck owned by the given user.
      *
      * @param userId the id of the currently authenticated user.

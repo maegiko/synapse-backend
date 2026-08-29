@@ -14,6 +14,7 @@ import com.synapse.backend.notes.dto.NoteListResponse;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
 import com.synapse.backend.notes.exceptions.InvalidFileException;
 import com.synapse.backend.shared.files.FileParsingService;
+import com.synapse.backend.streak.StreakService;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
@@ -25,23 +26,28 @@ public class NotesService {
     private final ObjectMapper objectMapper;
     private final NoteSummaryPromptFactory promptFactory;
     private final NotesPersistenceService notesPersistenceService;
+    private final StreakService streakService;
 
     public NotesService(
         FileParsingService fileParsingService,
         LLMClient llmClient,
         ObjectMapper objectMapper,
         NoteSummaryPromptFactory promptFactory,
-        NotesPersistenceService notesPersistenceService
+        NotesPersistenceService notesPersistenceService,
+        StreakService streakService
     ) {
         this.fileParsingService = fileParsingService;
         this.llmClient = llmClient;
         this.objectMapper = objectMapper;
         this.promptFactory = promptFactory;
         this.notesPersistenceService = notesPersistenceService;
+        this.streakService = streakService;
     }
 
     /**
      * Returns and saves the summarised notes.
+     *
+     * <p>Study activity is recorded once the summary has been saved.</p>
      *
      * @param file the file to be summarised.
      * @param userId the ID of the user.
@@ -55,7 +61,10 @@ public class NotesService {
         String extractedText = fileParsingService.extractText(file);
         NoteSummaryResponse res = generateSummary(extractedText);
 
-        return notesPersistenceService.saveNoteSummary(res, userId);
+        NoteSummaryResponse savedNote = notesPersistenceService.saveNoteSummary(res, userId);
+        streakService.recordActivity(userId);
+
+        return savedNote;
     }
 
     /**
