@@ -188,6 +188,7 @@ existing access tokens stay valid until they expire.
 | --- | --- | --- | --- |
 | `GET` | `/api/user/details` | Get the authenticated user's details | Yes |
 | `PATCH` | `/api/user/details` | Update the authenticated user's full name and/or email | Yes |
+| `GET` | `/api/user/streak` | Get the authenticated user's study streak | Yes |
 
 `PATCH /api/user/details` accepts an optional `fullName` and an optional `email`, and requires at least one of them.
 Only the supplied fields are changed. The full name is trimmed, the email is trimmed and lowercased, and the length and
@@ -213,6 +214,7 @@ format limits apply to those normalised values. An email that already belongs to
 | `POST` | `/api/flashcards/{deckId}` | Add a flashcard to a deck | Yes |
 | `DELETE` | `/api/flashcards/{deckId}` | Delete a flashcard deck | Yes |
 | `DELETE` | `/api/flashcards/{deckId}/cards/{cardId}` | Delete a flashcard from a deck | Yes |
+| `POST` | `/api/flashcards/{deckId}/complete` | Mark a deck as completed and record study activity | Yes |
 
 ### Quizzes ❓
 
@@ -227,6 +229,32 @@ format limits apply to those normalised values. An email that already belongs to
 | `PUT` | `/api/quiz/{quizId}/difficulty` | Set quiz difficulty from 1 to 5 | Yes |
 | `POST` | `/api/quiz/{quizId}/score` | Save a personal-practice score | Yes |
 | `GET` | `/api/quiz/{quizId}/score/list` | List saved scores from newest to oldest | Yes |
+
+### Study Streaks 🔥
+
+`GET /api/user/streak` returns the authenticated user's study streak:
+
+```json
+{
+  "currentStreak": 6,
+  "longestStreak": 14,
+  "activeToday": true,
+  "lastActiveDate": "2026-08-28"
+}
+```
+
+A day counts once a qualifying study action succeeds and its data is saved:
+
+- `POST /api/notes/summarise`
+- `POST /api/flashcards/generate`
+- `POST /api/quiz/generate`
+- `POST /api/quiz/{quizId}/score`
+- `POST /api/flashcards/{deckId}/complete`
+
+Streak days are UTC calendar days decided by the server; the client never sends a date. Several qualifying actions on
+one day still count as one day, and failed requests award nothing. `currentStreak` counts back from the most recent
+active day and only while that day is today or yesterday, so a missed day resets it to `0`. `longestStreak` is the
+longest run in the user's history. A user with no activity gets zeros and a null `lastActiveDate`.
 
 ## Example Flow 🔄
 
@@ -344,6 +372,7 @@ Current migration coverage includes:
 - Quizzes
 - Quiz difficulty and score history
 - Refresh tokens
+- Study streak activity days
 
 The development profile uses:
 
@@ -390,6 +419,8 @@ The test suite covers:
 - Quiz generate/list/get/delete flows
 - Quiz question creation/deletion and difficulty updates
 - Quiz score creation, validation, ownership, ordering, and history retrieval
+- Streak activity awarding, streak calculation, UTC day boundaries, and ownership isolation
+- Flashcard deck completion, ownership, and same-day idempotency
 - Rate limiting of AI, authenticated, login, and registration requests
 - PDF, DOCX, plain text, and Markdown extraction
 
@@ -408,6 +439,7 @@ src/main/java/com/synapse/backend
 ├── quiz           # Quiz controllers, services, DTOs, entities, enums, and repositories
 ├── security       # JWT and Spring Security configuration
 ├── shared         # Shared errors, exceptions, and file parsing utilities
+├── streak         # Study streak controller, services, DTO, entity, and repository
 └── user           # User entity, repository, service, controller, and DTOs
 ```
 
