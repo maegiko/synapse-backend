@@ -15,6 +15,8 @@ public interface FlashcardRepository extends JpaRepository<Flashcard, Long> {
 
     List<Flashcard> findByDeckIdInOrderByDeckIdAscPositionAsc(List<Long> deckIds);
 
+    int countByDeckId(Long deckId);
+
     @Query("SELECT MAX(f.position) FROM Flashcard f WHERE f.deckId = :deckId")
     Optional<Integer> findMaxPositionByDeckId(@Param("deckId") Long deckId);
 

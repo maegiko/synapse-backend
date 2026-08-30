@@ -1,5 +1,9 @@
 package com.synapse.backend.flashcards;
 
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -14,26 +18,49 @@ import com.synapse.backend.flashcards.dto.generate.FlashcardSourceNote;
 import com.synapse.backend.flashcards.dto.list.FlashcardListResponse;
 import com.synapse.backend.flashcards.dto.list.FlashcardWithIdResponse;
 import com.synapse.backend.flashcards.dto.list.SingleDeckResponse;
+import com.synapse.backend.flashcards.dto.review.ReviewDeckResponse;
+import com.synapse.backend.flashcards.dto.review.ReviewQueueDeckResponse;
+import com.synapse.backend.flashcards.dto.review.ReviewQueueResponse;
 import com.synapse.backend.flashcards.entities.Flashcard;
 import com.synapse.backend.flashcards.entities.FlashcardDeck;
+import com.synapse.backend.flashcards.entities.FlashcardDeckReview;
+import com.synapse.backend.flashcards.enums.ReviewRating;
 import com.synapse.backend.flashcards.exceptions.DeckNotFound;
+import com.synapse.backend.flashcards.exceptions.EmptyDeckException;
 import com.synapse.backend.flashcards.exceptions.FlashcardNotFound;
 import com.synapse.backend.flashcards.repositories.FlashcardDeckRepository;
+import com.synapse.backend.flashcards.repositories.FlashcardDeckReviewRepository;
 import com.synapse.backend.flashcards.repositories.FlashcardRepository;
+import com.synapse.backend.user.UserRepository;
 
 import jakarta.transaction.Transactional;
 
 @Service
 public class FlashcardPersistenceService {
+    private static final BigDecimal MINIMUM_EASE_FACTOR = new BigDecimal("1.30");
+    private static final double HARD_INTERVAL_MULTIPLIER = 1.2;
+    private static final double EASY_INTERVAL_MULTIPLIER = 1.3;
+    private static final int EASY_MINIMUM_INTERVAL_DAYS = 4;
+    private static final int GOOD_SECOND_INTERVAL_DAYS = 6;
+
     private final FlashcardDeckRepository flashcardDeckRepository;
     private final FlashcardRepository flashcardRepository;
+    private final FlashcardDeckReviewRepository flashcardDeckReviewRepository;
+    private final UserRepository userRepository;
+    private final Clock clock;
 
     public FlashcardPersistenceService(
         FlashcardDeckRepository flashcardDeckRepository,
-        FlashcardRepository flashcardRepository
+        FlashcardRepository flashcardRepository,
+        FlashcardDeckReviewRepository flashcardDeckReviewRepository,
+        UserRepository userRepository,
+        Clock clock
     ) {
         this.flashcardDeckRepository = flashcardDeckRepository;
         this.flashcardRepository = flashcardRepository;
+        this.flashcardDeckReviewRepository = flashcardDeckReviewRepository;
+        this.userRepository = userRepository;
+        this.clock = clock;
     }
 
     /**
@@ -49,7 +76,7 @@ public class FlashcardPersistenceService {
         if (flashcards == null)
             return null;
 
-        FlashcardDeck flashcardDeck = new FlashcardDeck(userId, note.id(), note.title(), "NOTE");
+        FlashcardDeck flashcardDeck = new FlashcardDeck(userId, note.id(), note.title(), "NOTE", LocalDate.now(clock));
         FlashcardDeck newFlashcardDeck = flashcardDeckRepository.save(flashcardDeck);
 
         List<Flashcard> newFlashcards = new ArrayList<>();
@@ -170,16 +197,167 @@ public class FlashcardPersistenceService {
     }
 
     /**
-     * Verifies that a deck exists and belongs to the given user.
+     * Returns the decks owned by the user that are due for review today.
      *
-     * @param deckId the public id of the deck.
+     * <p>A deck is due when its next review date is today or earlier. New decks are due
+     * immediately. Decks are ordered oldest due date first, then by insertion order so the
+     * queue is stable between requests.</p>
+     *
      * @param userId the id of the currently authenticated user.
-     * @throws DeckNotFound if the deck doesn't exist for this user.
+     * @return the due decks with the metadata needed to queue and select one.
      */
-    public void verifyDeckOwnership(String deckId, Long userId) {
-        flashcardDeckRepository
-            .findByPublicIdAndUserId(deckId, userId)
+    public ReviewQueueResponse getReviewQueue(Long userId) {
+        List<FlashcardDeck> decks = flashcardDeckRepository
+            .findByUserIdAndNextReviewDateLessThanEqualOrderByNextReviewDateAscIdAsc(userId, LocalDate.now(clock));
+
+        if (decks.isEmpty())
+            return new ReviewQueueResponse(List.of());
+
+        List<Long> deckIds = decks.stream().map(FlashcardDeck::getId).toList();
+
+        Map<Long, Long> cardCounts = flashcardRepository.findByDeckIdInOrderByDeckIdAscPositionAsc(deckIds)
+            .stream()
+            .collect(Collectors.groupingBy(Flashcard::getDeckId, Collectors.counting()));
+
+        List<ReviewQueueDeckResponse> dueDecks = new ArrayList<>();
+
+        for (FlashcardDeck deck : decks) {
+            dueDecks.add(
+                new ReviewQueueDeckResponse(
+                    deck.getPublicId(),
+                    deck.getTitle(),
+                    cardCounts.getOrDefault(deck.getId(), 0L).intValue(),
+                    deck.getNextReviewDate(),
+                    deck.getIntervalDays(),
+                    deck.getReviewCount(),
+                    deck.getLastReviewedAt()
+                )
+            );
+        }
+
+        return new ReviewQueueResponse(dueDecks);
+    }
+
+    /**
+     * Records a review of a deck owned by the given user and reschedules it.
+     *
+     * <p>The schedule update, the review history row, and the increment of the user's lifetime
+     * cards-reviewed counter all happen in one transaction, so a failed ownership check or an
+     * empty deck changes nothing.</p>
+     *
+     * <p>The deck is loaded with a pessimistic write lock, so concurrent reviews of the same deck
+     * run one after the other and the second review schedules from the state the first one saved.
+     * Ordinary deck retrieval stays unlocked.</p>
+     *
+     * @param deckId the public id of the reviewed deck.
+     * @param userId the id of the currently authenticated user.
+     * @param rating how well the user recalled the deck.
+     * @return the applied rating, new schedule, cards reviewed, and the user's lifetime count.
+     * @throws DeckNotFound if the deck doesn't exist for this user.
+     * @throws EmptyDeckException if the deck has no flashcards.
+     */
+    @Transactional
+    public ReviewDeckResponse reviewDeck(String deckId, Long userId, ReviewRating rating) {
+        FlashcardDeck deck = flashcardDeckRepository
+            .findByPublicIdAndUserIdForReview(deckId, userId)
             .orElseThrow(() -> new DeckNotFound("Deck not found: " + deckId));
+
+        int cardsReviewed = flashcardRepository.countByDeckId(deck.getId());
+
+        if (cardsReviewed == 0)
+            throw new EmptyDeckException("Deck has no flashcards to review: " + deckId);
+
+        int previousIntervalDays = deck.getIntervalDays();
+        BigDecimal previousEaseFactor = deck.getEaseFactor();
+        int newIntervalDays = calculateIntervalDays(rating, previousIntervalDays, previousEaseFactor);
+        BigDecimal newEaseFactor = calculateEaseFactor(rating, previousEaseFactor);
+        LocalDateTime reviewedAt = LocalDateTime.now(clock);
+
+        deck.applyReview(newIntervalDays, newEaseFactor, LocalDate.now(clock).plusDays(newIntervalDays), reviewedAt);
+        flashcardDeckRepository.save(deck);
+
+        flashcardDeckReviewRepository.save(
+            new FlashcardDeckReview(
+                deck.getId(),
+                rating,
+                cardsReviewed,
+                cardsReviewed,
+                previousIntervalDays,
+                newIntervalDays,
+                previousEaseFactor,
+                newEaseFactor,
+                reviewedAt
+            )
+        );
+
+        userRepository.incrementTotalFlashcardsReviewed(userId, cardsReviewed);
+
+        return new ReviewDeckResponse(
+            deck.getPublicId(),
+            rating,
+            newIntervalDays,
+            deck.getNextReviewDate(),
+            cardsReviewed,
+            userRepository.findTotalFlashcardsReviewedById(userId)
+        );
+    }
+
+    /**
+     * Calculates the new interval in whole days for a rated review.
+     *
+     * @param rating how well the user recalled the deck.
+     * @param currentIntervalDays the deck's interval before this review.
+     * @param easeFactor the deck's ease factor before this review.
+     * @return the new interval in whole days.
+     */
+    private int calculateIntervalDays(ReviewRating rating, int currentIntervalDays, BigDecimal easeFactor) {
+        double ease = easeFactor.doubleValue();
+
+        return switch (rating) {
+            case AGAIN -> 1;
+            case HARD -> Math.max(1, (int) Math.round(currentIntervalDays * HARD_INTERVAL_MULTIPLIER));
+            case GOOD -> calculateGoodIntervalDays(currentIntervalDays, ease);
+            case EASY -> Math.max(
+                EASY_MINIMUM_INTERVAL_DAYS,
+                (int) Math.round(Math.max(1, currentIntervalDays) * ease * EASY_INTERVAL_MULTIPLIER)
+            );
+        };
+    }
+
+    /**
+     * Calculates the new interval for a {@code GOOD} review.
+     *
+     * @param currentIntervalDays the deck's interval before this review.
+     * @param ease the deck's ease factor before this review.
+     * @return one day for a deck that has never been reviewed, six days for a one-day interval,
+     *     and the current interval scaled by the ease factor otherwise.
+     */
+    private int calculateGoodIntervalDays(int currentIntervalDays, double ease) {
+        if (currentIntervalDays == 0)
+            return 1;
+
+        if (currentIntervalDays == 1)
+            return GOOD_SECOND_INTERVAL_DAYS;
+
+        return (int) Math.round(currentIntervalDays * ease);
+    }
+
+    /**
+     * Calculates the new ease factor for a rated review, floored at the minimum ease factor.
+     *
+     * @param rating how well the user recalled the deck.
+     * @param currentEaseFactor the deck's ease factor before this review.
+     * @return the adjusted ease factor, never below 1.30.
+     */
+    private BigDecimal calculateEaseFactor(ReviewRating rating, BigDecimal currentEaseFactor) {
+        BigDecimal adjustment = switch (rating) {
+            case AGAIN -> new BigDecimal("-0.20");
+            case HARD -> new BigDecimal("-0.15");
+            case GOOD -> BigDecimal.ZERO;
+            case EASY -> new BigDecimal("0.15");
+        };
+
+        return currentEaseFactor.add(adjustment).max(MINIMUM_EASE_FACTOR);
     }
 
     /**

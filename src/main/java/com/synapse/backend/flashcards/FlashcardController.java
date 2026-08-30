@@ -9,6 +9,9 @@ import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateNoteRequest;
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateResponse;
 import com.synapse.backend.flashcards.dto.list.FlashcardListResponse;
 import com.synapse.backend.flashcards.dto.list.SingleDeckResponse;
+import com.synapse.backend.flashcards.dto.review.ReviewDeckRequest;
+import com.synapse.backend.flashcards.dto.review.ReviewDeckResponse;
+import com.synapse.backend.flashcards.dto.review.ReviewQueueResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -216,14 +219,42 @@ public class FlashcardController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/{deckId}/complete")
+    @GetMapping("/review")
     @Operation(
-        summary = "Complete a flashcard deck",
-        description = "Marks a flashcard deck owned by the currently authenticated user as completed and "
-            + "records study activity for the current day. Completing the same deck again on the same day "
-            + "does not add another streak day.",
+        summary = "List flashcard decks due for review",
+        description = "Lists the flashcard decks owned by the currently authenticated user whose next review "
+            + "date is today or earlier, ordered oldest due date first. New decks are due immediately. "
+            + "Cards are still retrieved through the single deck endpoint.",
         responses = {
-            @ApiResponse(responseCode = "204", description = "Successful flashcard deck completion"),
+            @ApiResponse(responseCode = "200", description = "Successful review queue retrieval"),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            )
+        }
+    )
+    public ResponseEntity<ReviewQueueResponse> getReviewQueue(@AuthenticationPrincipal Jwt jwt) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        ReviewQueueResponse res = persistenceService.getReviewQueue(userId);
+
+        return ResponseEntity.ok(res);
+    }
+
+    @PostMapping("/{deckId}/review")
+    @Operation(
+        summary = "Review a flashcard deck",
+        description = "Records a review of a flashcard deck owned by the currently authenticated user. "
+            + "Reschedules the deck from the supplied rating, saves the review to the deck's history, adds the "
+            + "deck's card count to the user's lifetime cards-reviewed total, and records study activity for "
+            + "the current day.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Successful flashcard deck review"),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Missing or invalid rating, or the deck has no flashcards",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
             @ApiResponse(
                 responseCode = "401",
                 description = "Unauthenticated user",
@@ -236,11 +267,15 @@ public class FlashcardController {
             )
         }
     )
-    public ResponseEntity<Void> completeDeck(@PathVariable String deckId, @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<ReviewDeckResponse> reviewDeck(
+        @PathVariable String deckId,
+        @RequestBody @Valid ReviewDeckRequest req,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
         Long userId = Long.valueOf(jwt.getSubject());
-        flashcardService.completeDeck(deckId, userId);
+        ReviewDeckResponse res = flashcardService.reviewDeck(deckId, userId, req.rating());
 
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(res);
     }
 
 }

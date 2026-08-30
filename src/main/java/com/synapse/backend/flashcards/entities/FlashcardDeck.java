@@ -1,5 +1,7 @@
 package com.synapse.backend.flashcards.entities;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import org.hibernate.annotations.CreationTimestamp;
@@ -17,6 +19,8 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "flashcard_deck")
 public class FlashcardDeck {
+
+    private static final BigDecimal DEFAULT_EASE_FACTOR = new BigDecimal("2.50");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -37,6 +41,21 @@ public class FlashcardDeck {
     @Column(name = "public_id", nullable = false, unique = true, length = 10)
     private String publicId;
 
+    @Column(name = "review_count", nullable = false)
+    private int reviewCount;
+
+    @Column(name = "interval_days", nullable = false)
+    private int intervalDays;
+
+    @Column(name = "ease_factor", nullable = false, precision = 4, scale = 2)
+    private BigDecimal easeFactor;
+
+    @Column(name = "next_review_date", nullable = false)
+    private LocalDate nextReviewDate;
+
+    @Column(name = "last_reviewed_at")
+    private LocalDateTime lastReviewedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -47,7 +66,7 @@ public class FlashcardDeck {
 
     protected FlashcardDeck() {}
 
-    public FlashcardDeck(Long userId, Long noteId, String title, String sourceType) {
+    public FlashcardDeck(Long userId, Long noteId, String title, String sourceType, LocalDate today) {
         this.userId = userId;
         this.noteId = noteId;
         this.title = title;
@@ -57,6 +76,10 @@ public class FlashcardDeck {
             NanoIdUtils.DEFAULT_ALPHABET,
             10
         );
+        this.reviewCount = 0;
+        this.intervalDays = 0;
+        this.easeFactor = DEFAULT_EASE_FACTOR;
+        this.nextReviewDate = today;
     }
 
     public Long getId() {
@@ -81,6 +104,47 @@ public class FlashcardDeck {
 
     public String getPublicId() {
         return publicId;
+    }
+
+    public int getReviewCount() {
+        return reviewCount;
+    }
+
+    public int getIntervalDays() {
+        return intervalDays;
+    }
+
+    public BigDecimal getEaseFactor() {
+        return easeFactor;
+    }
+
+    public LocalDate getNextReviewDate() {
+        return nextReviewDate;
+    }
+
+    public LocalDateTime getLastReviewedAt() {
+        return lastReviewedAt;
+    }
+
+    /**
+     * Applies a completed review to the deck's spaced repetition schedule.
+     *
+     * @param intervalDays the new interval in whole days.
+     * @param easeFactor the new ease factor.
+     * @param nextReviewDate the UTC date the deck is next due on.
+     * @param reviewedAt the time the review was completed.
+     */
+    public void applyReview(
+        int intervalDays,
+        BigDecimal easeFactor,
+        LocalDate nextReviewDate,
+        LocalDateTime reviewedAt
+    ) {
+        this.reviewCount += 1;
+        this.intervalDays = intervalDays;
+        this.easeFactor = easeFactor;
+        this.nextReviewDate = nextReviewDate;
+        this.lastReviewedAt = reviewedAt;
     }
 
 }

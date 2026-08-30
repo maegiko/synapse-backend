@@ -2,5 +2,6 @@ package com.synapse.backend.user.dto;
 
 public record UserDetailsResponse(
     String fullName,
-    String email
+    String email,
+    long totalFlashcardsReviewed
 ) {}

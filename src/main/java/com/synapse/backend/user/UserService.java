@@ -23,7 +23,7 @@ public class UserService {
      * Gets the user's details by ID.
      *
      * @param userId the user's ID.
-     * @return the user's full name and email.
+     * @return the user's full name, email, and lifetime flashcards reviewed.
      * @throws UserNotFoundException if the user ID does not exist in DB.
      */
     public UserDetailsResponse getUserDetails(Long userId) {
@@ -31,7 +31,8 @@ public class UserService {
 
         return new UserDetailsResponse(
             user.getName(),
-            user.getEmail()
+            user.getEmail(),
+            user.getTotalFlashcardsReviewed()
         );
     }
 
@@ -44,7 +45,7 @@ public class UserService {
      *
      * @param userId the user's ID.
      * @param req the validated details to update, with at least one field supplied.
-     * @return the user's updated full name and email.
+     * @return the user's updated full name, email, and lifetime flashcards reviewed.
      * @throws InvalidUserDetailsException if no field is supplied or the supplied email is blank.
      * @throws UserNotFoundException if the user ID does not exist in DB.
      * @throws EmailAlreadyExistsException if the email belongs to a different user, including when a
@@ -81,7 +82,8 @@ public class UserService {
 
         return new UserDetailsResponse(
             user.getName(),
-            user.getEmail()
+            user.getEmail(),
+            user.getTotalFlashcardsReviewed()
         );
     }
 

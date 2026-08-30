@@ -15,6 +15,8 @@ import com.synapse.backend.flashcards.dto.FlashcardResponse;
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateListResponse;
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateResponse;
 import com.synapse.backend.flashcards.dto.generate.FlashcardSourceNote;
+import com.synapse.backend.flashcards.dto.review.ReviewDeckResponse;
+import com.synapse.backend.flashcards.enums.ReviewRating;
 import com.synapse.backend.notes.NotesService;
 import com.synapse.backend.notes.dto.NoteForGeneration;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
@@ -128,18 +130,24 @@ public class FlashcardService {
     }
 
     /**
-     * Completes a flashcard deck owned by the currently authenticated user.
+     * Records a review of a flashcard deck owned by the currently authenticated user.
      *
-     * <p>Completing a deck records study activity for the current day. Completing the same deck
-     * again on the same day is safe and does not add another streak day.</p>
+     * <p>The deck is rescheduled, the review is saved to the deck's history, and the user's
+     * lifetime cards-reviewed count is increased by the deck's card count. Study activity is
+     * recorded once the review has been saved, so a failed ownership check or an empty deck
+     * awards nothing.</p>
      *
-     * @param deckId the public id of the completed deck.
+     * @param deckId the public id of the reviewed deck.
      * @param userId the id of the currently authenticated user.
+     * @param rating how well the user recalled the deck.
+     * @return the applied rating, new schedule, cards reviewed, and the user's lifetime count.
      */
-    public void completeDeck(String deckId, Long userId) {
-        persistenceService.verifyDeckOwnership(deckId, userId);
+    public ReviewDeckResponse reviewDeck(String deckId, Long userId, ReviewRating rating) {
+        ReviewDeckResponse res = persistenceService.reviewDeck(deckId, userId, rating);
 
         streakService.recordActivity(userId);
+
+        return res;
     }
 
 }

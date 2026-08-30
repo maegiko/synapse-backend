@@ -28,6 +28,9 @@ public class User {
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
+    @Column(name = "total_flashcards_reviewed", nullable = false)
+    private long totalFlashcardsReviewed;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -57,6 +60,10 @@ public class User {
 
     public String getPasswordHash() {
         return passwordHash;
+    }
+
+    public long getTotalFlashcardsReviewed() {
+        return totalFlashcardsReviewed;
     }
 
     public void updateFullName(String fullName) {
