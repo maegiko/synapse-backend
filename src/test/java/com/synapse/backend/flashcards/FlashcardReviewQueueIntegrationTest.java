@@ -96,8 +96,6 @@ class FlashcardReviewQueueIntegrationTest extends PostgresIntegrationTest {
 
         review(user, "decknew002", "AGAIN");
 
-        when(clock.instant()).thenReturn(MIDDAY.plusSeconds(24 * 60 * 60));
-
         mockMvc.perform(get(REVIEW_QUEUE_ENDPOINT)
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isOk())
@@ -105,8 +103,8 @@ class FlashcardReviewQueueIntegrationTest extends PostgresIntegrationTest {
             .andExpect(jsonPath("$.decks[0].deckId").value("decknew002"))
             .andExpect(jsonPath("$.decks[0].title").value("Systems deck"))
             .andExpect(jsonPath("$.decks[0].cardCount").value(3))
-            .andExpect(jsonPath("$.decks[0].nextReviewDate").value(TODAY.plusDays(1).toString()))
-            .andExpect(jsonPath("$.decks[0].intervalDays").value(1))
+            .andExpect(jsonPath("$.decks[0].nextReviewDate").value(TODAY.toString()))
+            .andExpect(jsonPath("$.decks[0].intervalDays").value(0))
             .andExpect(jsonPath("$.decks[0].reviewCount").value(1))
             .andExpect(jsonPath("$.decks[0].lastReviewedAt").value(TODAY + "T12:00:00"))
             .andExpect(jsonPath("$.decks[0].lastRating").value("AGAIN"));
@@ -221,10 +219,10 @@ class FlashcardReviewQueueIntegrationTest extends PostgresIntegrationTest {
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.decks.length()").value(2))
-            .andExpect(jsonPath("$.decks[0].deckId").value("deckrate01"))
-            .andExpect(jsonPath("$.decks[0].lastRating").value("HARD"))
-            .andExpect(jsonPath("$.decks[1].deckId").value("deckrate02"))
-            .andExpect(jsonPath("$.decks[1].lastRating").value("AGAIN"));
+            .andExpect(jsonPath("$.decks[0].deckId").value("deckrate02"))
+            .andExpect(jsonPath("$.decks[0].lastRating").value("AGAIN"))
+            .andExpect(jsonPath("$.decks[1].deckId").value("deckrate01"))
+            .andExpect(jsonPath("$.decks[1].lastRating").value("HARD"));
     }
 
     @Test

@@ -80,7 +80,7 @@ class FlashcardReviewIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void reviewingANewDeckWithAgainSchedulesItForTomorrowAndLowersEase() throws Exception {
+    void reviewingANewDeckWithAgainKeepsItDueTodayAndLowersEase() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
         createDeckWithCards(user.id(), "deckagain1", 3);
 
@@ -88,12 +88,12 @@ class FlashcardReviewIntegrationTest extends PostgresIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deckId").value("deckagain1"))
             .andExpect(jsonPath("$.rating").value("AGAIN"))
-            .andExpect(jsonPath("$.intervalDays").value(1))
-            .andExpect(jsonPath("$.nextReviewDate").value(TODAY.plusDays(1).toString()))
+            .andExpect(jsonPath("$.intervalDays").value(0))
+            .andExpect(jsonPath("$.nextReviewDate").value(TODAY.toString()))
             .andExpect(jsonPath("$.cardsReviewed").value(3))
             .andExpect(jsonPath("$.totalFlashcardsReviewed").value(3));
 
-        assertSchedule("deckagain1", 1, 1, "2.30", TODAY.plusDays(1));
+        assertSchedule("deckagain1", 1, 0, "2.30", TODAY);
     }
 
     @Test
@@ -187,16 +187,16 @@ class FlashcardReviewIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void reviewingALongerIntervalWithAgainResetsItToOneDay() throws Exception {
+    void reviewingALongerIntervalWithAgainResetsItToToday() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
         Long deckId = createDeckWithCards(user.id(), "deckagain2", 2);
         setSchedule(deckId, 4, 20, "2.50");
 
         review(user, "deckagain2", "AGAIN")
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.intervalDays").value(1));
+            .andExpect(jsonPath("$.intervalDays").value(0));
 
-        assertSchedule("deckagain2", 5, 1, "2.30", TODAY.plusDays(1));
+        assertSchedule("deckagain2", 5, 0, "2.30", TODAY);
     }
 
     @Test
@@ -207,7 +207,7 @@ class FlashcardReviewIntegrationTest extends PostgresIntegrationTest {
 
         review(user, "deckease01", "AGAIN").andExpect(status().isOk());
 
-        assertSchedule("deckease01", 6, 1, "1.30", TODAY.plusDays(1));
+        assertSchedule("deckease01", 6, 0, "1.30", TODAY);
 
         review(user, "deckease01", "HARD").andExpect(status().isOk());
 
