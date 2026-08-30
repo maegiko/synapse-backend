@@ -9,5 +9,6 @@ public record QuizListItemResponse(
     String description,
     List<QuestionPreviewResponse> questions,
     Integer difficulty,
-    LocalDateTime createdAt
+    LocalDateTime createdAt,
+    String groupId
 ) {}

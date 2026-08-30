@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
+import com.synapse.backend.groups.repositories.StudyGroupRepository;
 import com.synapse.backend.quiz.dto.AnswerResponse;
 import com.synapse.backend.quiz.dto.QuestionResponse;
 import com.synapse.backend.quiz.dto.QuizResponse;
@@ -45,17 +46,20 @@ public class QuizPersistenceService {
     private final QuizQuestionRepository questionRepository;
     private final QuizAnswerRepository answerRepository;
     private final QuizScoreRepository scoreRepository;
+    private final StudyGroupRepository studyGroupRepository;
 
     public QuizPersistenceService(
         QuizRepository quizRepository,
         QuizQuestionRepository questionRepository,
         QuizAnswerRepository answerRepository,
-        QuizScoreRepository scoreRepository
+        QuizScoreRepository scoreRepository,
+        StudyGroupRepository studyGroupRepository
     ) {
         this.quizRepository = quizRepository;
         this.questionRepository = questionRepository;
         this.answerRepository = answerRepository;
         this.scoreRepository = scoreRepository;
+        this.studyGroupRepository = studyGroupRepository;
     }
 
     /**
@@ -106,7 +110,8 @@ public class QuizPersistenceService {
             newQuiz.getDescription(),
             questions,
             newQuiz.getDifficulty(),
-            newQuiz.getCreatedAt()
+            newQuiz.getCreatedAt(),
+            null
         );
     }
 
@@ -180,7 +185,8 @@ public class QuizPersistenceService {
                     quiz.getDescription(),
                     questionResponses,
                     quiz.getDifficulty(),
-                    quiz.getCreatedAt()
+                    quiz.getCreatedAt(),
+                    groupPublicId(quiz.getGroupId())
                 )
             );
         }
@@ -240,8 +246,22 @@ public class QuizPersistenceService {
             quiz.getDescription(),
             questions,
             quiz.getDifficulty(),
-            quiz.getCreatedAt()
+            quiz.getCreatedAt(),
+            groupPublicId(quiz.getGroupId())
         );
+    }
+
+    /**
+     * Resolves the public id of the study group a quiz belongs to.
+     *
+     * @param groupId the internal group id held by the quiz, or null when it is ungrouped.
+     * @return the group's public id, or null when the quiz is not in a group.
+     */
+    private String groupPublicId(Long groupId) {
+        if (groupId == null)
+            return null;
+
+        return studyGroupRepository.findPublicIdById(groupId).orElse(null);
     }
 
     /**

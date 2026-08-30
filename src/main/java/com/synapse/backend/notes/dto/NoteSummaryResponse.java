@@ -8,5 +8,6 @@ public record NoteSummaryResponse(
     String overview,
     List<String> keypoints,
     List<ConceptSummary> concepts,
-    List<String> importantTerms
+    List<String> importantTerms,
+    String groupId
 ) {}

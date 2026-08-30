@@ -5,5 +5,6 @@ import java.util.List;
 public record SingleDeckResponse(
     String deckId,
     String title,
-    List<FlashcardWithIdResponse> flashcards
+    List<FlashcardWithIdResponse> flashcards,
+    String groupId
 ) {}

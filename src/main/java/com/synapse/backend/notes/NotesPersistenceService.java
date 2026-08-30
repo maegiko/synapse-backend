@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
+import com.synapse.backend.groups.repositories.StudyGroupRepository;
 import com.synapse.backend.notes.dto.ConceptSummary;
 import com.synapse.backend.notes.dto.NoteForGeneration;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
@@ -28,17 +29,20 @@ public class NotesPersistenceService {
     private final NoteKeypointRepository noteKeypointRepository;
     private final NoteConceptRepository noteConceptRepository;
     private final NoteImportantTermRepository noteImportantTermRepository;
+    private final StudyGroupRepository studyGroupRepository;
 
     public NotesPersistenceService(
         NoteRepository noteRepository,
         NoteKeypointRepository noteKeypointRepository,
         NoteConceptRepository noteConceptRepository,
-        NoteImportantTermRepository noteImportantTermRepository
+        NoteImportantTermRepository noteImportantTermRepository,
+        StudyGroupRepository studyGroupRepository
     ) {
         this.noteRepository = noteRepository;
         this.noteKeypointRepository = noteKeypointRepository;
         this.noteConceptRepository = noteConceptRepository;
         this.noteImportantTermRepository = noteImportantTermRepository;
+        this.studyGroupRepository = studyGroupRepository;
     }
 
     /**
@@ -65,7 +69,8 @@ public class NotesPersistenceService {
             summary.overview(),
             summary.keypoints(),
             summary.concepts(),
-            summary.importantTerms()
+            summary.importantTerms(),
+            null
         );
     }
 
@@ -182,7 +187,8 @@ public class NotesPersistenceService {
                 note.getOverview(),
                 noteKeypoints,
                 noteConcepts,
-                noteImportantTerms
+                noteImportantTerms,
+                groupPublicId(note.getGroupId())
             ));
         }
 
@@ -223,8 +229,22 @@ public class NotesPersistenceService {
             note.getOverview(),
             noteKeypoints,
             noteConcepts,
-            noteImportantTerms
+            noteImportantTerms,
+            groupPublicId(note.getGroupId())
         );
+    }
+
+    /**
+     * Resolves the public id of the study group a resource belongs to.
+     *
+     * @param groupId the internal group id held by the resource, or null when it is ungrouped.
+     * @return the group's public id, or null when the resource is not in a group.
+     */
+    private String groupPublicId(Long groupId) {
+        if (groupId == null)
+            return null;
+
+        return studyGroupRepository.findPublicIdById(groupId).orElse(null);
     }
 
     /**

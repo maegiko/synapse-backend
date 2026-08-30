@@ -31,6 +31,7 @@ import com.synapse.backend.flashcards.exceptions.FlashcardNotFound;
 import com.synapse.backend.flashcards.repositories.FlashcardDeckRepository;
 import com.synapse.backend.flashcards.repositories.FlashcardDeckReviewRepository;
 import com.synapse.backend.flashcards.repositories.FlashcardRepository;
+import com.synapse.backend.groups.repositories.StudyGroupRepository;
 import com.synapse.backend.user.UserRepository;
 
 import jakarta.transaction.Transactional;
@@ -47,6 +48,7 @@ public class FlashcardPersistenceService {
     private final FlashcardRepository flashcardRepository;
     private final FlashcardDeckReviewRepository flashcardDeckReviewRepository;
     private final UserRepository userRepository;
+    private final StudyGroupRepository studyGroupRepository;
     private final Clock clock;
 
     public FlashcardPersistenceService(
@@ -54,12 +56,14 @@ public class FlashcardPersistenceService {
         FlashcardRepository flashcardRepository,
         FlashcardDeckReviewRepository flashcardDeckReviewRepository,
         UserRepository userRepository,
+        StudyGroupRepository studyGroupRepository,
         Clock clock
     ) {
         this.flashcardDeckRepository = flashcardDeckRepository;
         this.flashcardRepository = flashcardRepository;
         this.flashcardDeckReviewRepository = flashcardDeckReviewRepository;
         this.userRepository = userRepository;
+        this.studyGroupRepository = studyGroupRepository;
         this.clock = clock;
     }
 
@@ -121,7 +125,12 @@ public class FlashcardPersistenceService {
                 .toList();
 
             flashcardList.add(
-                new SingleDeckResponse(deck.getPublicId(), deck.getTitle(), cards)
+                new SingleDeckResponse(
+                    deck.getPublicId(),
+                    deck.getTitle(),
+                    cards,
+                    groupPublicId(deck.getGroupId())
+                )
             );
         }
 
@@ -147,7 +156,20 @@ public class FlashcardPersistenceService {
                 .map(f -> new FlashcardWithIdResponse(f.getPublicId(), f.getQuestion(), f.getAnswer()))
                 .toList();
 
-        return new SingleDeckResponse(publicId, deck.getTitle(), flashcardList);
+        return new SingleDeckResponse(publicId, deck.getTitle(), flashcardList, groupPublicId(deck.getGroupId()));
+    }
+
+    /**
+     * Resolves the public id of the study group a deck belongs to.
+     *
+     * @param groupId the internal group id held by the deck, or null when it is ungrouped.
+     * @return the group's public id, or null when the deck is not in a group.
+     */
+    private String groupPublicId(Long groupId) {
+        if (groupId == null)
+            return null;
+
+        return studyGroupRepository.findPublicIdById(groupId).orElse(null);
     }
 
     /**
