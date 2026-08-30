@@ -8,9 +8,12 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import com.aventrix.jnanoid.jnanoid.NanoIdUtils;
+import com.synapse.backend.flashcards.enums.ReviewRating;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -58,6 +61,10 @@ public class FlashcardDeck {
 
     @Column(name = "last_reviewed_at")
     private LocalDateTime lastReviewedAt;
+
+    @Column(name = "last_rating")
+    @Enumerated(EnumType.STRING)
+    private ReviewRating lastRating;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -137,15 +144,21 @@ public class FlashcardDeck {
         return lastReviewedAt;
     }
 
+    public ReviewRating getLastRating() {
+        return lastRating;
+    }
+
     /**
      * Applies a completed review to the deck's spaced repetition schedule.
      *
+     * @param rating the rating the review was given.
      * @param intervalDays the new interval in whole days.
      * @param easeFactor the new ease factor.
      * @param nextReviewDate the UTC date the deck is next due on.
      * @param reviewedAt the time the review was completed.
      */
     public void applyReview(
+        ReviewRating rating,
         int intervalDays,
         BigDecimal easeFactor,
         LocalDate nextReviewDate,
@@ -156,6 +169,7 @@ public class FlashcardDeck {
         this.easeFactor = easeFactor;
         this.nextReviewDate = nextReviewDate;
         this.lastReviewedAt = reviewedAt;
+        this.lastRating = rating;
     }
 
 }

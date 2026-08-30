@@ -252,7 +252,8 @@ public class FlashcardPersistenceService {
                     deck.getNextReviewDate(),
                     deck.getIntervalDays(),
                     deck.getReviewCount(),
-                    deck.getLastReviewedAt()
+                    deck.getLastReviewedAt(),
+                    deck.getLastRating()
                 )
             );
         }
@@ -295,7 +296,13 @@ public class FlashcardPersistenceService {
         BigDecimal newEaseFactor = calculateEaseFactor(rating, previousEaseFactor);
         LocalDateTime reviewedAt = LocalDateTime.now(clock);
 
-        deck.applyReview(newIntervalDays, newEaseFactor, LocalDate.now(clock).plusDays(newIntervalDays), reviewedAt);
+        deck.applyReview(
+            rating,
+            newIntervalDays,
+            newEaseFactor,
+            LocalDate.now(clock).plusDays(newIntervalDays),
+            reviewedAt
+        );
         flashcardDeckRepository.save(deck);
 
         flashcardDeckReviewRepository.save(
