@@ -34,6 +34,9 @@ public class Quiz {
     @Column(name = "note_id")
     private Long noteId;
 
+    @Column(name = "group_id")
+    private Long groupId;
+
     @Column(nullable = false)
     private String title;
 
@@ -80,6 +83,10 @@ public class Quiz {
 
     public Long getNoteId() {
         return noteId;
+    }
+
+    public Long getGroupId() {
+        return groupId;
     }
 
     public String getTitle() {

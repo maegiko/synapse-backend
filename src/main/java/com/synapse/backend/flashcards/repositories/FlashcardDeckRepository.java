@@ -39,6 +39,34 @@ public interface FlashcardDeckRepository extends JpaRepository<FlashcardDeck, Lo
 
     long deleteByPublicIdAndUserId(String publicId, Long userId);
 
+    List<FlashcardDeck> findByGroupIdOrderByCreatedAtDesc(Long groupId);
+
+    int countByGroupId(Long groupId);
+
+    @Modifying
+    @Query("""
+        UPDATE FlashcardDeck d
+        SET d.groupId = :groupId
+        WHERE d.publicId = :publicId AND d.userId = :userId
+    """)
+    long updateGroupIdByPublicIdAndUserId(
+        @Param("publicId") String publicId,
+        @Param("userId") Long userId,
+        @Param("groupId") Long groupId
+    );
+
+    @Modifying
+    @Query("""
+        UPDATE FlashcardDeck d
+        SET d.groupId = NULL
+        WHERE d.publicId = :publicId AND d.userId = :userId AND d.groupId = :groupId
+    """)
+    long clearGroupIdByPublicIdAndUserId(
+        @Param("publicId") String publicId,
+        @Param("userId") Long userId,
+        @Param("groupId") Long groupId
+    );
+
     @Modifying
     @Query("""
         UPDATE FlashcardDeck d

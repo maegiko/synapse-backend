@@ -18,6 +18,34 @@ public interface QuizRepository extends JpaRepository<Quiz, Long> {
 
     long deleteByPublicIdAndUserId(String publicId, Long userId);
 
+    List<Quiz> findByGroupIdOrderByCreatedAtDesc(Long groupId);
+
+    int countByGroupId(Long groupId);
+
+    @Modifying
+    @Query("""
+        UPDATE Quiz q
+        SET q.groupId = :groupId
+        WHERE q.publicId = :publicId AND q.userId = :userId
+    """)
+    long updateGroupIdByPublicIdAndUserId(
+        @Param("publicId") String publicId,
+        @Param("userId") Long userId,
+        @Param("groupId") Long groupId
+    );
+
+    @Modifying
+    @Query("""
+        UPDATE Quiz q
+        SET q.groupId = NULL
+        WHERE q.publicId = :publicId AND q.userId = :userId AND q.groupId = :groupId
+    """)
+    long clearGroupIdByPublicIdAndUserId(
+        @Param("publicId") String publicId,
+        @Param("userId") Long userId,
+        @Param("groupId") Long groupId
+    );
+
     @Modifying
     @Query("""
         UPDATE Quiz q

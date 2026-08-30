@@ -38,6 +38,9 @@ public class FlashcardDeck {
     @Column(name = "source_type", nullable = false)
     private String sourceType;
 
+    @Column(name = "group_id")
+    private Long groupId;
+
     @Column(name = "public_id", nullable = false, unique = true, length = 10)
     private String publicId;
 
@@ -104,6 +107,14 @@ public class FlashcardDeck {
 
     public String getPublicId() {
         return publicId;
+    }
+
+    public Long getGroupId() {
+        return groupId;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 
     public int getReviewCount() {

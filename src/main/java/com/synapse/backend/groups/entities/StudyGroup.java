@@ -1,6 +1,9 @@
-package com.synapse.backend.notes.entities;
+package com.synapse.backend.groups.entities;
 
 import java.time.LocalDateTime;
+
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import com.aventrix.jnanoid.jnanoid.NanoIdUtils;
 
@@ -12,8 +15,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "note")
-public class Note {
+@Table(name = "study_group")
+public class StudyGroup {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,26 +29,25 @@ public class Note {
     private Long userId;
 
     @Column(nullable = false)
-    private String title;
+    private String name;
 
-    @Column(nullable = false)
-    private String overview;
+    @Column
+    private String description;
 
-    @Column(name = "group_id")
-    private Long groupId;
-
-    @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at", nullable = false, insertable = false)
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    protected Note() {}
+    protected StudyGroup() {}
 
-    public Note(Long userId, String title, String overview) {
+    public StudyGroup(Long userId, String name, String description) {
         this.userId = userId;
-        this.title = title;
-        this.overview = overview;
+        this.name = name;
+        this.description = description;
         this.publicId = NanoIdUtils.randomNanoId(
             NanoIdUtils.DEFAULT_NUMBER_GENERATOR,
             NanoIdUtils.DEFAULT_ALPHABET,
@@ -57,28 +59,32 @@ public class Note {
         return id;
     }
 
-    public Long getUserId() {
-        return userId;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public String getOverview() {
-        return overview;
-    }
-
     public String getPublicId() {
         return publicId;
     }
 
-    public Long getGroupId() {
-        return groupId;
+    public Long getUserId() {
+        return userId;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getDescription() {
+        return description;
     }
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public void updateName(String name) {
+        this.name = name;
+    }
+
+    public void updateDescription(String description) {
+        this.description = description;
     }
 
 }
