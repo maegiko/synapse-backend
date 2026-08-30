@@ -56,7 +56,7 @@ public class FlashcardDeck {
     @Column(name = "ease_factor", nullable = false, precision = 4, scale = 2)
     private BigDecimal easeFactor;
 
-    @Column(name = "next_review_date", nullable = false)
+    @Column(name = "next_review_date")
     private LocalDate nextReviewDate;
 
     @Column(name = "last_reviewed_at")
@@ -76,7 +76,7 @@ public class FlashcardDeck {
 
     protected FlashcardDeck() {}
 
-    public FlashcardDeck(Long userId, Long noteId, String title, String sourceType, LocalDate today) {
+    public FlashcardDeck(Long userId, Long noteId, String title, String sourceType) {
         this.userId = userId;
         this.noteId = noteId;
         this.title = title;
@@ -89,7 +89,6 @@ public class FlashcardDeck {
         this.reviewCount = 0;
         this.intervalDays = 0;
         this.easeFactor = DEFAULT_EASE_FACTOR;
-        this.nextReviewDate = today;
     }
 
     public Long getId() {
@@ -136,6 +135,11 @@ public class FlashcardDeck {
         return easeFactor;
     }
 
+    /**
+     * Returns the UTC date the deck is next due on, or null while it has never been reviewed.
+     *
+     * @return the next review date, or null for a deck that has never been reviewed.
+     */
     public LocalDate getNextReviewDate() {
         return nextReviewDate;
     }

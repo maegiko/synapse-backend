@@ -80,7 +80,7 @@ public class FlashcardPersistenceService {
         if (flashcards == null)
             return null;
 
-        FlashcardDeck flashcardDeck = new FlashcardDeck(userId, note.id(), note.title(), "NOTE", LocalDate.now(clock));
+        FlashcardDeck flashcardDeck = new FlashcardDeck(userId, note.id(), note.title(), "NOTE");
         FlashcardDeck newFlashcardDeck = flashcardDeckRepository.save(flashcardDeck);
 
         List<Flashcard> newFlashcards = new ArrayList<>();
@@ -221,9 +221,10 @@ public class FlashcardPersistenceService {
     /**
      * Returns the decks owned by the user that are due for review today.
      *
-     * <p>A deck is due when its next review date is today or earlier. New decks are due
-     * immediately. Decks are ordered oldest due date first, then by insertion order so the
-     * queue is stable between requests.</p>
+     * <p>A deck is due when its next review date is today or earlier. A deck that has never been
+     * reviewed has no next review date and is not queued, so a new deck only joins the queue once
+     * it has been played and rated. Decks are ordered oldest due date first, then by insertion
+     * order so the queue is stable between requests.</p>
      *
      * @param userId the id of the currently authenticated user.
      * @return the due decks with the metadata needed to queue and select one.
