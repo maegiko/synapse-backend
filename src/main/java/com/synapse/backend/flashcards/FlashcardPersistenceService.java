@@ -344,7 +344,7 @@ public class FlashcardPersistenceService {
         double ease = easeFactor.doubleValue();
 
         return switch (rating) {
-            case AGAIN -> 1;
+            case AGAIN -> 0;
             case HARD -> Math.max(1, (int) Math.round(currentIntervalDays * HARD_INTERVAL_MULTIPLIER));
             case GOOD -> calculateGoodIntervalDays(currentIntervalDays, ease);
             case EASY -> Math.max(
