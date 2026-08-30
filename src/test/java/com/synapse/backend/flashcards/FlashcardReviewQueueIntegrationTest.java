@@ -1,5 +1,6 @@
 package com.synapse.backend.flashcards;
 
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -74,7 +75,7 @@ class FlashcardReviewQueueIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void newDecksAreDueImmediately() throws Exception {
+    void newDecksAreNotQueuedUntilTheyHaveBeenPlayed() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
         Long deckId = createDeck(user.id(), "decknew001", "Systems deck");
         createCards(deckId, "decknew001", 3);
@@ -82,15 +83,33 @@ class FlashcardReviewQueueIntegrationTest extends PostgresIntegrationTest {
         mockMvc.perform(get(REVIEW_QUEUE_ENDPOINT)
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$.decks").isEmpty());
+
+        assertNull(nextReviewDate("decknew001"));
+    }
+
+    @Test
+    void aDeckJoinsTheQueueOnceItHasBeenPlayedAndRated() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        Long deckId = createDeck(user.id(), "decknew002", "Systems deck");
+        createCards(deckId, "decknew002", 3);
+
+        review(user, "decknew002", "AGAIN");
+
+        when(clock.instant()).thenReturn(MIDDAY.plusSeconds(24 * 60 * 60));
+
+        mockMvc.perform(get(REVIEW_QUEUE_ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
             .andExpect(jsonPath("$.decks.length()").value(1))
-            .andExpect(jsonPath("$.decks[0].deckId").value("decknew001"))
+            .andExpect(jsonPath("$.decks[0].deckId").value("decknew002"))
             .andExpect(jsonPath("$.decks[0].title").value("Systems deck"))
             .andExpect(jsonPath("$.decks[0].cardCount").value(3))
-            .andExpect(jsonPath("$.decks[0].nextReviewDate").value(TODAY.toString()))
-            .andExpect(jsonPath("$.decks[0].intervalDays").value(0))
-            .andExpect(jsonPath("$.decks[0].reviewCount").value(0))
-            .andExpect(jsonPath("$.decks[0].lastReviewedAt").isEmpty())
-            .andExpect(jsonPath("$.decks[0].lastRating").isEmpty());
+            .andExpect(jsonPath("$.decks[0].nextReviewDate").value(TODAY.plusDays(1).toString()))
+            .andExpect(jsonPath("$.decks[0].intervalDays").value(1))
+            .andExpect(jsonPath("$.decks[0].reviewCount").value(1))
+            .andExpect(jsonPath("$.decks[0].lastReviewedAt").value(TODAY + "T12:00:00"))
+            .andExpect(jsonPath("$.decks[0].lastRating").value("AGAIN"));
     }
 
     @Test
@@ -124,6 +143,20 @@ class FlashcardReviewQueueIntegrationTest extends PostgresIntegrationTest {
                 .andExpect(jsonPath("$.decks[1].deckId").value("decktie001"))
                 .andExpect(jsonPath("$.decks[2].deckId").value("decktie002"));
         }
+    }
+
+    @Test
+    void unplayedDecksStayOutOfTheQueueAlongsideDueDecks() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createDueDeck(user.id(), "deckdue004", "Due deck", TODAY);
+        Long unplayedId = createDeck(user.id(), "decknew003", "Unplayed deck");
+        createCards(unplayedId, "decknew003", 2);
+
+        mockMvc.perform(get(REVIEW_QUEUE_ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.decks.length()").value(1))
+            .andExpect(jsonPath("$.decks[0].deckId").value("deckdue004"));
     }
 
     @Test
@@ -200,6 +233,14 @@ class FlashcardReviewQueueIntegrationTest extends PostgresIntegrationTest {
             .andExpect(status().isUnauthorized());
     }
 
+    private LocalDate nextReviewDate(String deckPublicId) {
+        return jdbcTemplate.queryForObject(
+            "SELECT next_review_date FROM flashcard_deck WHERE public_id = ?",
+            LocalDate.class,
+            deckPublicId
+        );
+    }
+
     private void review(TestUser user, String deckId, String rating) throws Exception {
         mockMvc.perform(post("/api/flashcards/{deckId}/review", deckId)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -229,15 +270,14 @@ class FlashcardReviewQueueIntegrationTest extends PostgresIntegrationTest {
     private Long createDeck(Long userId, String publicId, String title) {
         return jdbcTemplate.queryForObject(
             """
-            INSERT INTO flashcard_deck (user_id, title, source_type, public_id, next_review_date)
-            VALUES (?, ?, 'NOTE', ?, ?)
+            INSERT INTO flashcard_deck (user_id, title, source_type, public_id)
+            VALUES (?, ?, 'NOTE', ?)
             RETURNING id
             """,
             Long.class,
             userId,
             title,
-            publicId,
-            TODAY
+            publicId
         );
     }
 
@@ -245,7 +285,11 @@ class FlashcardReviewQueueIntegrationTest extends PostgresIntegrationTest {
         Long deckId = createDeck(userId, publicId, title);
 
         jdbcTemplate.update(
-            "UPDATE flashcard_deck SET next_review_date = ? WHERE id = ?",
+            """
+            UPDATE flashcard_deck
+            SET next_review_date = ?, interval_days = 1, review_count = 1, last_rating = 'GOOD'
+            WHERE id = ?
+            """,
             nextReviewDate,
             deckId
         );

@@ -215,6 +215,18 @@ class FlashcardReviewIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void aNewDeckHasNoScheduleUntilItsFirstReview() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createDeckWithCards(user.id(), "decksched1", 2);
+
+        assertNull(schedule("decksched1").nextReviewDate());
+
+        review(user, "decksched1", "GOOD").andExpect(status().isOk());
+
+        assertSchedule("decksched1", 1, 1, "2.50", TODAY.plusDays(1));
+    }
+
+    @Test
     void reviewingADeckStoresTheRatingItWasGiven() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
         createDeckWithCards(user.id(), "deckstore1", 2);
@@ -317,7 +329,7 @@ class FlashcardReviewIntegrationTest extends PostgresIntegrationTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value("Deck has no flashcards to review: deckempty1"));
 
-        assertSchedule("deckempty1", 0, 0, "2.50", TODAY);
+        assertSchedule("deckempty1", 0, 0, "2.50", null);
         assertNull(schedule("deckempty1").lastRating());
         assertEquals(List.of(), reviewHistory(deckId));
         assertEquals(0L, totalFlashcardsReviewed(user.id()));
@@ -334,7 +346,7 @@ class FlashcardReviewIntegrationTest extends PostgresIntegrationTest {
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.message").value("Deck not found: deckowner1"));
 
-        assertSchedule("deckowner1", 0, 0, "2.50", TODAY);
+        assertSchedule("deckowner1", 0, 0, "2.50", null);
         assertNull(schedule("deckowner1").lastRating());
         assertEquals(List.of(), reviewHistory(deckId));
         assertEquals(0L, totalFlashcardsReviewed(user.id()));
@@ -366,7 +378,7 @@ class FlashcardReviewIntegrationTest extends PostgresIntegrationTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value("rating: must not be null"));
 
-        assertSchedule("deckvalid1", 0, 0, "2.50", TODAY);
+        assertSchedule("deckvalid1", 0, 0, "2.50", null);
         assertEquals(0L, totalFlashcardsReviewed(user.id()));
     }
 
@@ -377,7 +389,7 @@ class FlashcardReviewIntegrationTest extends PostgresIntegrationTest {
 
         review(user, "deckvalid2", "PERFECT").andExpect(status().isBadRequest());
 
-        assertSchedule("deckvalid2", 0, 0, "2.50", TODAY);
+        assertSchedule("deckvalid2", 0, 0, "2.50", null);
         assertEquals(0L, totalFlashcardsReviewed(user.id()));
     }
 
@@ -391,7 +403,7 @@ class FlashcardReviewIntegrationTest extends PostgresIntegrationTest {
                 .content(objectMapper.writeValueAsString(Map.of("rating", "GOOD"))))
             .andExpect(status().isUnauthorized());
 
-        assertSchedule("deckauth01", 0, 0, "2.50", TODAY);
+        assertSchedule("deckauth01", 0, 0, "2.50", null);
         assertEquals(0L, totalFlashcardsReviewed(user.id()));
     }
 
@@ -508,14 +520,13 @@ class FlashcardReviewIntegrationTest extends PostgresIntegrationTest {
     private Long createDeckWithCards(Long userId, String publicId, int numberOfCards) {
         Long deckId = jdbcTemplate.queryForObject(
             """
-            INSERT INTO flashcard_deck (user_id, title, source_type, public_id, next_review_date)
-            VALUES (?, 'Systems deck', 'NOTE', ?, ?)
+            INSERT INTO flashcard_deck (user_id, title, source_type, public_id)
+            VALUES (?, 'Systems deck', 'NOTE', ?)
             RETURNING id
             """,
             Long.class,
             userId,
-            publicId,
-            TODAY
+            publicId
         );
 
         for (int position = 0; position < numberOfCards; position++) {

@@ -51,7 +51,6 @@ class FlashcardReviewSchemaIntegrationTest extends PostgresIntegrationTest {
     private static final String DECK_ENDPOINT = "/api/flashcards/{deckId}";
     private static final String VALID_PASSWORD = "password123";
     private static final Instant MIDDAY = Instant.parse("2026-03-10T12:00:00Z");
-    private static final LocalDate TODAY = LocalDate.parse("2026-03-10");
 
     @Autowired
     private MockMvc mockMvc;
@@ -80,7 +79,7 @@ class FlashcardReviewSchemaIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void generatedDecksStartUnreviewedAndDueToday() throws Exception {
+    void generatedDecksStartUnreviewedAndUnscheduled() throws Exception {
         when(llmClient.generate(any(LLMRequest.class))).thenReturn(validFlashcardJson());
         TestUser user = register("Kenneth", "kenneth@example.com");
         String noteId = createNote(user.id(), "Biology notes", "An overview of cells.");
@@ -100,7 +99,7 @@ class FlashcardReviewSchemaIntegrationTest extends PostgresIntegrationTest {
         assertEquals(0, deckColumn(deckId, "review_count", Integer.class));
         assertEquals(0, deckColumn(deckId, "interval_days", Integer.class));
         assertEquals(new BigDecimal("2.50"), deckColumn(deckId, "ease_factor", BigDecimal.class));
-        assertEquals(TODAY, deckColumn(deckId, "next_review_date", LocalDate.class));
+        assertNull(deckColumn(deckId, "next_review_date", LocalDate.class));
         assertNull(deckColumn(deckId, "last_reviewed_at", LocalDateTime.class));
         assertNull(deckColumn(deckId, "last_rating", String.class));
     }
