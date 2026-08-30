@@ -38,6 +38,8 @@ import com.synapse.backend.ai.clients.dto.LLMRequest;
 import com.synapse.backend.auth.dto.LoginRequest;
 import com.synapse.backend.auth.dto.RegisterRequest;
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateNoteRequest;
+import com.synapse.backend.flashcards.dto.review.ReviewDeckRequest;
+import com.synapse.backend.flashcards.enums.ReviewRating;
 import com.synapse.backend.quiz.dto.GenerateQuizRequest;
 import com.synapse.backend.support.PostgresIntegrationTest;
 
@@ -52,7 +54,7 @@ class StreakActivityIntegrationTest extends PostgresIntegrationTest {
     private static final String SUMMARY_ENDPOINT = "/api/notes/summarise";
     private static final String FLASHCARD_GENERATE_ENDPOINT = "/api/flashcards/generate";
     private static final String DECK_ENDPOINT = "/api/flashcards/{deckId}";
-    private static final String DECK_COMPLETE_ENDPOINT = "/api/flashcards/{deckId}/complete";
+    private static final String DECK_REVIEW_ENDPOINT = "/api/flashcards/{deckId}/review";
     private static final String QUIZ_GENERATE_ENDPOINT = "/api/quiz/generate";
     private static final String QUIZ_SCORE_ENDPOINT = "/api/quiz/{quizId}/score";
     private static final String STREAK_ENDPOINT = "/api/user/streak";
@@ -142,13 +144,15 @@ class StreakActivityIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void completingAFlashcardDeckAwardsActivityForToday() throws Exception {
+    void reviewingAFlashcardDeckAwardsActivityForToday() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
-        createDeck(user.id(), "deckweek01", "Systems deck");
+        createDeck(user.id(), "deckweek01", "Systems deck", 2);
 
-        mockMvc.perform(post(DECK_COMPLETE_ENDPOINT, "deckweek01")
+        mockMvc.perform(post(DECK_REVIEW_ENDPOINT, "deckweek01")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new ReviewDeckRequest(ReviewRating.GOOD)))
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
-            .andExpect(status().isNoContent());
+            .andExpect(status().isOk());
 
         assertStreakIsOneDayEndingToday(user);
         assertEquals(List.of(today()), activityDates(user.id()));
@@ -158,7 +162,7 @@ class StreakActivityIntegrationTest extends PostgresIntegrationTest {
     void severalQualifyingInteractionsOnTheSameDayCountAsOneStreakDay() throws Exception {
         when(llmClient.generate(any(LLMRequest.class))).thenReturn(validSummaryJson());
         TestUser user = register("Kenneth", "kenneth@example.com");
-        createDeck(user.id(), "deckweek02", "Systems deck");
+        createDeck(user.id(), "deckweek02", "Systems deck", 2);
         Long quizId = createQuiz(user.id(), "quizweek02", "Systems quiz");
         createQuestions(quizId, 3);
 
@@ -173,9 +177,11 @@ class StreakActivityIntegrationTest extends PostgresIntegrationTest {
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isOk());
 
-        mockMvc.perform(post(DECK_COMPLETE_ENDPOINT, "deckweek02")
+        mockMvc.perform(post(DECK_REVIEW_ENDPOINT, "deckweek02")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new ReviewDeckRequest(ReviewRating.GOOD)))
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
-            .andExpect(status().isNoContent());
+            .andExpect(status().isOk());
 
         assertStreakIsOneDayEndingToday(user);
         assertEquals(List.of(today()), activityDates(user.id()));
@@ -184,7 +190,7 @@ class StreakActivityIntegrationTest extends PostgresIntegrationTest {
     @Test
     void openingAFlashcardDeckDoesNotAwardActivity() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
-        createDeck(user.id(), "deckweek03", "Systems deck");
+        createDeck(user.id(), "deckweek03", "Systems deck", 2);
 
         mockMvc.perform(get(DECK_ENDPOINT, "deckweek03")
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
@@ -246,6 +252,21 @@ class StreakActivityIntegrationTest extends PostgresIntegrationTest {
         mockMvc.perform(post(QUIZ_SCORE_ENDPOINT, "quizweek03")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("score", 3)))
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isBadRequest());
+
+        assertNoStreak(user);
+        assertEquals(List.of(), activityDates(user.id()));
+    }
+
+    @Test
+    void rejectedFlashcardDeckReviewDoesNotAwardActivity() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createDeck(user.id(), "deckweek04", "Empty deck", 0);
+
+        mockMvc.perform(post(DECK_REVIEW_ENDPOINT, "deckweek04")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new ReviewDeckRequest(ReviewRating.GOOD)))
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isBadRequest());
 
@@ -317,16 +338,32 @@ class StreakActivityIntegrationTest extends PostgresIntegrationTest {
         return new TestNote(id, publicId);
     }
 
-    private void createDeck(Long userId, String publicId, String title) {
-        jdbcTemplate.update(
+    private void createDeck(Long userId, String publicId, String title, int numberOfCards) {
+        Long deckId = jdbcTemplate.queryForObject(
             """
             INSERT INTO flashcard_deck (user_id, title, source_type, public_id)
             VALUES (?, ?, 'NOTE', ?)
+            RETURNING id
             """,
+            Long.class,
             userId,
             title,
             publicId
         );
+
+        for (int position = 0; position < numberOfCards; position++) {
+            jdbcTemplate.update(
+                """
+                INSERT INTO flashcard (deck_id, question, answer, position, public_id)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                deckId,
+                "Question " + position,
+                "Answer " + position,
+                position,
+                publicId.substring(4) + "c" + position
+            );
+        }
     }
 
     private Long createQuiz(Long userId, String publicId, String title) {

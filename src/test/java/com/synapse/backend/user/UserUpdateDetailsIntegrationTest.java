@@ -64,7 +64,8 @@ class UserUpdateDetailsIntegrationTest extends PostgresIntegrationTest {
         updateDetails(accessToken, new UpdateUserDetailsRequest("Kenneth Koon", null))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.fullName").value("Kenneth Koon"))
-            .andExpect(jsonPath("$.email").value(EMAIL));
+            .andExpect(jsonPath("$.email").value(EMAIL))
+            .andExpect(jsonPath("$.totalFlashcardsReviewed").value(0));
 
         Map<String, Object> savedUser = userRow(EMAIL);
 

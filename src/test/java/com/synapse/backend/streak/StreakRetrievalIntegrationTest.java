@@ -27,6 +27,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import com.synapse.backend.auth.dto.RegisterRequest;
+import com.synapse.backend.flashcards.dto.review.ReviewDeckRequest;
+import com.synapse.backend.flashcards.enums.ReviewRating;
 import com.synapse.backend.support.PostgresIntegrationTest;
 
 import tools.jackson.databind.ObjectMapper;
@@ -36,7 +38,7 @@ import tools.jackson.databind.ObjectMapper;
 class StreakRetrievalIntegrationTest extends PostgresIntegrationTest {
 
     private static final String REGISTER_ENDPOINT = "/api/auth/register";
-    private static final String DECK_COMPLETE_ENDPOINT = "/api/flashcards/{deckId}/complete";
+    private static final String DECK_REVIEW_ENDPOINT = "/api/flashcards/{deckId}/review";
     private static final String STREAK_ENDPOINT = "/api/user/streak";
     private static final String VALID_PASSWORD = "password123";
     private static final Instant MIDDAY = Instant.parse("2026-03-10T12:00:00Z");
@@ -169,7 +171,7 @@ class StreakRetrievalIntegrationTest extends PostgresIntegrationTest {
         createDeck(user.id(), "deckutc001", "Systems deck");
         setClock(Instant.parse("2026-03-10T23:59:00Z"));
 
-        completeDeck(user, "deckutc001");
+        reviewDeck(user, "deckutc001");
 
         assertEquals(List.of(TODAY), activityDates(user.id()));
 
@@ -183,7 +185,7 @@ class StreakRetrievalIntegrationTest extends PostgresIntegrationTest {
             .andExpect(jsonPath("$.activeToday").value(false))
             .andExpect(jsonPath("$.lastActiveDate").value(TODAY.toString()));
 
-        completeDeck(user, "deckutc001");
+        reviewDeck(user, "deckutc001");
 
         assertEquals(List.of(TODAY, TODAY.plusDays(1)), activityDates(user.id()));
 
@@ -207,10 +209,12 @@ class StreakRetrievalIntegrationTest extends PostgresIntegrationTest {
         when(clock.getZone()).thenReturn(ZoneOffset.UTC);
     }
 
-    private void completeDeck(TestUser user, String deckId) throws Exception {
-        mockMvc.perform(post(DECK_COMPLETE_ENDPOINT, deckId)
+    private void reviewDeck(TestUser user, String deckId) throws Exception {
+        mockMvc.perform(post(DECK_REVIEW_ENDPOINT, deckId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new ReviewDeckRequest(ReviewRating.GOOD)))
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
-            .andExpect(status().isNoContent());
+            .andExpect(status().isOk());
     }
 
     private TestUser register(String fullName, String email) throws Exception {
@@ -242,14 +246,25 @@ class StreakRetrievalIntegrationTest extends PostgresIntegrationTest {
     }
 
     private void createDeck(Long userId, String publicId, String title) {
-        jdbcTemplate.update(
+        Long deckId = jdbcTemplate.queryForObject(
             """
             INSERT INTO flashcard_deck (user_id, title, source_type, public_id)
             VALUES (?, ?, 'NOTE', ?)
+            RETURNING id
             """,
+            Long.class,
             userId,
             title,
             publicId
+        );
+
+        jdbcTemplate.update(
+            """
+            INSERT INTO flashcard (deck_id, question, answer, position, public_id)
+            VALUES (?, 'What is a cell?', 'The basic unit of life.', 0, ?)
+            """,
+            deckId,
+            publicId.substring(4) + "c0"
         );
     }
 
