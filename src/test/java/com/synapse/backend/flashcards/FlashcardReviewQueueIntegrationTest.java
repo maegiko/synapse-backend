@@ -89,7 +89,8 @@ class FlashcardReviewQueueIntegrationTest extends PostgresIntegrationTest {
             .andExpect(jsonPath("$.decks[0].nextReviewDate").value(TODAY.toString()))
             .andExpect(jsonPath("$.decks[0].intervalDays").value(0))
             .andExpect(jsonPath("$.decks[0].reviewCount").value(0))
-            .andExpect(jsonPath("$.decks[0].lastReviewedAt").isEmpty());
+            .andExpect(jsonPath("$.decks[0].lastReviewedAt").isEmpty())
+            .andExpect(jsonPath("$.decks[0].lastRating").isEmpty());
     }
 
     @Test
@@ -165,13 +166,46 @@ class FlashcardReviewQueueIntegrationTest extends PostgresIntegrationTest {
             .andExpect(jsonPath("$.decks[0].deckId").value("deckcycle1"))
             .andExpect(jsonPath("$.decks[0].intervalDays").value(4))
             .andExpect(jsonPath("$.decks[0].reviewCount").value(1))
-            .andExpect(jsonPath("$.decks[0].lastReviewedAt").value(TODAY + "T12:00:00"));
+            .andExpect(jsonPath("$.decks[0].lastReviewedAt").value(TODAY + "T12:00:00"))
+            .andExpect(jsonPath("$.decks[0].lastRating").value("EASY"));
+    }
+
+    @Test
+    void reviewQueueReportsTheMostRecentRatingOfEachDeck() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        Long hardDeckId = createDeck(user.id(), "deckrate01", "Hard deck");
+        createCards(hardDeckId, "deckrate01", 2);
+        Long againDeckId = createDeck(user.id(), "deckrate02", "Again deck");
+        createCards(againDeckId, "deckrate02", 2);
+
+        review(user, "deckrate01", "GOOD");
+        review(user, "deckrate01", "HARD");
+        review(user, "deckrate02", "AGAIN");
+
+        when(clock.instant()).thenReturn(MIDDAY.plusSeconds(2 * 24 * 60 * 60));
+
+        mockMvc.perform(get(REVIEW_QUEUE_ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.decks.length()").value(2))
+            .andExpect(jsonPath("$.decks[0].deckId").value("deckrate01"))
+            .andExpect(jsonPath("$.decks[0].lastRating").value("HARD"))
+            .andExpect(jsonPath("$.decks[1].deckId").value("deckrate02"))
+            .andExpect(jsonPath("$.decks[1].lastRating").value("AGAIN"));
     }
 
     @Test
     void reviewQueueReturnsUnauthorizedWhenTokenIsMissing() throws Exception {
         mockMvc.perform(get(REVIEW_QUEUE_ENDPOINT))
             .andExpect(status().isUnauthorized());
+    }
+
+    private void review(TestUser user, String deckId, String rating) throws Exception {
+        mockMvc.perform(post("/api/flashcards/{deckId}/review", deckId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"rating\":\"" + rating + "\"}")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk());
     }
 
     private TestUser register(String fullName, String email) throws Exception {
@@ -195,14 +229,15 @@ class FlashcardReviewQueueIntegrationTest extends PostgresIntegrationTest {
     private Long createDeck(Long userId, String publicId, String title) {
         return jdbcTemplate.queryForObject(
             """
-            INSERT INTO flashcard_deck (user_id, title, source_type, public_id)
-            VALUES (?, ?, 'NOTE', ?)
+            INSERT INTO flashcard_deck (user_id, title, source_type, public_id, next_review_date)
+            VALUES (?, ?, 'NOTE', ?, ?)
             RETURNING id
             """,
             Long.class,
             userId,
             title,
-            publicId
+            publicId,
+            TODAY
         );
     }
 

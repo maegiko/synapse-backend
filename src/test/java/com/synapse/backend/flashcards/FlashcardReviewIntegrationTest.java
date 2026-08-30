@@ -1,6 +1,7 @@
 package com.synapse.backend.flashcards;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -214,6 +215,26 @@ class FlashcardReviewIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void reviewingADeckStoresTheRatingItWasGiven() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createDeckWithCards(user.id(), "deckstore1", 2);
+
+        assertNull(schedule("deckstore1").lastRating());
+
+        review(user, "deckstore1", "GOOD").andExpect(status().isOk());
+        assertEquals("GOOD", schedule("deckstore1").lastRating());
+
+        review(user, "deckstore1", "HARD").andExpect(status().isOk());
+        assertEquals("HARD", schedule("deckstore1").lastRating());
+
+        review(user, "deckstore1", "EASY").andExpect(status().isOk());
+        assertEquals("EASY", schedule("deckstore1").lastRating());
+
+        review(user, "deckstore1", "AGAIN").andExpect(status().isOk());
+        assertEquals("AGAIN", schedule("deckstore1").lastRating());
+    }
+
+    @Test
     void reviewingADeckSavesItsReviewHistory() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
         Long deckId = createDeckWithCards(user.id(), "deckhist01", 4);
@@ -297,6 +318,7 @@ class FlashcardReviewIntegrationTest extends PostgresIntegrationTest {
             .andExpect(jsonPath("$.message").value("Deck has no flashcards to review: deckempty1"));
 
         assertSchedule("deckempty1", 0, 0, "2.50", TODAY);
+        assertNull(schedule("deckempty1").lastRating());
         assertEquals(List.of(), reviewHistory(deckId));
         assertEquals(0L, totalFlashcardsReviewed(user.id()));
         assertEquals(List.of(), activityDates(user.id()));
@@ -313,6 +335,7 @@ class FlashcardReviewIntegrationTest extends PostgresIntegrationTest {
             .andExpect(jsonPath("$.message").value("Deck not found: deckowner1"));
 
         assertSchedule("deckowner1", 0, 0, "2.50", TODAY);
+        assertNull(schedule("deckowner1").lastRating());
         assertEquals(List.of(), reviewHistory(deckId));
         assertEquals(0L, totalFlashcardsReviewed(user.id()));
         assertEquals(0L, totalFlashcardsReviewed(otherUser.id()));
@@ -398,7 +421,7 @@ class FlashcardReviewIntegrationTest extends PostgresIntegrationTest {
     private TestSchedule schedule(String deckPublicId) {
         return jdbcTemplate.queryForObject(
             """
-            SELECT review_count, interval_days, ease_factor, next_review_date, last_reviewed_at
+            SELECT review_count, interval_days, ease_factor, next_review_date, last_reviewed_at, last_rating
             FROM flashcard_deck
             WHERE public_id = ?
             """,
@@ -407,7 +430,8 @@ class FlashcardReviewIntegrationTest extends PostgresIntegrationTest {
                 rs.getInt("interval_days"),
                 rs.getBigDecimal("ease_factor"),
                 rs.getObject("next_review_date", LocalDate.class),
-                rs.getObject("last_reviewed_at", LocalDateTime.class)
+                rs.getObject("last_reviewed_at", LocalDateTime.class),
+                rs.getString("last_rating")
             ),
             deckPublicId
         );
@@ -484,13 +508,14 @@ class FlashcardReviewIntegrationTest extends PostgresIntegrationTest {
     private Long createDeckWithCards(Long userId, String publicId, int numberOfCards) {
         Long deckId = jdbcTemplate.queryForObject(
             """
-            INSERT INTO flashcard_deck (user_id, title, source_type, public_id)
-            VALUES (?, 'Systems deck', 'NOTE', ?)
+            INSERT INTO flashcard_deck (user_id, title, source_type, public_id, next_review_date)
+            VALUES (?, 'Systems deck', 'NOTE', ?, ?)
             RETURNING id
             """,
             Long.class,
             userId,
-            publicId
+            publicId,
+            TODAY
         );
 
         for (int position = 0; position < numberOfCards; position++) {
@@ -538,7 +563,8 @@ class FlashcardReviewIntegrationTest extends PostgresIntegrationTest {
         int intervalDays,
         BigDecimal easeFactor,
         LocalDate nextReviewDate,
-        LocalDateTime lastReviewedAt
+        LocalDateTime lastReviewedAt,
+        String lastRating
     ) {}
 
     private record TestReview(

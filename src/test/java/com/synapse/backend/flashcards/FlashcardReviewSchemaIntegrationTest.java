@@ -102,6 +102,7 @@ class FlashcardReviewSchemaIntegrationTest extends PostgresIntegrationTest {
         assertEquals(new BigDecimal("2.50"), deckColumn(deckId, "ease_factor", BigDecimal.class));
         assertEquals(TODAY, deckColumn(deckId, "next_review_date", LocalDate.class));
         assertNull(deckColumn(deckId, "last_reviewed_at", LocalDateTime.class));
+        assertNull(deckColumn(deckId, "last_rating", String.class));
     }
 
     @Test
