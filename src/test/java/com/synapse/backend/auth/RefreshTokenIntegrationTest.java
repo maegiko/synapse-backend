@@ -10,6 +10,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
@@ -110,8 +111,8 @@ class RefreshTokenIntegrationTest extends PostgresIntegrationTest {
         assertThat(setCookieHeader).contains("SameSite=None");
         assertThat(savedToken.get("user_id")).isEqualTo(userId);
         assertThat(((Timestamp) savedToken.get("expires_at")).toLocalDateTime())
-            .isAfter(LocalDateTime.now().plusDays(29))
-            .isBefore(LocalDateTime.now().plusDays(31));
+            .isAfter(LocalDateTime.now(ZoneOffset.UTC).plusDays(29))
+            .isBefore(LocalDateTime.now(ZoneOffset.UTC).plusDays(31));
     }
 
     @Test
@@ -162,7 +163,7 @@ class RefreshTokenIntegrationTest extends PostgresIntegrationTest {
             "INSERT INTO refresh_token (user_id, token_hash, expires_at) VALUES (?, ?, ?)",
             userId,
             sha256Hex(refreshToken),
-            LocalDateTime.now().minusMinutes(1)
+            LocalDateTime.now(ZoneOffset.UTC).minusMinutes(1)
         );
 
         mockMvc.perform(post(REFRESH_ENDPOINT).cookie(refreshCookie(refreshToken)))
@@ -181,8 +182,8 @@ class RefreshTokenIntegrationTest extends PostgresIntegrationTest {
             "INSERT INTO refresh_token (user_id, token_hash, expires_at, revoked_at) VALUES (?, ?, ?, ?)",
             userId,
             sha256Hex(refreshToken),
-            LocalDateTime.now().plusDays(30),
-            LocalDateTime.now()
+            LocalDateTime.now(ZoneOffset.UTC).plusDays(30),
+            LocalDateTime.now(ZoneOffset.UTC)
         );
 
         mockMvc.perform(post(REFRESH_ENDPOINT).cookie(refreshCookie(refreshToken)))

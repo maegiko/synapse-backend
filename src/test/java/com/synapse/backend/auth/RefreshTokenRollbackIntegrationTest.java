@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.HexFormat;
 import java.util.Map;
 
@@ -93,7 +94,7 @@ class RefreshTokenRollbackIntegrationTest extends PostgresIntegrationTest {
             "INSERT INTO refresh_token (user_id, token_hash, expires_at) VALUES (?, ?, ?)",
             userId,
             sha256Hex(REFRESH_TOKEN),
-            LocalDateTime.now().plusDays(30)
+            LocalDateTime.now(ZoneOffset.UTC).plusDays(30)
         );
 
         return userId;

@@ -59,7 +59,30 @@ class UserDetailsIntegrationTest extends PostgresIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.fullName").value("Kenneth"))
             .andExpect(jsonPath("$.email").value("kenneth@example.com"))
-            .andExpect(jsonPath("$.totalFlashcardsReviewed").value(0));
+            .andExpect(jsonPath("$.totalFlashcardsReviewed").value(0))
+            .andExpect(jsonPath("$.timeZone").value("UTC"));
+    }
+
+    @Test
+    void getUserDetailsReturnsTheTimeZoneChosenAtRegistration() throws Exception {
+        RegisterRequest request =
+            new RegisterRequest("Kenneth", "kenneth@example.com", VALID_PASSWORD, "Australia/Sydney");
+
+        MvcResult result = mockMvc.perform(post(REGISTER_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isCreated())
+            .andReturn();
+
+        String accessToken = objectMapper
+            .readTree(result.getResponse().getContentAsString())
+            .get("accessToken")
+            .asString();
+
+        mockMvc.perform(get(USER_ME_ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.timeZone").value("Australia/Sydney"));
     }
 
     @Test

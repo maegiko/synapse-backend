@@ -87,6 +87,71 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void registerStoresTheSuppliedTimeZone() throws Exception {
+        RegisterRequest request =
+            new RegisterRequest("Kenneth", "kenneth@example.com", VALID_PASSWORD, "Australia/Sydney");
+
+        mockMvc.perform(post(REGISTER_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isCreated());
+
+        assertThat(timeZoneOf("kenneth@example.com")).isEqualTo("Australia/Sydney");
+    }
+
+    @Test
+    void registerTrimsTheSuppliedTimeZone() throws Exception {
+        RegisterRequest request =
+            new RegisterRequest("Kenneth", "kenneth@example.com", VALID_PASSWORD, "  Europe/London  ");
+
+        mockMvc.perform(post(REGISTER_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isCreated());
+
+        assertThat(timeZoneOf("kenneth@example.com")).isEqualTo("Europe/London");
+    }
+
+    @Test
+    void registerFallsBackToUtcWhenNoTimeZoneIsSupplied() throws Exception {
+        RegisterRequest request = new RegisterRequest("Kenneth", "kenneth@example.com", VALID_PASSWORD);
+
+        mockMvc.perform(post(REGISTER_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isCreated());
+
+        assertThat(timeZoneOf("kenneth@example.com")).isEqualTo("UTC");
+    }
+
+    @Test
+    void registerFallsBackToUtcWhenTheTimeZoneIsBlank() throws Exception {
+        RegisterRequest request =
+            new RegisterRequest("Kenneth", "kenneth@example.com", VALID_PASSWORD, "   ");
+
+        mockMvc.perform(post(REGISTER_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isCreated());
+
+        assertThat(timeZoneOf("kenneth@example.com")).isEqualTo("UTC");
+    }
+
+    @Test
+    void registerReturnsBadRequestWhenTheTimeZoneIsNotARealZone() throws Exception {
+        RegisterRequest request =
+            new RegisterRequest("Kenneth", "kenneth@example.com", VALID_PASSWORD, "Mars/Olympus_Mons");
+
+        mockMvc.perform(post(REGISTER_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("timeZone: must be a valid IANA time zone"));
+
+        assertThat(countUsers("kenneth@example.com")).isZero();
+    }
+
+    @Test
     void registerReturnsConflictWhenEmailAlreadyExists() throws Exception {
         RegisterRequest request = new RegisterRequest("Kenneth", "kenneth@example.com", VALID_PASSWORD);
 
@@ -229,6 +294,22 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value("password: size must be between 8 and 64"));
+    }
+
+    private String timeZoneOf(String email) {
+        return jdbcTemplate.queryForObject(
+            "SELECT time_zone FROM app_user WHERE email = ?",
+            String.class,
+            email
+        );
+    }
+
+    private int countUsers(String email) {
+        return jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM app_user WHERE email = ?",
+            Integer.class,
+            email
+        );
     }
 
     private long createUser(String fullName, String email, String password) {
