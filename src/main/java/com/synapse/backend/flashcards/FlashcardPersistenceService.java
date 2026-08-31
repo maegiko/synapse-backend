@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.synapse.backend.flashcards.dto.AddFlashcardRequest;
@@ -98,16 +100,18 @@ public class FlashcardPersistenceService {
     }
 
     /**
-     * Returns all flashcards owned by user, sorted by deck.
+     * Returns a page of flashcard decks owned by user, optionally filtered by deck title.
      *
      * @param userId the id of the currently authenticated user.
-     * @return a list of all flashcard decks and cards owned by the user.
+     * @param query an optional case-insensitive partial title search, or null/blank for no search.
+     * @param pageable the page to return.
+     * @return the requested page of decks with their cards and its pagination metadata.
      */
-    public FlashcardListResponse getAllFlashcards(Long userId) {
-        List<FlashcardDeck> decks = flashcardDeckRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    public FlashcardListResponse getAllFlashcards(Long userId, String query, Pageable pageable) {
+        Page<FlashcardDeck> decks = findDecksPage(userId, query, pageable);
 
         if (decks.isEmpty())
-            return new FlashcardListResponse(List.of());
+            return toFlashcardListResponse(List.of(), decks);
 
         List<Long> deckIds = decks.stream().map(FlashcardDeck::getId).toList();
 
@@ -134,7 +138,28 @@ public class FlashcardPersistenceService {
             );
         }
 
-        return new FlashcardListResponse(flashcardList);
+        return toFlashcardListResponse(flashcardList, decks);
+    }
+
+    private Page<FlashcardDeck> findDecksPage(Long userId, String query, Pageable pageable) {
+        String search = query == null ? "" : query.trim();
+
+        if (search.isEmpty())
+            return flashcardDeckRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable);
+
+        return flashcardDeckRepository
+            .findByUserIdAndTitleContainingIgnoreCaseOrderByCreatedAtDescIdDesc(userId, search, pageable);
+    }
+
+    private FlashcardListResponse toFlashcardListResponse(List<SingleDeckResponse> decks, Page<FlashcardDeck> page) {
+        return new FlashcardListResponse(
+            decks,
+            page.getNumber(),
+            page.getSize(),
+            page.getTotalElements(),
+            page.getTotalPages(),
+            page.hasNext()
+        );
     }
 
     /**

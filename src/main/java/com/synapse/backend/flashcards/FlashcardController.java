@@ -21,12 +21,16 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -90,9 +94,17 @@ public class FlashcardController {
     @GetMapping("/list")
     @Operation(
         summary = "List flashcards",
-        description = "Lists all saved flashcard decks and flashcards owned by the currently authenticated user.",
+        description = "Lists saved flashcard decks and flashcards owned by the currently authenticated user, "
+            + "newest first. An optional query filters decks by a case-insensitive partial title match; it is "
+            + "trimmed and a blank query is ignored. Results are paged with a zero-based page (default 0) and "
+            + "a size between 1 and 100 (default 20).",
         responses = {
             @ApiResponse(responseCode = "200", description = "Successful flashcard list retrieval"),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Invalid page or size",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
             @ApiResponse(
                 responseCode = "401",
                 description = "Unauthenticated user",
@@ -100,9 +112,14 @@ public class FlashcardController {
             )
         }
     )
-    public ResponseEntity<FlashcardListResponse> getAllFlashcards(@AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<FlashcardListResponse> getAllFlashcards(
+        @RequestParam(required = false) String query,
+        @RequestParam(defaultValue = "0") @Min(0) int page,
+        @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
         Long userId = Long.valueOf(jwt.getSubject());
-        FlashcardListResponse res = persistenceService.getAllFlashcards(userId);
+        FlashcardListResponse res = persistenceService.getAllFlashcards(userId, query, PageRequest.of(page, size));
 
         return ResponseEntity.ok(res);
     }

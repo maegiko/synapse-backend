@@ -4,6 +4,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -17,6 +19,14 @@ import jakarta.persistence.LockModeType;
 public interface FlashcardDeckRepository extends JpaRepository<FlashcardDeck, Long> {
 
     List<FlashcardDeck> findByUserIdOrderByCreatedAtDesc(Long userId);
+
+    Page<FlashcardDeck> findByUserIdOrderByCreatedAtDescIdDesc(Long userId, Pageable pageable);
+
+    Page<FlashcardDeck> findByUserIdAndTitleContainingIgnoreCaseOrderByCreatedAtDescIdDesc(
+        Long userId,
+        String title,
+        Pageable pageable
+    );
 
     List<FlashcardDeck> findByUserIdAndNextReviewDateLessThanEqualOrderByNextReviewDateAscIdAsc(
         Long userId,
