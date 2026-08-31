@@ -164,6 +164,197 @@ class QuizListIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void getAllQuizzesUsesDefaultPaginationWhenNoParametersAreSupplied() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createQuizzes(user.id(), "Quiz", 25);
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.quizzes", hasSize(20)))
+            .andExpect(jsonPath("$.quizzes[0].title").value("Quiz 25"))
+            .andExpect(jsonPath("$.quizzes[19].title").value("Quiz 6"))
+            .andExpect(jsonPath("$.page").value(0))
+            .andExpect(jsonPath("$.size").value(20))
+            .andExpect(jsonPath("$.totalElements").value(25))
+            .andExpect(jsonPath("$.totalPages").value(2))
+            .andExpect(jsonPath("$.hasNext").value(true));
+    }
+
+    @Test
+    void getAllQuizzesReturnsTheRequestedPageAndSize() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createQuizzes(user.id(), "Quiz", 5);
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("page", "1")
+                .param("size", "2")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.quizzes", hasSize(2)))
+            .andExpect(jsonPath("$.quizzes[0].title").value("Quiz 3"))
+            .andExpect(jsonPath("$.quizzes[1].title").value("Quiz 2"))
+            .andExpect(jsonPath("$.page").value(1))
+            .andExpect(jsonPath("$.size").value(2))
+            .andExpect(jsonPath("$.totalElements").value(5))
+            .andExpect(jsonPath("$.totalPages").value(3))
+            .andExpect(jsonPath("$.hasNext").value(true));
+    }
+
+    @Test
+    void getAllQuizzesReturnsAnEmptyPageBeyondTheEnd() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createQuizzes(user.id(), "Quiz", 3);
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("page", "5")
+                .param("size", "2")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.quizzes", hasSize(0)))
+            .andExpect(jsonPath("$.page").value(5))
+            .andExpect(jsonPath("$.totalElements").value(3))
+            .andExpect(jsonPath("$.totalPages").value(2))
+            .andExpect(jsonPath("$.hasNext").value(false));
+    }
+
+    @Test
+    void getAllQuizzesSearchesTitlesCaseInsensitivelyAndPartially() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        Long systemsQuizId = createQuiz(user.id(), "quizsrc001", "System Dynamics", "A quiz", "2026-01-01 09:00:00");
+        createQuiz(user.id(), "quizsrc002", "Nervous system", "A quiz", "2026-01-02 09:00:00");
+        createQuiz(user.id(), "quizsrc003", "Enzymes", "A quiz", "2026-01-03 09:00:00");
+        createQuestion(systemsQuizId, "srcq000001", "What is a stock?", "BOOLEAN", 0, "2026-01-01 09:01:00");
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("query", "SYSTEM")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.quizzes", hasSize(2)))
+            .andExpect(jsonPath("$.quizzes[0].title").value("Nervous system"))
+            .andExpect(jsonPath("$.quizzes[1].title").value("System Dynamics"))
+            .andExpect(jsonPath("$.quizzes[1].questions", hasSize(1)))
+            .andExpect(jsonPath("$.quizzes[1].questions[0].text").value("What is a stock?"))
+            .andExpect(jsonPath("$.totalElements").value(2))
+            .andExpect(jsonPath("$.hasNext").value(false));
+    }
+
+    @Test
+    void getAllQuizzesTrimsTheSearchQuery() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createQuiz(user.id(), "quiztrm001", "Enzymes", "A quiz", "2026-01-01 09:00:00");
+        createQuiz(user.id(), "quiztrm002", "Cells", "A quiz", "2026-01-02 09:00:00");
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("query", "  enzy  ")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.quizzes", hasSize(1)))
+            .andExpect(jsonPath("$.quizzes[0].title").value("Enzymes"))
+            .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void getAllQuizzesTreatsABlankSearchQueryAsNoSearch() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createQuizzes(user.id(), "Quiz", 3);
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("query", "   ")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.quizzes", hasSize(3)))
+            .andExpect(jsonPath("$.totalElements").value(3));
+    }
+
+    @Test
+    void getAllQuizzesReturnsAnEmptyPageWhenTheSearchMatchesNothing() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createQuizzes(user.id(), "Quiz", 3);
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("query", "photosynthesis")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.quizzes", hasSize(0)))
+            .andExpect(jsonPath("$.totalElements").value(0))
+            .andExpect(jsonPath("$.totalPages").value(0))
+            .andExpect(jsonPath("$.hasNext").value(false));
+    }
+
+    @Test
+    void getAllQuizzesBreaksCreatedAtTiesByNewestIdFirst() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createQuiz(user.id(), "quiztie001", "First saved", "A quiz", "2026-01-01 09:00:00");
+        createQuiz(user.id(), "quiztie002", "Second saved", "A quiz", "2026-01-01 09:00:00");
+        createQuiz(user.id(), "quiztie003", "Third saved", "A quiz", "2026-01-01 09:00:00");
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.quizzes[0].id").value("quiztie003"))
+            .andExpect(jsonPath("$.quizzes[1].id").value("quiztie002"))
+            .andExpect(jsonPath("$.quizzes[2].id").value("quiztie001"));
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("page", "1")
+                .param("size", "1")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.quizzes", hasSize(1)))
+            .andExpect(jsonPath("$.quizzes[0].id").value("quiztie002"));
+    }
+
+    @Test
+    void getAllQuizzesOnlySearchesQuizzesOwnedByTheAuthenticatedUser() throws Exception {
+        TestUser currentUser = register("Kenneth", "kenneth@example.com");
+        TestUser otherUser = register("Ada", "ada@example.com");
+        createQuiz(currentUser.id(), "quizown001", "Shared title mine", "A quiz", "2026-01-01 09:00:00");
+        createQuiz(otherUser.id(), "quizown002", "Shared title theirs", "A quiz", "2026-01-02 09:00:00");
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("query", "shared title")
+                .header(HttpHeaders.AUTHORIZATION, bearer(currentUser.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.quizzes", hasSize(1)))
+            .andExpect(jsonPath("$.quizzes[0].title").value("Shared title mine"))
+            .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void getAllQuizzesRejectsANegativePage() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("page", "-1")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("page: must be greater than or equal to 0"));
+    }
+
+    @Test
+    void getAllQuizzesRejectsASizeBelowOne() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("size", "0")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("size: must be greater than or equal to 1"));
+    }
+
+    @Test
+    void getAllQuizzesRejectsASizeAboveTheMaximum() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("size", "101")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("size: must be less than or equal to 100"));
+    }
+
+    @Test
     void getAllQuizzesReturnsUnauthorizedWhenTokenIsMissing() throws Exception {
         mockMvc.perform(get(LIST_ENDPOINT))
             .andExpect(status().isUnauthorized());
@@ -208,6 +399,18 @@ class QuizListIntegrationTest extends PostgresIntegrationTest {
             createdAt,
             createdAt
         );
+    }
+
+    private void createQuizzes(Long userId, String titlePrefix, int count) {
+        for (int i = 1; i <= count; i++) {
+            createQuiz(
+                userId,
+                String.format("quizpg%04d", i),
+                titlePrefix + " " + i,
+                "Description " + i,
+                String.format("2026-01-01 09:%02d:00", i)
+            );
+        }
     }
 
     private Long createQuestion(
