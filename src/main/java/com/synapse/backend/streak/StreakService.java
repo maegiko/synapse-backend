@@ -1,25 +1,25 @@
 package com.synapse.backend.streak;
 
-import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
 
 import com.synapse.backend.streak.dto.StreakResponse;
+import com.synapse.backend.user.UserTimeZoneService;
 
 @Service
 public class StreakService {
     private final StreakPersistenceService persistenceService;
-    private final Clock clock;
+    private final UserTimeZoneService userTimeZoneService;
 
-    public StreakService(StreakPersistenceService persistenceService, Clock clock) {
+    public StreakService(StreakPersistenceService persistenceService, UserTimeZoneService userTimeZoneService) {
         this.persistenceService = persistenceService;
-        this.clock = clock;
+        this.userTimeZoneService = userTimeZoneService;
     }
 
     /**
-     * Records study activity for the current UTC day.
+     * Records study activity for the user's current local day.
      *
      * <p>Call this only after a qualifying workflow has persisted its own data, so a failed
      * generation, save, or ownership check never awards a streak day. Recording the same day
@@ -28,11 +28,11 @@ public class StreakService {
      * @param userId the id of the authenticated user.
      */
     public void recordActivity(Long userId) {
-        persistenceService.recordActivityDay(userId, LocalDate.now(clock));
+        persistenceService.recordActivityDay(userId, userTimeZoneService.today(userId));
     }
 
     /**
-     * Returns the study streak of a user, measured in UTC calendar days.
+     * Returns the study streak of a user, measured in the user's own calendar days.
      *
      * <p>The current streak is the run of consecutive days ending on the most recent activity
      * date, and counts only while that date is today or yesterday. The longest streak is the
@@ -47,7 +47,7 @@ public class StreakService {
         if (activityDates.isEmpty())
             return new StreakResponse(0, 0, false, null);
 
-        LocalDate today = LocalDate.now(clock);
+        LocalDate today = userTimeZoneService.today(userId);
         LocalDate lastActiveDate = activityDates.get(0);
         boolean streakIsAlive = lastActiveDate.equals(today) || lastActiveDate.equals(today.minusDays(1));
 

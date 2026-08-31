@@ -5,6 +5,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.HexFormat;
 
@@ -49,7 +50,7 @@ public class RefreshTokenPersistenceService {
         SECURE_RANDOM.nextBytes(tokenBytes);
 
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);
-        LocalDateTime expiresAt = LocalDateTime.now().plus(jwtProperties.refreshTokenTtl());
+        LocalDateTime expiresAt = LocalDateTime.now(ZoneOffset.UTC).plus(jwtProperties.refreshTokenTtl());
 
         refreshTokenRepository.save(new RefreshToken(userId, hashToken(token), expiresAt));
 

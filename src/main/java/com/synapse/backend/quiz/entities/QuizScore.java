@@ -2,8 +2,6 @@ package com.synapse.backend.quiz.entities;
 
 import java.time.LocalDateTime;
 
-import org.hibernate.annotations.CreationTimestamp;
-
 import com.aventrix.jnanoid.jnanoid.NanoIdUtils;
 
 import jakarta.persistence.Column;
@@ -36,13 +34,13 @@ public class QuizScore {
     @Column(name = "total_questions", nullable = false)
     private int totalQuestions;
 
-    @CreationTimestamp
+    /** Supplied as UTC by the caller rather than by the database or the runtime's own zone. */
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     protected QuizScore() {}
 
-    public QuizScore(Long quizId, Long userId, int score, int totalQuestions) {
+    public QuizScore(Long quizId, Long userId, int score, int totalQuestions, LocalDateTime createdAt) {
         this.publicId = NanoIdUtils.randomNanoId(
             NanoIdUtils.DEFAULT_NUMBER_GENERATOR,
             NanoIdUtils.DEFAULT_ALPHABET,
@@ -52,6 +50,7 @@ public class QuizScore {
         this.score = score;
         this.userId = userId;
         this.totalQuestions = totalQuestions;
+        this.createdAt = createdAt;
     }
 
     public Long getId() {

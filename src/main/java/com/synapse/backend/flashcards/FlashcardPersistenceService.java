@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +36,7 @@ import com.synapse.backend.flashcards.repositories.FlashcardDeckReviewRepository
 import com.synapse.backend.flashcards.repositories.FlashcardRepository;
 import com.synapse.backend.groups.repositories.StudyGroupRepository;
 import com.synapse.backend.user.UserRepository;
+import com.synapse.backend.user.UserTimeZoneService;
 
 import jakarta.transaction.Transactional;
 
@@ -52,6 +54,7 @@ public class FlashcardPersistenceService {
     private final UserRepository userRepository;
     private final StudyGroupRepository studyGroupRepository;
     private final Clock clock;
+    private final UserTimeZoneService userTimeZoneService;
 
     public FlashcardPersistenceService(
         FlashcardDeckRepository flashcardDeckRepository,
@@ -59,7 +62,8 @@ public class FlashcardPersistenceService {
         FlashcardDeckReviewRepository flashcardDeckReviewRepository,
         UserRepository userRepository,
         StudyGroupRepository studyGroupRepository,
-        Clock clock
+        Clock clock,
+        UserTimeZoneService userTimeZoneService
     ) {
         this.flashcardDeckRepository = flashcardDeckRepository;
         this.flashcardRepository = flashcardRepository;
@@ -67,6 +71,7 @@ public class FlashcardPersistenceService {
         this.userRepository = userRepository;
         this.studyGroupRepository = studyGroupRepository;
         this.clock = clock;
+        this.userTimeZoneService = userTimeZoneService;
     }
 
     /**
@@ -274,7 +279,8 @@ public class FlashcardPersistenceService {
     /**
      * Returns the decks owned by the user that are due for review today.
      *
-     * <p>A deck is due when its next review date is today or earlier. A deck that has never been
+     * <p>A deck is due when its next review date is today or earlier, counted in the user's own
+     * time zone. A deck that has never been
      * reviewed has no next review date and is not queued, so a new deck only joins the queue once
      * it has been played and rated. Decks are ordered oldest due date first, then by insertion
      * order so the queue is stable between requests.</p>
@@ -284,7 +290,10 @@ public class FlashcardPersistenceService {
      */
     public ReviewQueueResponse getReviewQueue(Long userId) {
         List<FlashcardDeck> decks = flashcardDeckRepository
-            .findByUserIdAndNextReviewDateLessThanEqualOrderByNextReviewDateAscIdAsc(userId, LocalDate.now(clock));
+            .findByUserIdAndNextReviewDateLessThanEqualOrderByNextReviewDateAscIdAsc(
+                userId,
+                userTimeZoneService.today(userId)
+            );
 
         if (decks.isEmpty())
             return new ReviewQueueResponse(List.of());
@@ -348,13 +357,15 @@ public class FlashcardPersistenceService {
         BigDecimal previousEaseFactor = deck.getEaseFactor();
         int newIntervalDays = calculateIntervalDays(rating, previousIntervalDays, previousEaseFactor);
         BigDecimal newEaseFactor = calculateEaseFactor(rating, previousEaseFactor);
-        LocalDateTime reviewedAt = LocalDateTime.now(clock);
+        // The instant is stored as UTC; only the due date is counted in the user's calendar.
+        LocalDateTime reviewedAt = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
+        LocalDate nextReviewDate = userTimeZoneService.today(userId).plusDays(newIntervalDays);
 
         deck.applyReview(
             rating,
             newIntervalDays,
             newEaseFactor,
-            LocalDate.now(clock).plusDays(newIntervalDays),
+            nextReviewDate,
             reviewedAt
         );
         flashcardDeckRepository.save(deck);

@@ -2,6 +2,7 @@ package com.synapse.backend.user;
 
 import java.time.LocalDateTime;
 
+import org.hibernate.annotations.SourceType;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import jakarta.persistence.Column;
@@ -31,19 +32,23 @@ public class User {
     @Column(name = "total_flashcards_reviewed", nullable = false)
     private long totalFlashcardsReviewed;
 
+    @Column(name = "time_zone", nullable = false, length = 64)
+    private String timeZone;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @UpdateTimestamp
+    @UpdateTimestamp(source = SourceType.DB)
     @Column(name = "updated_at", nullable = false, insertable = false)
     private LocalDateTime updatedAt;
 
     protected User() {}
 
-    public User(String name, String email, String passwordHash) {
+    public User(String name, String email, String passwordHash, String timeZone) {
         this.fullName = name;
         this.email = email;
         this.passwordHash = passwordHash;
+        this.timeZone = timeZone;
     }
 
     public Long getId() {
@@ -66,6 +71,11 @@ public class User {
         return totalFlashcardsReviewed;
     }
 
+    /** The user's IANA time zone, which every calendar-day calculation is made in. */
+    public String getTimeZone() {
+        return timeZone;
+    }
+
     public void updateFullName(String fullName) {
         this.fullName = fullName;
     }
@@ -76,6 +86,10 @@ public class User {
 
     public void updatePasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    public void updateTimeZone(String timeZone) {
+        this.timeZone = timeZone;
     }
 
 }

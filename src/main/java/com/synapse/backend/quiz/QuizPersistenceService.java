@@ -1,5 +1,8 @@
 package com.synapse.backend.quiz;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -50,19 +53,22 @@ public class QuizPersistenceService {
     private final QuizAnswerRepository answerRepository;
     private final QuizScoreRepository scoreRepository;
     private final StudyGroupRepository studyGroupRepository;
+    private final Clock clock;
 
     public QuizPersistenceService(
         QuizRepository quizRepository,
         QuizQuestionRepository questionRepository,
         QuizAnswerRepository answerRepository,
         QuizScoreRepository scoreRepository,
-        StudyGroupRepository studyGroupRepository
+        StudyGroupRepository studyGroupRepository,
+        Clock clock
     ) {
         this.quizRepository = quizRepository;
         this.questionRepository = questionRepository;
         this.answerRepository = answerRepository;
         this.scoreRepository = scoreRepository;
         this.studyGroupRepository = studyGroupRepository;
+        this.clock = clock;
     }
 
     /**
@@ -566,7 +572,17 @@ public class QuizPersistenceService {
         if (score > numQuestions)
             throw new InvalidQuizScoreException("Score cannot be greater than number of questions.");
 
-        QuizScore quizScore = scoreRepository.save(new QuizScore(quiz.getId(), userId, score, numQuestions));
+        // Stamped from the injected UTC clock, so the saved instant never depends on the
+        // runtime's own zone the way a database default or @CreationTimestamp would.
+        QuizScore quizScore = scoreRepository.save(
+            new QuizScore(
+                quiz.getId(),
+                userId,
+                score,
+                numQuestions,
+                LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)
+            )
+        );
 
         return new QuizScoreResponse(
             quizScore.getPublicId(),

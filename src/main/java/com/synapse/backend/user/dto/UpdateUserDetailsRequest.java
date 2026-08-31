@@ -15,12 +15,16 @@ public record UpdateUserDetailsRequest(
 
     @Email
     @Size(max = 255)
-    String email
+    String email,
+
+    @Size(max = 64)
+    String timeZone
 ) {
 
     public UpdateUserDetailsRequest {
         fullName = fullName == null ? null : fullName.trim();
         email = email == null ? null : email.trim().toLowerCase(Locale.ROOT);
+        timeZone = timeZone == null ? null : timeZone.trim();
     }
 
 }

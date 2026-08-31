@@ -34,7 +34,8 @@ public class UserController {
     @GetMapping("/details")
     @Operation(
         summary = "Get user details",
-        description = "Gets the details of the currently logged in user.",
+        description = "Gets the details of the currently logged in user, including the IANA time zone "
+            + "every calendar-day calculation is made in.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Got user details"),
             @ApiResponse(
@@ -59,8 +60,10 @@ public class UserController {
     @PatchMapping("/details")
     @Operation(
         summary = "Update user details",
-        description = "Updates the full name and/or email of the currently logged in user. "
-            + "Only the supplied fields are changed and at least one must be supplied.",
+        description = "Updates the full name, email, and/or IANA time zone of the currently logged in "
+            + "user. Only the supplied fields are changed and at least one must be supplied. A new time "
+            + "zone moves every later calendar-day boundary, such as streak days and deck due dates, but "
+            + "never rewrites recorded days or stored timestamps.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Updated user details"),
             @ApiResponse(

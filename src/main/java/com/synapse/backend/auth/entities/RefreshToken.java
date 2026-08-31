@@ -3,6 +3,7 @@ package com.synapse.backend.auth.entities;
 import java.time.LocalDateTime;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.SourceType;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -31,7 +32,7 @@ public class RefreshToken {
     @Column(name = "revoked_at")
     private LocalDateTime revokedAt;
 
-    @CreationTimestamp
+    @CreationTimestamp(source = SourceType.DB)
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

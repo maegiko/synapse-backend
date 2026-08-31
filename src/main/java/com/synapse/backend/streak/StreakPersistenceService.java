@@ -25,7 +25,7 @@ public class StreakPersistenceService {
      * calls for the same user and date leave a single row instead of racing on a read.</p>
      *
      * @param userId the id of the authenticated user.
-     * @param activityDate the UTC date the qualifying activity happened on.
+     * @param activityDate the user's local date the qualifying activity happened on.
      */
     @Transactional
     public void recordActivityDay(Long userId, LocalDate activityDate) {

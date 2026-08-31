@@ -3,6 +3,7 @@ package com.synapse.backend.quiz.entities;
 import java.time.LocalDateTime;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.SourceType;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import com.aventrix.jnanoid.jnanoid.NanoIdUtils;
@@ -47,11 +48,11 @@ public class Quiz {
     @Enumerated(EnumType.STRING)
     private QuizSourceType sourceType;
 
-    @CreationTimestamp
+    @CreationTimestamp(source = SourceType.DB)
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @UpdateTimestamp
+    @UpdateTimestamp(source = SourceType.DB)
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 

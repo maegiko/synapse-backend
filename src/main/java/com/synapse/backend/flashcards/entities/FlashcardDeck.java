@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.SourceType;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import com.aventrix.jnanoid.jnanoid.NanoIdUtils;
@@ -66,11 +67,11 @@ public class FlashcardDeck {
     @Enumerated(EnumType.STRING)
     private ReviewRating lastRating;
 
-    @CreationTimestamp
+    @CreationTimestamp(source = SourceType.DB)
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @UpdateTimestamp
+    @UpdateTimestamp(source = SourceType.DB)
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
@@ -136,7 +137,8 @@ public class FlashcardDeck {
     }
 
     /**
-     * Returns the UTC date the deck is next due on, or null while it has never been reviewed.
+     * Returns the date the deck is next due on in the owner's time zone, or null while it has
+     * never been reviewed.
      *
      * @return the next review date, or null for a deck that has never been reviewed.
      */
@@ -162,7 +164,7 @@ public class FlashcardDeck {
      * @param rating the rating the review was given.
      * @param intervalDays the new interval in whole days.
      * @param easeFactor the new ease factor.
-     * @param nextReviewDate the UTC date the deck is next due on.
+     * @param nextReviewDate the date the deck is next due on, in the owner's time zone.
      * @param reviewedAt the time the review was completed.
      */
     public void applyReview(

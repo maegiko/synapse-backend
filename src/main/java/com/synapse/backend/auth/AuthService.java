@@ -24,6 +24,7 @@ import com.synapse.backend.shared.ratelimit.RateLimitProperties;
 import com.synapse.backend.shared.ratelimit.RateLimitService;
 import com.synapse.backend.user.User;
 import com.synapse.backend.user.UserRepository;
+import com.synapse.backend.user.UserTimeZoneService;
 import com.synapse.backend.user.exceptions.UserNotFoundException;
 
 import jakarta.transaction.Transactional;
@@ -37,6 +38,7 @@ public class AuthService {
     private final RefreshTokenPersistenceService refreshTokenPersistenceService;
     private final RateLimitService rateLimitService;
     private final RateLimitProperties rateLimitProperties;
+    private final UserTimeZoneService userTimeZoneService;
 
     public AuthService(
         UserRepository userRepository,
@@ -44,7 +46,8 @@ public class AuthService {
         JwtService jwtService,
         RefreshTokenPersistenceService refreshTokenPersistenceService,
         RateLimitService rateLimitService,
-        RateLimitProperties rateLimitProperties
+        RateLimitProperties rateLimitProperties,
+        UserTimeZoneService userTimeZoneService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -52,6 +55,7 @@ public class AuthService {
         this.refreshTokenPersistenceService = refreshTokenPersistenceService;
         this.rateLimitService = rateLimitService;
         this.rateLimitProperties = rateLimitProperties;
+        this.userTimeZoneService = userTimeZoneService;
     }
 
     /**
@@ -61,6 +65,7 @@ public class AuthService {
      * @param clientIp the address the request came from.
      * @return the user's name, email and an access token, plus a refresh token for the client cookie.
      * @throws EmailAlreadyExistsException if email is already registered.
+     * @throws InvalidUserDetailsException if a time zone was supplied but is not a real IANA zone.
      * @throws RateLimitExceededException if the address has registered too many accounts.
      */
     public RegisterResult registerUser(RegisterRequest registerRequest, String clientIp) {
@@ -73,11 +78,13 @@ public class AuthService {
         }
 
         String passwordHash = passwordEncoder.encode(registerRequest.password());
+        String timeZone = userTimeZoneService.resolveOrDefault(registerRequest.timeZone());
 
         User user = new User(
             registerRequest.fullName(),
             email,
-            passwordHash
+            passwordHash,
+            timeZone
         );
 
         User newUser = userRepository.save(user);
