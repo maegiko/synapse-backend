@@ -3,5 +3,10 @@ package com.synapse.backend.quiz.dto.list;
 import java.util.List;
 
 public record ListQuizResponse(
-    List<QuizListItemResponse> quizzes
+    List<QuizListItemResponse> quizzes,
+    int page,
+    int size,
+    long totalElements,
+    int totalPages,
+    boolean hasNext
 ) {}

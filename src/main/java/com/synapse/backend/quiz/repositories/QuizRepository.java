@@ -3,6 +3,8 @@ package com.synapse.backend.quiz.repositories;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -15,6 +17,14 @@ public interface QuizRepository extends JpaRepository<Quiz, Long> {
     Optional<Quiz> findByPublicIdAndUserId(String publicId, Long userId);
 
     List<Quiz> findByUserIdOrderByCreatedAtDesc(Long userId);
+
+    Page<Quiz> findByUserIdOrderByCreatedAtDescIdDesc(Long userId, Pageable pageable);
+
+    Page<Quiz> findByUserIdAndTitleContainingIgnoreCaseOrderByCreatedAtDescIdDesc(
+        Long userId,
+        String title,
+        Pageable pageable
+    );
 
     long deleteByPublicIdAndUserId(String publicId, Long userId);
 

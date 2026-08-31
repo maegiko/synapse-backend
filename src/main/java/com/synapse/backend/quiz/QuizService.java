@@ -2,6 +2,7 @@ package com.synapse.backend.quiz;
 
 import java.util.List;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.synapse.backend.ai.clients.LLMClient;
@@ -113,13 +114,15 @@ public class QuizService {
     }
 
     /**
-     * Returns all quizzes owned by a user with question previews.
+     * Returns a page of quizzes owned by a user with question previews, optionally filtered by title.
      *
      * @param userId the id of the authenticated user.
-     * @return saved quizzes with question previews, excluding answer options.
+     * @param query an optional case-insensitive partial title search, or null/blank for no search.
+     * @param pageable the page to return.
+     * @return the requested page of quizzes with question previews, excluding answer options.
      */
-    public ListQuizResponse getAllQuizzes(Long userId) {
-        return persistenceService.getAllQuizzes(userId);
+    public ListQuizResponse getAllQuizzes(Long userId, String query, Pageable pageable) {
+        return persistenceService.getAllQuizzes(userId, query, pageable);
     }
 
     /**

@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.synapse.backend.groups.repositories.StudyGroupRepository;
@@ -153,17 +155,19 @@ public class QuizPersistenceService {
     }
 
     /**
-     * Returns all quizzes owned by a user with question previews.
+     * Returns a page of quizzes owned by a user with question previews, optionally filtered by title.
      *
      * @param userId the id of the authenticated user.
-     * @return saved quizzes with question previews, excluding answer options.
+     * @param query an optional case-insensitive partial title search, or null/blank for no search.
+     * @param pageable the page to return.
+     * @return the requested page of quizzes with question previews, excluding answer options.
      */
-    public ListQuizResponse getAllQuizzes(Long userId) {
-        List<Quiz> quizzes = quizRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    public ListQuizResponse getAllQuizzes(Long userId, String query, Pageable pageable) {
+        Page<Quiz> quizzes = findQuizzesPage(userId, query, pageable);
         List<Long> quizIds = quizzes.stream().map(Quiz::getId).toList();
 
         if (quizIds.isEmpty())
-            return new ListQuizResponse(List.of());
+            return toListQuizResponse(List.of(), quizzes);
 
         Map<Long, List<QuizQuestion>> quizQuestions = questionRepository
             .findByQuizIdInOrderByQuizIdAscPositionAsc(quizIds)
@@ -192,7 +196,28 @@ public class QuizPersistenceService {
             );
         }
 
-        return new ListQuizResponse(quizResponses);
+        return toListQuizResponse(quizResponses, quizzes);
+    }
+
+    private Page<Quiz> findQuizzesPage(Long userId, String query, Pageable pageable) {
+        String search = query == null ? "" : query.trim();
+
+        if (search.isEmpty())
+            return quizRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable);
+
+        return quizRepository
+            .findByUserIdAndTitleContainingIgnoreCaseOrderByCreatedAtDescIdDesc(userId, search, pageable);
+    }
+
+    private ListQuizResponse toListQuizResponse(List<QuizListItemResponse> quizzes, Page<Quiz> page) {
+        return new ListQuizResponse(
+            quizzes,
+            page.getNumber(),
+            page.getSize(),
+            page.getTotalElements(),
+            page.getTotalPages(),
+            page.hasNext()
+        );
     }
 
     /**
