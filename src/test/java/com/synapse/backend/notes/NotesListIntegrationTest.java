@@ -144,6 +144,211 @@ class NotesListIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void listNotesUsesDefaultPaginationWhenNoParametersAreSupplied() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createNotes(user.id(), "Note", 25);
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.notes", hasSize(20)))
+            .andExpect(jsonPath("$.notes[0].title").value("Note 25"))
+            .andExpect(jsonPath("$.notes[19].title").value("Note 6"))
+            .andExpect(jsonPath("$.page").value(0))
+            .andExpect(jsonPath("$.size").value(20))
+            .andExpect(jsonPath("$.totalElements").value(25))
+            .andExpect(jsonPath("$.totalPages").value(2))
+            .andExpect(jsonPath("$.hasNext").value(true));
+    }
+
+    @Test
+    void listNotesReturnsTheRequestedPageAndSize() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createNotes(user.id(), "Note", 5);
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("page", "1")
+                .param("size", "2")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.notes", hasSize(2)))
+            .andExpect(jsonPath("$.notes[0].title").value("Note 3"))
+            .andExpect(jsonPath("$.notes[1].title").value("Note 2"))
+            .andExpect(jsonPath("$.page").value(1))
+            .andExpect(jsonPath("$.size").value(2))
+            .andExpect(jsonPath("$.totalElements").value(5))
+            .andExpect(jsonPath("$.totalPages").value(3))
+            .andExpect(jsonPath("$.hasNext").value(true));
+    }
+
+    @Test
+    void listNotesReturnsTheLastPageWithoutANextPage() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createNotes(user.id(), "Note", 5);
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("page", "2")
+                .param("size", "2")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.notes", hasSize(1)))
+            .andExpect(jsonPath("$.notes[0].title").value("Note 1"))
+            .andExpect(jsonPath("$.hasNext").value(false));
+    }
+
+    @Test
+    void listNotesReturnsAnEmptyPageBeyondTheEnd() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createNotes(user.id(), "Note", 3);
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("page", "5")
+                .param("size", "2")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.notes", hasSize(0)))
+            .andExpect(jsonPath("$.page").value(5))
+            .andExpect(jsonPath("$.size").value(2))
+            .andExpect(jsonPath("$.totalElements").value(3))
+            .andExpect(jsonPath("$.totalPages").value(2))
+            .andExpect(jsonPath("$.hasNext").value(false));
+    }
+
+    @Test
+    void listNotesSearchesTitlesCaseInsensitivelyAndPartially() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createNote(user.id(), "System Dynamics", "Overview", "2026-01-01 09:00:00");
+        createNote(user.id(), "Nervous system", "Overview", "2026-01-02 09:00:00");
+        createNote(user.id(), "Enzymes", "Overview", "2026-01-03 09:00:00");
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("query", "SYSTEM")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.notes", hasSize(2)))
+            .andExpect(jsonPath("$.notes[0].title").value("Nervous system"))
+            .andExpect(jsonPath("$.notes[1].title").value("System Dynamics"))
+            .andExpect(jsonPath("$.totalElements").value(2))
+            .andExpect(jsonPath("$.totalPages").value(1))
+            .andExpect(jsonPath("$.hasNext").value(false));
+    }
+
+    @Test
+    void listNotesTrimsTheSearchQuery() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createNote(user.id(), "Enzymes", "Overview", "2026-01-01 09:00:00");
+        createNote(user.id(), "Cells", "Overview", "2026-01-02 09:00:00");
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("query", "  enzy  ")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.notes", hasSize(1)))
+            .andExpect(jsonPath("$.notes[0].title").value("Enzymes"))
+            .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void listNotesTreatsABlankSearchQueryAsNoSearch() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createNotes(user.id(), "Note", 3);
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("query", "   ")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.notes", hasSize(3)))
+            .andExpect(jsonPath("$.totalElements").value(3));
+    }
+
+    @Test
+    void listNotesReturnsAnEmptyPageWhenTheSearchMatchesNothing() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createNotes(user.id(), "Note", 3);
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("query", "photosynthesis")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.notes", hasSize(0)))
+            .andExpect(jsonPath("$.totalElements").value(0))
+            .andExpect(jsonPath("$.totalPages").value(0))
+            .andExpect(jsonPath("$.hasNext").value(false));
+    }
+
+    @Test
+    void listNotesBreaksCreatedAtTiesByNewestIdFirst() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        TestNote first = createNote(user.id(), "First saved", "Overview", "2026-01-01 09:00:00");
+        TestNote second = createNote(user.id(), "Second saved", "Overview", "2026-01-01 09:00:00");
+        TestNote third = createNote(user.id(), "Third saved", "Overview", "2026-01-01 09:00:00");
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.notes[0].id").value(third.publicId()))
+            .andExpect(jsonPath("$.notes[1].id").value(second.publicId()))
+            .andExpect(jsonPath("$.notes[2].id").value(first.publicId()));
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("page", "1")
+                .param("size", "1")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.notes", hasSize(1)))
+            .andExpect(jsonPath("$.notes[0].id").value(second.publicId()));
+    }
+
+    @Test
+    void listNotesOnlySearchesNotesOwnedByTheAuthenticatedUser() throws Exception {
+        TestUser currentUser = register("Kenneth", "kenneth@example.com");
+        TestUser otherUser = register("Ada", "ada@example.com");
+        createNote(currentUser.id(), "Shared title mine", "Overview", "2026-01-01 09:00:00");
+        createNote(otherUser.id(), "Shared title theirs", "Overview", "2026-01-02 09:00:00");
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("query", "shared title")
+                .header(HttpHeaders.AUTHORIZATION, bearer(currentUser.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.notes", hasSize(1)))
+            .andExpect(jsonPath("$.notes[0].title").value("Shared title mine"))
+            .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void listNotesRejectsANegativePage() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("page", "-1")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("page: must be greater than or equal to 0"));
+    }
+
+    @Test
+    void listNotesRejectsASizeBelowOne() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("size", "0")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("size: must be greater than or equal to 1"));
+    }
+
+    @Test
+    void listNotesRejectsASizeAboveTheMaximum() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("size", "101")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("size: must be less than or equal to 100"));
+    }
+
+    @Test
     void listNotesReturnsUnauthorizedWhenTokenIsMissing() throws Exception {
         mockMvc.perform(get(LIST_ENDPOINT))
             .andExpect(status().isUnauthorized());
@@ -196,6 +401,17 @@ class NotesListIntegrationTest extends PostgresIntegrationTest {
         );
 
         return new TestNote(id, publicId);
+    }
+
+    private void createNotes(Long userId, String titlePrefix, int count) {
+        for (int i = 1; i <= count; i++) {
+            createNote(
+                userId,
+                titlePrefix + " " + i,
+                "Overview " + i,
+                String.format("2026-01-01 09:%02d:00", i)
+            );
+        }
     }
 
     private void createKeypoint(Long noteId, int position, String keypoint) {
