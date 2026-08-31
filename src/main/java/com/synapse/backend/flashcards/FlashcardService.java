@@ -12,6 +12,8 @@ import com.synapse.backend.ai.prompts.FlashcardGeneratePromptFactory;
 import com.synapse.backend.flashcards.dto.AddFlashcardRequest;
 import com.synapse.backend.flashcards.dto.AddFlashcardResponse;
 import com.synapse.backend.flashcards.dto.FlashcardResponse;
+import com.synapse.backend.flashcards.dto.UpdateFlashcardRequest;
+import com.synapse.backend.flashcards.exceptions.InvalidFlashcardException;
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateListResponse;
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateResponse;
 import com.synapse.backend.flashcards.dto.generate.FlashcardSourceNote;
@@ -116,6 +118,36 @@ public class FlashcardService {
             throw new UserUnauthorised("User not authorised.");
 
         return persistenceService.addFlashcard(deckId, userId, req);
+    }
+
+    /**
+     * Updates the question and/or answer of a flashcard in a deck owned by the currently
+     * authenticated user.
+     *
+     * <p>Only the supplied fields are changed. The request arrives with its question and answer
+     * trimmed.</p>
+     *
+     * @param deckId the public id of the flashcard deck.
+     * @param userId the id of the currently authenticated user.
+     * @param cardId the public id of the flashcard to update.
+     * @param req the validated fields to update, with at least one field supplied.
+     * @return the updated flashcard.
+     * @throws InvalidFlashcardException if no field is supplied or a supplied field is blank.
+     */
+    public AddFlashcardResponse updateFlashcard(String deckId, Long userId, String cardId, UpdateFlashcardRequest req) {
+        String question = req.question();
+        String answer = req.answer();
+
+        if (question == null && answer == null)
+            throw new InvalidFlashcardException("At least one of question or answer must be supplied.");
+
+        if (question != null && question.isBlank())
+            throw new InvalidFlashcardException("question: must not be blank");
+
+        if (answer != null && answer.isBlank())
+            throw new InvalidFlashcardException("answer: must not be blank");
+
+        return persistenceService.updateFlashcard(deckId, userId, cardId, question, answer);
     }
 
     /**

@@ -152,6 +152,10 @@ public class FlashcardDeck {
         return lastRating;
     }
 
+    public void updateTitle(String title) {
+        this.title = title;
+    }
+
     /**
      * Applies a completed review to the deck's spaced repetition schedule.
      *

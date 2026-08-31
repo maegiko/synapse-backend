@@ -20,6 +20,8 @@ public interface FlashcardRepository extends JpaRepository<Flashcard, Long> {
     @Query("SELECT MAX(f.position) FROM Flashcard f WHERE f.deckId = :deckId")
     Optional<Integer> findMaxPositionByDeckId(@Param("deckId") Long deckId);
 
+    Optional<Flashcard> findByPublicIdAndDeckId(String publicId, Long deckId);
+
     long deleteByPublicIdAndDeckId(String publicId, Long deckId);
 
 }

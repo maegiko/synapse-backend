@@ -160,6 +160,34 @@ public class FlashcardPersistenceService {
     }
 
     /**
+     * Updates the title of a deck owned by the given user.
+     *
+     * @param deckId the public id of the deck.
+     * @param userId the id of the currently authenticated user.
+     * @param title the new deck title.
+     * @return the updated deck with its cards in position order.
+     * @throws DeckNotFound if the deck doesn't exist for this user.
+     */
+    @Transactional
+    public SingleDeckResponse updateDeck(String deckId, Long userId, String title) {
+        FlashcardDeck deck = flashcardDeckRepository
+            .findByPublicIdAndUserId(deckId, userId)
+            .orElseThrow(() -> new DeckNotFound("Flashcard deck not found: " + deckId));
+
+        deck.updateTitle(title);
+        flashcardDeckRepository.save(deck);
+
+        List<Flashcard> flashcards = flashcardRepository.findByDeckIdOrderByPositionAsc(deck.getId());
+
+        List<FlashcardWithIdResponse> flashcardList = flashcards
+            .stream()
+            .map(f -> new FlashcardWithIdResponse(f.getPublicId(), f.getQuestion(), f.getAnswer()))
+            .toList();
+
+        return new SingleDeckResponse(deck.getPublicId(), deck.getTitle(), flashcardList, groupPublicId(deck.getGroupId()));
+    }
+
+    /**
      * Resolves the public id of the study group a deck belongs to.
      *
      * @param groupId the internal group id held by the deck, or null when it is ungrouped.
@@ -388,6 +416,55 @@ public class FlashcardPersistenceService {
         };
 
         return currentEaseFactor.add(adjustment).max(MINIMUM_EASE_FACTOR);
+    }
+
+    /**
+     * Updates the supplied fields of a flashcard in a deck owned by the given user.
+     *
+     * <p>The parent deck's modified timestamp is advanced, matching manual card creation
+     * and deletion.</p>
+     *
+     * @param deckId the public id of the flashcard deck.
+     * @param userId the id of the currently authenticated user.
+     * @param cardId the public id of the flashcard to update.
+     * @param question the new question, or null to leave it unchanged.
+     * @param answer the new answer, or null to leave it unchanged.
+     * @return the updated flashcard.
+     * @throws DeckNotFound if the deck doesn't exist for this user.
+     * @throws FlashcardNotFound if the flashcard doesn't exist in the deck.
+     */
+    @Transactional
+    public AddFlashcardResponse updateFlashcard(
+        String deckId,
+        Long userId,
+        String cardId,
+        String question,
+        String answer
+    ) {
+        FlashcardDeck deck = flashcardDeckRepository
+            .findByPublicIdAndUserId(deckId, userId)
+            .orElseThrow(() -> new DeckNotFound("Deck not found: " + deckId));
+
+        Flashcard card = flashcardRepository
+            .findByPublicIdAndDeckId(cardId, deck.getId())
+            .orElseThrow(() -> new FlashcardNotFound("Flashcard not found: " + cardId));
+
+        if (question != null)
+            card.updateQuestion(question);
+
+        if (answer != null)
+            card.updateAnswer(answer);
+
+        flashcardRepository.save(card);
+
+        flashcardDeckRepository.updateUpdatedAtById(deck.getId());
+
+        return new AddFlashcardResponse(
+            card.getPublicId(),
+            card.getQuestion(),
+            card.getAnswer(),
+            card.getCreatedAt()
+        );
     }
 
     /**

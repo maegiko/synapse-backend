@@ -83,4 +83,12 @@ public class Flashcard {
         return publicId;
     }
 
+    public void updateQuestion(String question) {
+        this.question = question;
+    }
+
+    public void updateAnswer(String answer) {
+        this.answer = answer;
+    }
+
 }
