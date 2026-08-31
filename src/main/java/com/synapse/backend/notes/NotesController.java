@@ -16,7 +16,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -83,9 +86,17 @@ public class NotesController {
     @GetMapping("/list")
     @Operation(
         summary = "Get all note summaries",
-        description = "Lists all saved note summaries for the currently authenticated user.",
+        description = "Lists saved note summaries for the currently authenticated user, newest first. "
+            + "An optional query filters notes by a case-insensitive partial title match; it is trimmed "
+            + "and a blank query is ignored. Results are paged with a zero-based page (default 0) and a "
+            + "size between 1 and 100 (default 20).",
         responses = {
             @ApiResponse(responseCode = "200", description = "Successful note list retrieval"),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Invalid page or size",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
             @ApiResponse(
                 responseCode = "401",
                 description = "Unauthenticated user",
@@ -93,9 +104,14 @@ public class NotesController {
             )
         }
     )
-    public ResponseEntity<NoteListResponse> getAllNotes(@AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<NoteListResponse> getAllNotes(
+        @RequestParam(required = false) String query,
+        @RequestParam(defaultValue = "0") @Min(0) int page,
+        @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
         Long userId = Long.valueOf(jwt.getSubject());
-        NoteListResponse notes = notesService.getAllNoteSummaries(userId);
+        NoteListResponse notes = notesService.getAllNoteSummaries(userId, query, PageRequest.of(page, size));
 
         return ResponseEntity.ok(notes);
     }

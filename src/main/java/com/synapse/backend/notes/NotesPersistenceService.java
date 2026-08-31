@@ -5,11 +5,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.synapse.backend.groups.repositories.StudyGroupRepository;
 import com.synapse.backend.notes.dto.ConceptSummary;
 import com.synapse.backend.notes.dto.NoteForGeneration;
+import com.synapse.backend.notes.dto.NoteListResponse;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
 import com.synapse.backend.notes.entities.Note;
 import com.synapse.backend.notes.entities.NoteConcept;
@@ -111,24 +114,50 @@ public class NotesPersistenceService {
     }
 
     /**
-     * Returns all saved note summaries for user.
+     * Returns a page of saved note summaries for user, optionally filtered by title.
      *
      * @param userId the ID of the user.
-     * @return all saved note summaries for the user.
+     * @param query an optional case-insensitive partial title search, or null/blank for no search.
+     * @param pageable the page to return.
+     * @return the requested page of note summaries with its pagination metadata.
      */
-    public List<NoteSummaryResponse> getAllNoteSummaries(Long userId) {
-        List<Note> notes = noteRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    public NoteListResponse getAllNoteSummaries(Long userId, String query, Pageable pageable) {
+        Page<Note> notes = findNotesPage(userId, query, pageable);
 
         List<Long> noteIds = notes.stream().map(Note::getId).toList();
 
         if (noteIds.isEmpty())
-            return List.of();
+            return toNoteListResponse(List.of(), notes);
 
         Map<Long, List<NoteKeypoint>> keypoints = getKeypointsByNoteId(noteIds);
         Map<Long, List<NoteConcept>> concepts = getConceptsByNoteId(noteIds);
         Map<Long, List<NoteImportantTerm>> importantTerms = getImportantTermsByNoteId(noteIds);
 
-        return buildNoteSummaryResponses(notes, keypoints, concepts, importantTerms);
+        return toNoteListResponse(
+            buildNoteSummaryResponses(notes.getContent(), keypoints, concepts, importantTerms),
+            notes
+        );
+    }
+
+    private Page<Note> findNotesPage(Long userId, String query, Pageable pageable) {
+        String search = query == null ? "" : query.trim();
+
+        if (search.isEmpty())
+            return noteRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable);
+
+        return noteRepository
+            .findByUserIdAndTitleContainingIgnoreCaseOrderByCreatedAtDescIdDesc(userId, search, pageable);
+    }
+
+    private NoteListResponse toNoteListResponse(List<NoteSummaryResponse> notes, Page<Note> page) {
+        return new NoteListResponse(
+            notes,
+            page.getNumber(),
+            page.getSize(),
+            page.getTotalElements(),
+            page.getTotalPages(),
+            page.hasNext()
+        );
     }
 
     private Map<Long, List<NoteKeypoint>> getKeypointsByNoteId(List<Long> noteIds) {

@@ -1,7 +1,6 @@
 package com.synapse.backend.notes;
 
-import java.util.List;
-
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -92,15 +91,15 @@ public class NotesService {
     }
 
     /**
-     * Returns all saved note summaries for user.
+     * Returns a page of saved note summaries for user, optionally filtered by title.
      *
      * @param userId the ID of the user.
-     * @return all saved note summaries for the user.
+     * @param query an optional case-insensitive partial title search, or null/blank for no search.
+     * @param pageable the page to return.
+     * @return the requested page of note summaries with its pagination metadata.
      */
-    public NoteListResponse getAllNoteSummaries(Long userId) {
-        List<NoteSummaryResponse> notesList = notesPersistenceService.getAllNoteSummaries(userId);
-
-        return new NoteListResponse(notesList);
+    public NoteListResponse getAllNoteSummaries(Long userId, String query, Pageable pageable) {
+        return notesPersistenceService.getAllNoteSummaries(userId, query, pageable);
     }
 
     /**
