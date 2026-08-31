@@ -338,12 +338,18 @@ public class FlashcardPersistenceService {
      * @param deckId the public id of the reviewed deck.
      * @param userId the id of the currently authenticated user.
      * @param rating how well the user recalled the deck.
+     * @param durationSeconds how long the session took, or null when the client did not report it.
      * @return the applied rating, new schedule, cards reviewed, and the user's lifetime count.
      * @throws DeckNotFound if the deck doesn't exist for this user.
      * @throws EmptyDeckException if the deck has no flashcards.
      */
     @Transactional
-    public ReviewDeckResponse reviewDeck(String deckId, Long userId, ReviewRating rating) {
+    public ReviewDeckResponse reviewDeck(
+        String deckId,
+        Long userId,
+        ReviewRating rating,
+        Integer durationSeconds
+    ) {
         FlashcardDeck deck = flashcardDeckRepository
             .findByPublicIdAndUserIdForReview(deckId, userId)
             .orElseThrow(() -> new DeckNotFound("Deck not found: " + deckId));
@@ -380,7 +386,8 @@ public class FlashcardPersistenceService {
                 newIntervalDays,
                 previousEaseFactor,
                 newEaseFactor,
-                reviewedAt
+                reviewedAt,
+                durationSeconds
             )
         );
 

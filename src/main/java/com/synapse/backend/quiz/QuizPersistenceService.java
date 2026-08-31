@@ -562,7 +562,7 @@ public class QuizPersistenceService {
      * @throws QuizNotFound if no quiz with the given public id belongs to the user.
      * @throws InvalidQuizScoreException if the score exceeds the number of quiz questions.
      */
-    public QuizScoreResponse saveScore(String quizId, Long userId, int score) {
+    public QuizScoreResponse saveScore(String quizId, Long userId, int score, Integer durationSeconds) {
         Quiz quiz = quizRepository
             .findByPublicIdAndUserId(quizId, userId)
             .orElseThrow(() -> new QuizNotFound("Quiz not found: " + quizId));
@@ -580,7 +580,8 @@ public class QuizPersistenceService {
                 userId,
                 score,
                 numQuestions,
-                LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)
+                LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC),
+                durationSeconds
             )
         );
 

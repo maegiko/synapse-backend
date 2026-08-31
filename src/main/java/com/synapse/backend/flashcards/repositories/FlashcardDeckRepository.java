@@ -1,6 +1,7 @@
 package com.synapse.backend.flashcards.repositories;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -12,7 +13,9 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.synapse.backend.analytics.dto.DueForecastResponse;
 import com.synapse.backend.flashcards.entities.FlashcardDeck;
+import com.synapse.backend.flashcards.enums.ReviewRating;
 
 import jakarta.persistence.LockModeType;
 
@@ -52,6 +55,46 @@ public interface FlashcardDeckRepository extends JpaRepository<FlashcardDeck, Lo
     List<FlashcardDeck> findByGroupIdOrderByCreatedAtDesc(Long groupId);
 
     int countByGroupId(Long groupId);
+
+    long countByUserIdAndNextReviewDateLessThan(Long userId, LocalDate nextReviewDate);
+
+    long countByUserIdAndNextReviewDate(Long userId, LocalDate nextReviewDate);
+
+    long countByUserIdAndLastRatingIn(Long userId, Collection<ReviewRating> ratings);
+
+    long countByUserIdAndLastRatingInAndIntervalDaysLessThan(
+        Long userId,
+        Collection<ReviewRating> ratings,
+        int intervalDays
+    );
+
+    long countByUserIdAndLastRatingInAndIntervalDaysGreaterThanEqual(
+        Long userId,
+        Collection<ReviewRating> ratings,
+        int intervalDays
+    );
+
+    /**
+     * How many decks fall due on each day of a forward window. Days with nothing due are
+     * absent rather than zero, so the caller fills the gaps.
+     *
+     * @param userId the id of the authenticated user.
+     * @param from the first day of the window.
+     * @param to the last day of the window.
+     * @return one row per day that has at least one deck due, earliest first.
+     */
+    @Query("""
+        SELECT new com.synapse.backend.analytics.dto.DueForecastResponse(d.nextReviewDate, COUNT(d))
+        FROM FlashcardDeck d
+        WHERE d.userId = :userId AND d.nextReviewDate BETWEEN :from AND :to
+        GROUP BY d.nextReviewDate
+        ORDER BY d.nextReviewDate
+    """)
+    List<DueForecastResponse> countDecksDueBetween(
+        @Param("userId") Long userId,
+        @Param("from") LocalDate from,
+        @Param("to") LocalDate to
+    );
 
     @Modifying
     @Query("""

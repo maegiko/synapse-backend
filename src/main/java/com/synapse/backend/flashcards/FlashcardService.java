@@ -172,10 +172,16 @@ public class FlashcardService {
      * @param deckId the public id of the reviewed deck.
      * @param userId the id of the currently authenticated user.
      * @param rating how well the user recalled the deck.
+     * @param durationSeconds how long the session took, or null when the client did not report it.
      * @return the applied rating, new schedule, cards reviewed, and the user's lifetime count.
      */
-    public ReviewDeckResponse reviewDeck(String deckId, Long userId, ReviewRating rating) {
-        ReviewDeckResponse res = persistenceService.reviewDeck(deckId, userId, rating);
+    public ReviewDeckResponse reviewDeck(
+        String deckId,
+        Long userId,
+        ReviewRating rating,
+        Integer durationSeconds
+    ) {
+        ReviewDeckResponse res = persistenceService.reviewDeck(deckId, userId, rating, durationSeconds);
 
         streakService.recordActivity(userId);
 

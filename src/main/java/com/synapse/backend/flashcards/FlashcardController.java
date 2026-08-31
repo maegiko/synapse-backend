@@ -338,12 +338,14 @@ public class FlashcardController {
         description = "Records a review of a flashcard deck owned by the currently authenticated user. "
             + "Reschedules the deck from the supplied rating, saves the review to the deck's history, adds the "
             + "deck's card count to the user's lifetime cards-reviewed total, and records study activity for "
-            + "the current day.",
+            + "the current day. An optional durationSeconds records how long the session took and feeds "
+            + "study-time analytics.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Successful flashcard deck review"),
             @ApiResponse(
                 responseCode = "400",
-                description = "Missing or invalid rating, or the deck has no flashcards",
+                description = "Missing or invalid rating, a duration outside 0 to 21600 seconds, "
+                    + "or the deck has no flashcards",
                 content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
             ),
             @ApiResponse(
@@ -364,7 +366,12 @@ public class FlashcardController {
         @AuthenticationPrincipal Jwt jwt
     ) {
         Long userId = Long.valueOf(jwt.getSubject());
-        ReviewDeckResponse res = flashcardService.reviewDeck(deckId, userId, req.rating());
+        ReviewDeckResponse res = flashcardService.reviewDeck(
+            deckId,
+            userId,
+            req.rating(),
+            req.durationSeconds()
+        );
 
         return ResponseEntity.ok(res);
     }

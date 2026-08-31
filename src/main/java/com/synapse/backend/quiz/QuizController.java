@@ -365,7 +365,8 @@ public class QuizController {
     @Operation(
         summary = "Save a quiz score",
         description = "Saves a completed quiz score for a quiz owned by the currently authenticated user. "
-            + "The score must be between zero and the quiz question count.",
+            + "The score must be between zero and the quiz question count. An optional durationSeconds "
+            + "records how long the attempt took and feeds study-time analytics.",
         responses = {
             @ApiResponse(
                 responseCode = "200",
@@ -374,7 +375,8 @@ public class QuizController {
             ),
             @ApiResponse(
                 responseCode = "400",
-                description = "Score is missing, negative, or greater than the quiz question count",
+                description = "Score is missing, negative, or greater than the quiz question count, or the "
+                    + "duration is outside 0 to 21600 seconds",
                 content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
             ),
             @ApiResponse(
@@ -395,7 +397,7 @@ public class QuizController {
         @AuthenticationPrincipal Jwt jwt
     ) {
         Long userId = Long.valueOf(jwt.getSubject());
-        QuizScoreResponse res = quizService.saveScore(quizId, userId, req.score());
+        QuizScoreResponse res = quizService.saveScore(quizId, userId, req.score(), req.durationSeconds());
 
         return ResponseEntity.ok(res);
     }

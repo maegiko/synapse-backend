@@ -288,13 +288,14 @@ public class QuizService {
      * @param quizId the public id of the completed quiz.
      * @param userId the id of the authenticated user.
      * @param score the number of correctly answered questions.
+     * @param durationSeconds how long the attempt took, or null when the client did not report it.
      * @return the saved score with its quiz id, question-count snapshot, and creation time.
      */
-    public QuizScoreResponse saveScore(String quizId, Long userId, int score) {
+    public QuizScoreResponse saveScore(String quizId, Long userId, int score, Integer durationSeconds) {
         if (userId == null)
             throw new UserUnauthorised("User is not authorised for this action.");
 
-        QuizScoreResponse savedScore = persistenceService.saveScore(quizId, userId, score);
+        QuizScoreResponse savedScore = persistenceService.saveScore(quizId, userId, score, durationSeconds);
         streakService.recordActivity(userId);
 
         return savedScore;

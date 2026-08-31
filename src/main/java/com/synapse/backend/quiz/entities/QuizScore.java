@@ -38,9 +38,20 @@ public class QuizScore {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    /** How long the attempt took, or null when the client did not report it. */
+    @Column(name = "duration_seconds")
+    private Integer durationSeconds;
+
     protected QuizScore() {}
 
-    public QuizScore(Long quizId, Long userId, int score, int totalQuestions, LocalDateTime createdAt) {
+    public QuizScore(
+        Long quizId,
+        Long userId,
+        int score,
+        int totalQuestions,
+        LocalDateTime createdAt,
+        Integer durationSeconds
+    ) {
         this.publicId = NanoIdUtils.randomNanoId(
             NanoIdUtils.DEFAULT_NUMBER_GENERATOR,
             NanoIdUtils.DEFAULT_ALPHABET,
@@ -51,6 +62,7 @@ public class QuizScore {
         this.userId = userId;
         this.totalQuestions = totalQuestions;
         this.createdAt = createdAt;
+        this.durationSeconds = durationSeconds;
     }
 
     public Long getId() {
@@ -71,6 +83,10 @@ public class QuizScore {
 
     public LocalDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public Integer getDurationSeconds() {
+        return durationSeconds;
     }
 
     public Long getUserId() {

@@ -50,6 +50,10 @@ public class FlashcardDeckReview {
     @Column(name = "reviewed_at", nullable = false)
     private LocalDateTime reviewedAt;
 
+    /** How long the session took, or null when the client did not report it. */
+    @Column(name = "duration_seconds")
+    private Integer durationSeconds;
+
     protected FlashcardDeckReview() {}
 
     public FlashcardDeckReview(
@@ -61,7 +65,8 @@ public class FlashcardDeckReview {
         int newIntervalDays,
         BigDecimal previousEaseFactor,
         BigDecimal newEaseFactor,
-        LocalDateTime reviewedAt
+        LocalDateTime reviewedAt,
+        Integer durationSeconds
     ) {
         this.deckId = deckId;
         this.rating = rating;
@@ -72,6 +77,7 @@ public class FlashcardDeckReview {
         this.previousEaseFactor = previousEaseFactor;
         this.newEaseFactor = newEaseFactor;
         this.reviewedAt = reviewedAt;
+        this.durationSeconds = durationSeconds;
     }
 
     public Long getId() {
@@ -112,6 +118,10 @@ public class FlashcardDeckReview {
 
     public LocalDateTime getReviewedAt() {
         return reviewedAt;
+    }
+
+    public Integer getDurationSeconds() {
+        return durationSeconds;
     }
 
 }
