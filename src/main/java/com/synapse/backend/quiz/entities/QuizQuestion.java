@@ -91,4 +91,12 @@ public class QuizQuestion {
         return id;
     }
 
+    public void updateQuestionText(String questionText) {
+        this.questionText = questionText;
+    }
+
+    public void updateQuestionType(QuestionType questionType) {
+        this.questionType = questionType;
+    }
+
 }

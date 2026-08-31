@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.synapse.backend.quiz.dto.GenerateQuizRequest;
 import com.synapse.backend.quiz.dto.QuizResponse;
+import com.synapse.backend.quiz.dto.UpdateQuestionRequest;
+import com.synapse.backend.quiz.dto.UpdateQuizRequest;
 import com.synapse.backend.quiz.dto.create.CreateQuestionRequest;
 import com.synapse.backend.quiz.dto.create.CreateQuestionResponse;
 import com.synapse.backend.quiz.dto.difficulty.UpdateDifficultyRequest;
@@ -27,6 +29,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 
@@ -154,6 +157,46 @@ public class QuizController {
         return ResponseEntity.noContent().build();
     }
 
+    @PatchMapping("/{quizId}")
+    @Operation(
+        summary = "Update a quiz",
+        description = "Updates the title and/or description of a saved quiz owned by the currently "
+            + "authenticated user. Only the supplied fields are changed and at least one must be supplied. "
+            + "A blank description is stored as null. The difficulty endpoint is unaffected.",
+        responses = {
+            @ApiResponse(
+                responseCode = "200",
+                description = "Successful quiz update",
+                content = @Content(schema = @Schema(implementation = QuizResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "400",
+                description = "No field supplied, or the supplied title is blank",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Quiz not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
+    public ResponseEntity<QuizResponse> updateQuiz(
+        @PathVariable String quizId,
+        @RequestBody @Valid UpdateQuizRequest req,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        QuizResponse res = quizService.updateQuiz(userId, quizId, req);
+
+        return ResponseEntity.ok(res);
+    }
+
     @PostMapping("/{quizId}/questions")
     @Operation(
         summary = "Create a quiz question",
@@ -221,6 +264,49 @@ public class QuizController {
         quizService.deleteQuestion(userId, quizId, questionId);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{quizId}/questions/{questionId}")
+    @Operation(
+        summary = "Update a quiz question",
+        description = "Updates the text, type, and/or answer list of a question in a saved quiz owned by "
+            + "the currently authenticated user. Only the supplied fields are changed and at least one must "
+            + "be supplied. When answers are supplied they replace the question's whole answer set, and the "
+            + "resulting question is validated against the manual question creation rules. The question and "
+            + "answer changes are applied atomically and the parent quiz modified timestamp is advanced.",
+        responses = {
+            @ApiResponse(
+                responseCode = "200",
+                description = "Successful question update",
+                content = @Content(schema = @Schema(implementation = CreateQuestionResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Invalid question update request",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "401",
+                description = "Unauthenticated user",
+                content = @Content
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Quiz or question not found",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            )
+        }
+    )
+    public ResponseEntity<CreateQuestionResponse> updateQuestion(
+        @PathVariable String quizId,
+        @PathVariable String questionId,
+        @AuthenticationPrincipal Jwt jwt,
+        @RequestBody @Valid UpdateQuestionRequest req
+    ) {
+        Long userId = Long.valueOf(jwt.getSubject());
+        CreateQuestionResponse res = quizService.updateQuestion(userId, quizId, questionId, req);
+
+        return ResponseEntity.ok(res);
     }
 
     @PutMapping("/{quizId}/difficulty")

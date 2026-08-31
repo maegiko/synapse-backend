@@ -29,6 +29,7 @@ import com.synapse.backend.quiz.entities.QuizQuestion;
 import com.synapse.backend.quiz.entities.QuizScore;
 import com.synapse.backend.quiz.enums.QuestionType;
 import com.synapse.backend.quiz.enums.QuizSourceType;
+import com.synapse.backend.quiz.exceptions.CreateQuestionInputException;
 import com.synapse.backend.quiz.exceptions.InvalidQuizScoreException;
 import com.synapse.backend.quiz.exceptions.QuestionNotFound;
 import com.synapse.backend.quiz.exceptions.QuizNotFound;
@@ -210,8 +211,17 @@ public class QuizPersistenceService {
             .findByPublicIdAndUserId(quizId, userId)
             .orElseThrow(() -> new QuizNotFound("Quiz not found: " + quizId));
 
-        Long internalQuizId = quiz.getId();
-        List<QuizQuestion> quizQuestions = questionRepository.findByQuizIdOrderByPositionAsc(internalQuizId);
+        return toQuizResponse(quiz);
+    }
+
+    /**
+     * Maps a quiz to its full response with ordered questions and answers.
+     *
+     * @param quiz the quiz to map.
+     * @return the quiz with ordered questions and answers.
+     */
+    private QuizResponse toQuizResponse(Quiz quiz) {
+        List<QuizQuestion> quizQuestions = questionRepository.findByQuizIdOrderByPositionAsc(quiz.getId());
 
         List<Long> questionIds = quizQuestions.stream().map(QuizQuestion::getId).toList();
 
@@ -283,6 +293,35 @@ public class QuizPersistenceService {
     }
 
     /**
+     * Updates the supplied fields of a quiz owned by the user.
+     *
+     * <p>A blank description is stored as null, following the group description pattern.</p>
+     *
+     * @param userId the id of the authenticated user.
+     * @param quizId the public id of the quiz to update.
+     * @param title the new title, or null to leave it unchanged.
+     * @param description the new description, or null to leave it unchanged.
+     * @return the updated quiz with ordered questions and answers.
+     * @throws QuizNotFound if no quiz with the given public id belongs to the user.
+     */
+    @Transactional
+    public QuizResponse updateQuiz(Long userId, String quizId, String title, String description) {
+        Quiz quiz = quizRepository
+            .findByPublicIdAndUserId(quizId, userId)
+            .orElseThrow(() -> new QuizNotFound("Quiz not found: " + quizId));
+
+        if (title != null)
+            quiz.updateTitle(title);
+
+        if (description != null)
+            quiz.updateDescription(description.isBlank() ? null : description);
+
+        quizRepository.save(quiz);
+
+        return toQuizResponse(quiz);
+    }
+
+    /**
      * Persists a manually-created question and answer set for a quiz owned by the user.
      *
      * @param userId the id of the authenticated user.
@@ -349,6 +388,120 @@ public class QuizPersistenceService {
             throw new QuestionNotFound("Question not found: " + questionId);
 
         quizRepository.updateUpdatedAtById(quiz.getId());
+    }
+
+    /**
+     * Updates the supplied fields of a question in a quiz owned by the user.
+     *
+     * <p>When {@code answers} is supplied it replaces the question's whole answer set. The
+     * resulting question is validated against the same rules as manual question creation:
+     * 4 answers for multiple choice, 2 for boolean, and exactly one correct answer. The
+     * question and answer changes commit together, and the parent quiz modified timestamp
+     * is advanced, matching manual question creation and deletion.</p>
+     *
+     * <p>The question is loaded with a pessimistic write lock before its answers are read, so
+     * concurrent updates of the same question run one after the other and the second update
+     * replaces the answer set the first one saved rather than a stale one. Ordinary question
+     * retrieval stays unlocked.</p>
+     *
+     * @param userId the id of the authenticated user.
+     * @param quizId the public id of the quiz containing the question.
+     * @param questionId the public id of the question to update.
+     * @param questionText the new question text, or null to leave it unchanged.
+     * @param questionType the new question type, or null to leave it unchanged.
+     * @param answers the complete replacement answer set, or null to leave the answers unchanged.
+     * @return the updated question with its answers.
+     * @throws QuizNotFound if no quiz with the given public id belongs to the user.
+     * @throws QuestionNotFound if the question does not exist in the quiz.
+     * @throws CreateQuestionInputException if the resulting question breaks the answer count or
+     *     correct-answer rules.
+     */
+    @Transactional
+    public CreateQuestionResponse updateQuestion(
+        Long userId,
+        String quizId,
+        String questionId,
+        String questionText,
+        QuestionType questionType,
+        List<CreateQuestionAnswer> answers
+    ) {
+        Quiz quiz = quizRepository
+            .findByPublicIdAndUserId(quizId, userId)
+            .orElseThrow(() -> new QuizNotFound("Quiz not found: " + quizId));
+
+        QuizQuestion question = questionRepository
+            .findByPublicIdAndQuizIdForUpdate(questionId, quiz.getId())
+            .orElseThrow(() -> new QuestionNotFound("Question not found: " + questionId));
+
+        List<QuizAnswer> currentAnswers = answerRepository.findByQuestionIdOrderByPositionAsc(question.getId());
+
+        QuestionType resultingType = questionType != null ? questionType : question.getQuestionType();
+        int resultingAnswerCount = answers != null ? answers.size() : currentAnswers.size();
+        long resultingCorrectCount = answers != null
+            ? answers.stream().filter(CreateQuestionAnswer::isCorrect).count()
+            : currentAnswers.stream().filter(QuizAnswer::isCorrect).count();
+
+        if (!isValidQuestionShape(resultingType, resultingAnswerCount, resultingCorrectCount)) {
+            throw new CreateQuestionInputException(
+                """
+                Request data is invalid. Only one correct answer is allowed.
+                Multiple choice questions must have 4 answers and boolean questions must have 2.
+                """
+            );
+        }
+
+        if (questionText != null)
+            question.updateQuestionText(questionText);
+
+        if (questionType != null)
+            question.updateQuestionType(questionType);
+
+        questionRepository.save(question);
+
+        List<QuizAnswer> resultingAnswers = currentAnswers;
+
+        if (answers != null) {
+            answerRepository.deleteAll(currentAnswers);
+            answerRepository.flush();
+
+            List<QuizAnswer> replacements = new ArrayList<>();
+            for (int i = 0; i < answers.size(); i++) {
+                CreateQuestionAnswer answer = answers.get(i);
+
+                replacements.add(new QuizAnswer(question.getId(), answer.answer(), answer.isCorrect(), i));
+            }
+
+            resultingAnswers = answerRepository.saveAll(replacements);
+        }
+
+        quizRepository.updateUpdatedAtById(quiz.getId());
+
+        List<CreateAnswerResponse> answerResponses = resultingAnswers
+            .stream()
+            .map(a -> new CreateAnswerResponse(a.getPublicId(), a.getAnswerText(), a.isCorrect()))
+            .toList();
+
+        return new CreateQuestionResponse(
+            question.getPublicId(),
+            question.getQuestionText(),
+            question.getQuestionType(),
+            answerResponses,
+            question.getCreatedAt()
+        );
+    }
+
+    /**
+     * Checks type-specific answer count and correct-answer rules for a question.
+     *
+     * @param questionType the resulting question type.
+     * @param answerCount the resulting number of answers.
+     * @param correctCount the resulting number of correct answers.
+     * @return true when the answer shape is valid for the question type.
+     */
+    private boolean isValidQuestionShape(QuestionType questionType, int answerCount, long correctCount) {
+        int requiredCount = questionType == QuestionType.MULTIPLE_CHOICE ? 4 : 2;
+
+        return answerCount == requiredCount && correctCount == 1;
     }
 
     /**

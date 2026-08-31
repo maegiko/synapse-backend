@@ -113,4 +113,12 @@ public class Quiz {
         return difficulty;
     }
 
+    public void updateTitle(String title) {
+        this.title = title;
+    }
+
+    public void updateDescription(String description) {
+        this.description = description;
+    }
+
 }

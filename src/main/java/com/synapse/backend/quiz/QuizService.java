@@ -11,6 +11,8 @@ import com.synapse.backend.ai.prompts.QuizGeneratePromptFactory;
 import com.synapse.backend.notes.NotesService;
 import com.synapse.backend.notes.dto.NoteForGeneration;
 import com.synapse.backend.quiz.dto.QuizResponse;
+import com.synapse.backend.quiz.dto.UpdateQuestionRequest;
+import com.synapse.backend.quiz.dto.UpdateQuizRequest;
 import com.synapse.backend.quiz.dto.create.CreateQuestionAnswer;
 import com.synapse.backend.quiz.dto.create.CreateQuestionRequest;
 import com.synapse.backend.quiz.dto.create.CreateQuestionResponse;
@@ -22,6 +24,7 @@ import com.synapse.backend.quiz.dto.score.ListQuizScoreResponse;
 import com.synapse.backend.quiz.dto.score.QuizScoreResponse;
 import com.synapse.backend.quiz.enums.QuestionType;
 import com.synapse.backend.quiz.exceptions.CreateQuestionInputException;
+import com.synapse.backend.quiz.exceptions.InvalidQuizDetailsException;
 import com.synapse.backend.shared.exceptions.concrete.UserUnauthorised;
 import com.synapse.backend.streak.StreakService;
 
@@ -177,6 +180,73 @@ public class QuizService {
         boolean correctAnswerExists = answers.stream().filter(a -> a.isCorrect()).count() == 1;
 
         return (answersLen == correctAnswersLen) && correctAnswerExists;
+    }
+
+    /**
+     * Updates the title and/or description of a quiz owned by the authenticated user.
+     *
+     * <p>Only the supplied fields are changed. The request arrives with its title and description
+     * trimmed. A blank description clears it. The dedicated difficulty endpoint is unaffected.</p>
+     *
+     * @param userId the id of the authenticated user.
+     * @param quizId the public id of the quiz to update.
+     * @param req the validated fields to update, with at least one field supplied.
+     * @return the updated quiz with ordered questions and answers.
+     * @throws InvalidQuizDetailsException if no field is supplied or the supplied title is blank.
+     */
+    public QuizResponse updateQuiz(Long userId, String quizId, UpdateQuizRequest req) {
+        if (userId == null)
+            throw new UserUnauthorised("User is not authorised for this action.");
+
+        String title = req.title();
+        String description = req.description();
+
+        if (title == null && description == null)
+            throw new InvalidQuizDetailsException("At least one of title or description must be supplied.");
+
+        if (title != null && title.isBlank())
+            throw new InvalidQuizDetailsException("title: must not be blank");
+
+        return persistenceService.updateQuiz(userId, quizId, title, description);
+    }
+
+    /**
+     * Updates the supplied fields of a question in a quiz owned by the authenticated user.
+     *
+     * <p>Only the supplied fields are changed. When {@code answers} is supplied it replaces the
+     * question's whole answer set. The resulting question is validated against the manual
+     * question creation rules, and the question and answer changes commit together.</p>
+     *
+     * @param userId the id of the authenticated user.
+     * @param quizId the public id of the quiz containing the question.
+     * @param questionId the public id of the question to update.
+     * @param req the validated fields to update, with at least one field supplied.
+     * @return the updated question with its answers.
+     * @throws CreateQuestionInputException if no field is supplied, the supplied question text is
+     *     blank, or the resulting question breaks the answer count or correct-answer rules.
+     */
+    public CreateQuestionResponse updateQuestion(
+        Long userId,
+        String quizId,
+        String questionId,
+        UpdateQuestionRequest req
+    ) {
+        if (userId == null)
+            throw new UserUnauthorised("User is not authorised for this action.");
+
+        String question = req.question();
+        QuestionType questionType = req.questionType();
+        List<CreateQuestionAnswer> answers = req.answers();
+
+        if (question == null && questionType == null && answers == null)
+            throw new CreateQuestionInputException(
+                "At least one of question, questionType, or answers must be supplied."
+            );
+
+        if (question != null && question.isBlank())
+            throw new CreateQuestionInputException("question: must not be blank");
+
+        return persistenceService.updateQuestion(userId, quizId, questionId, question, questionType, answers);
     }
 
     /**
