@@ -1,5 +1,6 @@
 package com.synapse.backend.groups;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.synapse.backend.groups.dto.CreateGroupRequest;
@@ -38,13 +39,15 @@ public class GroupService {
     }
 
     /**
-     * Returns every group owned by the currently authenticated user.
+     * Returns a page of groups owned by the currently authenticated user, optionally filtered by name.
      *
      * @param userId the id of the currently authenticated user.
-     * @return the user's groups ordered newest first, each with its content counts.
+     * @param query an optional case-insensitive partial name search, or null/blank for no search.
+     * @param pageable the page to return.
+     * @return the requested page of the user's groups, newest first, each with its content counts.
      */
-    public GroupListResponse getAllGroups(Long userId) {
-        return persistenceService.getAllGroups(userId);
+    public GroupListResponse getAllGroups(Long userId, String query, Pageable pageable) {
+        return persistenceService.getAllGroups(userId, query, pageable);
     }
 
     /**

@@ -2,6 +2,8 @@ package com.synapse.backend.groups;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.synapse.backend.flashcards.exceptions.DeckNotFound;
@@ -56,13 +58,15 @@ public class GroupPersistenceService {
     }
 
     /**
-     * Returns every group owned by the user with its content counts.
+     * Returns a page of groups owned by the user with their content counts, optionally filtered by name.
      *
      * @param userId the id of the currently authenticated user.
-     * @return the user's groups ordered newest first.
+     * @param query an optional case-insensitive partial name search, or null/blank for no search.
+     * @param pageable the page to return.
+     * @return the requested page of the user's groups, ordered newest first.
      */
-    public GroupListResponse getAllGroups(Long userId) {
-        List<StudyGroup> groups = studyGroupRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    public GroupListResponse getAllGroups(Long userId, String query, Pageable pageable) {
+        Page<StudyGroup> groups = findGroupsPage(userId, query, pageable);
 
         return new GroupListResponse(
             groups
@@ -76,8 +80,23 @@ public class GroupPersistenceService {
                     quizRepository.countByGroupId(g.getId()),
                     g.getCreatedAt()
                 ))
-                .toList()
+                .toList(),
+            groups.getNumber(),
+            groups.getSize(),
+            groups.getTotalElements(),
+            groups.getTotalPages(),
+            groups.hasNext()
         );
+    }
+
+    private Page<StudyGroup> findGroupsPage(Long userId, String query, Pageable pageable) {
+        String search = query == null ? "" : query.trim();
+
+        if (search.isEmpty())
+            return studyGroupRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable);
+
+        return studyGroupRepository
+            .findByUserIdAndNameContainingIgnoreCaseOrderByCreatedAtDescIdDesc(userId, search, pageable);
     }
 
     /**
