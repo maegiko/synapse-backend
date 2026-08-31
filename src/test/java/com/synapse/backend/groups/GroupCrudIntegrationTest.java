@@ -199,6 +199,199 @@ class GroupCrudIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void listGroupsUsesDefaultPaginationWhenNoParametersAreSupplied() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createGroupRows(user.id(), "Group", 25);
+
+        mockMvc.perform(get(GROUP_LIST_ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.groups.length()").value(20))
+            .andExpect(jsonPath("$.groups[0].name").value("Group 25"))
+            .andExpect(jsonPath("$.groups[19].name").value("Group 6"))
+            .andExpect(jsonPath("$.page").value(0))
+            .andExpect(jsonPath("$.size").value(20))
+            .andExpect(jsonPath("$.totalElements").value(25))
+            .andExpect(jsonPath("$.totalPages").value(2))
+            .andExpect(jsonPath("$.hasNext").value(true));
+    }
+
+    @Test
+    void listGroupsReturnsTheRequestedPageAndSize() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createGroupRows(user.id(), "Group", 5);
+
+        mockMvc.perform(get(GROUP_LIST_ENDPOINT)
+                .param("page", "1")
+                .param("size", "2")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.groups.length()").value(2))
+            .andExpect(jsonPath("$.groups[0].name").value("Group 3"))
+            .andExpect(jsonPath("$.groups[1].name").value("Group 2"))
+            .andExpect(jsonPath("$.page").value(1))
+            .andExpect(jsonPath("$.size").value(2))
+            .andExpect(jsonPath("$.totalElements").value(5))
+            .andExpect(jsonPath("$.totalPages").value(3))
+            .andExpect(jsonPath("$.hasNext").value(true));
+    }
+
+    @Test
+    void listGroupsReturnsAnEmptyPageBeyondTheEnd() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createGroupRows(user.id(), "Group", 3);
+
+        mockMvc.perform(get(GROUP_LIST_ENDPOINT)
+                .param("page", "5")
+                .param("size", "2")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.groups").isEmpty())
+            .andExpect(jsonPath("$.page").value(5))
+            .andExpect(jsonPath("$.totalElements").value(3))
+            .andExpect(jsonPath("$.totalPages").value(2))
+            .andExpect(jsonPath("$.hasNext").value(false));
+    }
+
+    @Test
+    void listGroupsSearchesNamesCaseInsensitivelyAndPartiallyKeepingContentCounts() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        String systems = createGroupRow(user.id(), "grpsrc0001", "System Dynamics", "2026-01-01 09:00:00");
+        createGroupRow(user.id(), "grpsrc0002", "Nervous system", "2026-01-02 09:00:00");
+        createGroupRow(user.id(), "grpsrc0003", "Enzymes", "2026-01-03 09:00:00");
+
+        addNote(user, systems, createNote(user.id(), "Stocks and flows"));
+
+        mockMvc.perform(get(GROUP_LIST_ENDPOINT)
+                .param("query", "SYSTEM")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.groups.length()").value(2))
+            .andExpect(jsonPath("$.groups[0].name").value("Nervous system"))
+            .andExpect(jsonPath("$.groups[1].name").value("System Dynamics"))
+            .andExpect(jsonPath("$.groups[1].noteCount").value(1))
+            .andExpect(jsonPath("$.groups[1].deckCount").value(0))
+            .andExpect(jsonPath("$.groups[1].quizCount").value(0))
+            .andExpect(jsonPath("$.totalElements").value(2))
+            .andExpect(jsonPath("$.hasNext").value(false));
+    }
+
+    @Test
+    void listGroupsTrimsTheSearchQuery() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createGroupRow(user.id(), "grptrm0001", "Enzymes", "2026-01-01 09:00:00");
+        createGroupRow(user.id(), "grptrm0002", "Cells", "2026-01-02 09:00:00");
+
+        mockMvc.perform(get(GROUP_LIST_ENDPOINT)
+                .param("query", "  enzy  ")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.groups.length()").value(1))
+            .andExpect(jsonPath("$.groups[0].name").value("Enzymes"))
+            .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void listGroupsTreatsABlankSearchQueryAsNoSearch() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createGroupRows(user.id(), "Group", 3);
+
+        mockMvc.perform(get(GROUP_LIST_ENDPOINT)
+                .param("query", "   ")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.groups.length()").value(3))
+            .andExpect(jsonPath("$.totalElements").value(3));
+    }
+
+    @Test
+    void listGroupsReturnsAnEmptyPageWhenTheSearchMatchesNothing() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        createGroupRows(user.id(), "Group", 3);
+
+        mockMvc.perform(get(GROUP_LIST_ENDPOINT)
+                .param("query", "photosynthesis")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.groups").isEmpty())
+            .andExpect(jsonPath("$.totalElements").value(0))
+            .andExpect(jsonPath("$.totalPages").value(0))
+            .andExpect(jsonPath("$.hasNext").value(false));
+    }
+
+    @Test
+    void listGroupsBreaksCreatedAtTiesByNewestIdFirst() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        String first = createGroupRow(user.id(), "grptie0001", "First saved", "2026-01-01 09:00:00");
+        String second = createGroupRow(user.id(), "grptie0002", "Second saved", "2026-01-01 09:00:00");
+        String third = createGroupRow(user.id(), "grptie0003", "Third saved", "2026-01-01 09:00:00");
+
+        mockMvc.perform(get(GROUP_LIST_ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.groups[0].id").value(third))
+            .andExpect(jsonPath("$.groups[1].id").value(second))
+            .andExpect(jsonPath("$.groups[2].id").value(first));
+
+        mockMvc.perform(get(GROUP_LIST_ENDPOINT)
+                .param("page", "1")
+                .param("size", "1")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.groups.length()").value(1))
+            .andExpect(jsonPath("$.groups[0].id").value(second));
+    }
+
+    @Test
+    void listGroupsOnlySearchesGroupsOwnedByTheAuthenticatedUser() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        TestUser otherUser = register("Ada", "ada@example.com");
+        createGroupRow(user.id(), "grpown0001", "Shared name mine", "2026-01-01 09:00:00");
+        createGroupRow(otherUser.id(), "grpown0002", "Shared name theirs", "2026-01-02 09:00:00");
+
+        mockMvc.perform(get(GROUP_LIST_ENDPOINT)
+                .param("query", "shared name")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.groups.length()").value(1))
+            .andExpect(jsonPath("$.groups[0].name").value("Shared name mine"))
+            .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void listGroupsRejectsANegativePage() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+
+        mockMvc.perform(get(GROUP_LIST_ENDPOINT)
+                .param("page", "-1")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("page: must be greater than or equal to 0"));
+    }
+
+    @Test
+    void listGroupsRejectsASizeBelowOne() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+
+        mockMvc.perform(get(GROUP_LIST_ENDPOINT)
+                .param("size", "0")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("size: must be greater than or equal to 1"));
+    }
+
+    @Test
+    void listGroupsRejectsASizeAboveTheMaximum() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+
+        mockMvc.perform(get(GROUP_LIST_ENDPOINT)
+                .param("size", "101")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("size: must be less than or equal to 100"));
+    }
+
+    @Test
     void getGroupReturnsItsMixedContentNewestFirst() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
         String groupId = createGroupId(user, "Systems");
@@ -400,6 +593,33 @@ class GroupCrudIntegrationTest extends PostgresIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn()
         );
+    }
+
+    private void createGroupRows(Long userId, String namePrefix, int count) {
+        for (int i = 1; i <= count; i++) {
+            createGroupRow(
+                userId,
+                String.format("grppag%04d", i),
+                namePrefix + " " + i,
+                String.format("2026-01-01 09:%02d:00", i)
+            );
+        }
+    }
+
+    private String createGroupRow(Long userId, String publicId, String name, String createdAt) {
+        jdbcTemplate.update(
+            """
+            INSERT INTO study_group (user_id, public_id, name, created_at, updated_at)
+            VALUES (?, ?, ?, ?::timestamp, ?::timestamp)
+            """,
+            userId,
+            publicId,
+            name,
+            createdAt,
+            createdAt
+        );
+
+        return publicId;
     }
 
     private String groupIdOf(MvcResult result) throws Exception {
