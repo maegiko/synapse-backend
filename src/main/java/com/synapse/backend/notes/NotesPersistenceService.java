@@ -235,6 +235,33 @@ public class NotesPersistenceService {
     }
 
     /**
+     * Updates the supplied fields of a note owned by the user.
+     *
+     * @param noteId the public id of the note.
+     * @param userId the user ID of the currently authenticated user.
+     * @param title the new title, or null to leave it unchanged.
+     * @param overview the new overview, or null to leave it unchanged.
+     * @return the updated note summary.
+     * @throws NoteNotFoundException if the note doesn't exist for this user.
+     */
+    @Transactional
+    public NoteSummaryResponse updateNote(String noteId, Long userId, String title, String overview) {
+        Note note = noteRepository
+            .findByPublicIdAndUserId(noteId, userId)
+            .orElseThrow(() -> new NoteNotFoundException("Requested note not found."));
+
+        if (title != null)
+            note.updateTitle(title);
+
+        if (overview != null)
+            note.updateOverview(overview);
+
+        noteRepository.save(note);
+
+        return buildSummaryResponse(note);
+    }
+
+    /**
      * Resolves the public id of the study group a resource belongs to.
      *
      * @param groupId the internal group id held by the resource, or null when it is ungrouped.

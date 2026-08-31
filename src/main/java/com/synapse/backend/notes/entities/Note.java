@@ -81,4 +81,12 @@ public class Note {
         return createdAt;
     }
 
+    public void updateTitle(String title) {
+        this.title = title;
+    }
+
+    public void updateOverview(String overview) {
+        this.overview = overview;
+    }
+
 }

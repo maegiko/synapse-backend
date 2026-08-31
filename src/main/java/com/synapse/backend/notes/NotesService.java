@@ -12,7 +12,9 @@ import com.synapse.backend.ai.prompts.NoteSummaryPromptFactory;
 import com.synapse.backend.notes.dto.NoteForGeneration;
 import com.synapse.backend.notes.dto.NoteListResponse;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
+import com.synapse.backend.notes.dto.UpdateNoteRequest;
 import com.synapse.backend.notes.exceptions.InvalidFileException;
+import com.synapse.backend.notes.exceptions.InvalidNoteDetailsException;
 import com.synapse.backend.shared.files.FileParsingService;
 import com.synapse.backend.streak.StreakService;
 
@@ -114,6 +116,35 @@ public class NotesService {
 
     public NoteForGeneration getNoteForGeneration(String noteId, Long userId) {
         return notesPersistenceService.getNoteForGeneration(noteId, userId);
+    }
+
+    /**
+     * Updates the title and/or overview of a note owned by the user.
+     *
+     * <p>Only the supplied fields are changed. The request arrives with its title and overview
+     * trimmed. Structured keypoints, concepts, and important terms are not editable here.</p>
+     *
+     * @param noteId the public id of the note.
+     * @param userId the ID of the user.
+     * @param req the validated fields to update, with at least one field supplied.
+     * @return the updated note summary.
+     * @throws InvalidNoteDetailsException if no field is supplied or a supplied field is blank.
+     * @throws NoteNotFoundException if the note doesn't exist for this user.
+     */
+    public NoteSummaryResponse updateNote(String noteId, Long userId, UpdateNoteRequest req) {
+        String title = req.title();
+        String overview = req.overview();
+
+        if (title == null && overview == null)
+            throw new InvalidNoteDetailsException("At least one of title or overview must be supplied.");
+
+        if (title != null && title.isBlank())
+            throw new InvalidNoteDetailsException("title: must not be blank");
+
+        if (overview != null && overview.isBlank())
+            throw new InvalidNoteDetailsException("overview: must not be blank");
+
+        return notesPersistenceService.updateNote(noteId, userId, title, overview);
     }
 
 }
