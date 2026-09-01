@@ -8,6 +8,7 @@ The API is secured with short-lived JWT bearer access tokens and rotating refres
 
 - JWT-based registration and login, with mandatory email verification before an account can log in
 - Emailed single-use verification links for registration and confirmed email changes, sent through Resend
+- Emailed single-use password reset links, which end every session of the account they reset
 - Short-lived access tokens with rotating refresh tokens in `HttpOnly` cookies, plus refresh and logout endpoints
 - Authenticated user profile endpoint
 - PDF, Word (`.docx`), plain text (`.txt`), and Markdown (`.md`) note upload and AI-generated note summaries
@@ -162,6 +163,10 @@ auth:
     unverified-retention: 7d
     cleanup-interval: 1h
 
+  password-reset:
+    frontend-url: ${PASSWORD_RESET_URL:http://localhost:5173/reset-password}
+    token-ttl: 30m
+
 email:
   resend:
     api-key: ${RESEND_API_KEY}
@@ -175,11 +180,13 @@ email:
 | --- | --- | --- | --- |
 | `RESEND_API_KEY` | Yes | none | Resend API key used as `Authorization: Bearer <key>` |
 | `EMAIL_VERIFICATION_URL` | No | `http://localhost:5173/verify-email` | Frontend page verification links point at; set it to `https://studysynapse.app/verify-email` in production |
+| `PASSWORD_RESET_URL` | No | `http://localhost:5173/reset-password` | Frontend page password reset links point at; set it to `https://studysynapse.app/reset-password` in production |
 | `RESEND_FROM` | No | `Synapse <no-reply@studysynapse.app>` | Sender address, which must belong to a domain verified in Resend |
 | `RESEND_API_URL` | No | `https://api.resend.com/emails` | Resend send-email endpoint |
 
-Verification links are `{frontend-url}?token={urlEncodedToken}`. The link opens the frontend, which posts the token to
-`POST /api/auth/email/verify`; no state-changing backend route is ever opened directly from an email.
+Verification and password reset links are `{frontend-url}?token={urlEncodedToken}`. The link opens the frontend, which
+posts the token to `POST /api/auth/email/verify` or `POST /api/auth/password/reset`; no state-changing backend route is
+ever opened directly from an email, because mail clients and scanners follow links on their own.
 
 The two token lifetimes differ on purpose. Confirming a registration link signs the account in, which makes that link a
 credential and not merely a proof of address, so it lives for an hour and a lapsed one is recovered with the resend
@@ -205,6 +212,8 @@ Authorization: Bearer <accessToken>
 | `POST` | `/api/auth/login` | Log in and receive an access token | No |
 | `POST` | `/api/auth/email/verify` | Confirm an emailed verification link, signing a confirmed registration in | No |
 | `POST` | `/api/auth/email/resend` | Resend a registration verification link | No |
+| `POST` | `/api/auth/password/forgot` | Email a password reset link | No |
+| `POST` | `/api/auth/password/reset` | Set a new password from a reset link | No |
 | `POST` | `/api/auth/refresh` | Exchange the refresh token cookie for a new access token | No |
 | `POST` | `/api/auth/logout` | Revoke the current refresh token and clear the cookie | No |
 | `PUT` | `/api/auth/password` | Change the authenticated user's password | Yes |
@@ -231,6 +240,29 @@ generic `400`, so a link opened twice succeeds once and issues exactly one sessi
 `POST /api/auth/email/resend` takes `{ "email": "..." }` and always returns `204`, whether the address is unknown,
 already verified, or still pending, so it cannot be used to discover who has an account. Only an unverified account
 causes an email to be sent, and the replacement link invalidates the previous one.
+
+`POST /api/auth/password/forgot` takes `{ "email": "..." }`, normalises it exactly like registration, and **always**
+returns `204`. Unknown addresses, accounts that have never been verified, live accounts, and a failed email provider
+are answered identically, so the endpoint cannot be used to discover who has an account; a provider failure is logged
+and never reaches the caller. Only a verified account is actually sent a link, and a new link invalidates that user's
+previous one. The request is limited to 3 per hour per normalised address and, separately, per client address, and the
+limits are checked before the account is looked up so an unknown address costs the same as a real one.
+
+`POST /api/auth/password/reset` takes `{ "token": "...", "newPassword": "..." }`, consumes the single-use token,
+BCrypt-hashes the new password, and returns `204`. The new password must satisfy the same 8-64 character rule as
+registration. Missing, unknown, expired, replaced, and already used tokens all return the same generic `400`, and a
+token from a verification email is never accepted here: reset tokens live in their own table and are consumed by their
+own endpoint, so neither kind of link can do the other's job.
+
+A successful reset revokes **every** refresh token of that user and clears the caller's refresh cookie, so all of their
+sessions have to sign in again. It does not sign the caller in: no access token is returned, and the client should
+route to login. Access tokens are not blacklisted, so one issued before the reset stays usable for the rest of its
+15-minute lifetime.
+
+Reset tokens are 32 cryptographically random bytes, URL-safe Base64 encoded without padding, stored only as a SHA-256
+hash, and valid for 30 minutes. Consumption is a single conditional update, so two concurrent resets with the same link
+race for one row and only the first succeeds. Consumption, the password write, and the session revocation are one
+transaction: if either write fails, the link stays usable.
 
 Verification tokens are 32 cryptographically random bytes, URL-safe Base64 encoded without padding. Only their SHA-256
 hash is stored, alongside the user, target address, purpose, expiry, and consumption/invalidation state. Consumption is
@@ -410,6 +442,29 @@ curl -X POST http://localhost:8080/api/user/email-change \
   }'
 ```
 
+Example forgotten-password request, which answers `204` whatever the address turns out to be:
+
+```bash
+curl -X POST http://localhost:8080/api/auth/password/forgot \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "ada@example.com"
+  }'
+```
+
+Example password reset, with the token the frontend reset page read from the link:
+
+```bash
+curl -X POST http://localhost:8080/api/auth/password/reset \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "<rawTokenFromTheLink>",
+    "newPassword": "a-new-password"
+  }'
+```
+
+It answers `204`, clears the refresh cookie, and signs nobody in: log in with the new password afterwards.
+
 Example refresh request, reusing the cookie saved at login:
 
 ```bash
@@ -548,6 +603,9 @@ The test suite covers:
 - Verification tokens: unknown, expired, invalidated, consumed, reused, and concurrently consumed links
 - Verification resending and its deliberately identical responses
 - Confirmed email changes, including uniqueness re-checks, races, replacement requests, and abandonment
+- Password resets: the non-enumerating forgot response for unknown, unverified, verified, and provider-failure cases,
+  both rate limits, token storage and expiry, replacement, reuse, concurrent consumption, purpose isolation from
+  verification tokens, session revocation, cookie clearing, and transaction rollback
 - Cleanup of never-verified accounts and expired verification tokens
 - Refresh token issuing, rotation, expiry, revocation, concurrent rotation, rotation rollback, and logout
 - User details
@@ -638,6 +696,7 @@ rounded up.
 | `POST /api/auth/login` | 10 per 15 minutes | Normalized email, and separately client address |
 | `POST /api/auth/register` | 3 per hour | Client address |
 | `POST /api/auth/email/resend` | 3 per hour | Normalized email, and separately client address |
+| `POST /api/auth/password/forgot` | 3 per hour | Normalized email, and separately client address |
 | `POST /api/user/email-change` | 3 per hour | JWT user id |
 
 CORS preflight requests are not rate limited.
@@ -665,6 +724,9 @@ ratelimit:
   email-change:
     limit: 3
     window: 1h
+  password-reset:
+    limit: 3
+    window: 1h
   api:
     limit: 120
     window: 1m
@@ -683,7 +745,11 @@ Setting `ratelimit.enabled` to `false` turns limiting off.
 - Verification emails are sent after the account and token are committed, in a separate step. A provider failure
   returns `502` and leaves an unverified account that the resend endpoint can recover; the two are deliberately not one
   transaction.
-- Never-verified accounts are deleted seven days after they are created, and expired verification tokens are swept, by
-  a scheduled job that runs in every instance.
+- Password reset emails are sent the same way, but a provider failure is swallowed and logged rather than returned,
+  because changing the response would tell the caller that the address has an account.
+- A password reset cannot revoke access tokens that have already been issued, so a stolen access token survives the
+  reset for the rest of its 15-minute lifetime. Only refresh tokens are revoked.
+- Never-verified accounts are deleted seven days after they are created, and expired verification and password reset
+  tokens are swept, by scheduled sweeps that run in every instance.
 - Refresh token reuse is rejected but does not revoke the rest of that user's active refresh tokens.
 - The local application profile is development-oriented and should be adjusted for production deployment.

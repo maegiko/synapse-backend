@@ -50,6 +50,10 @@ ratelimit:
     limit: 3
     window: 1h
 
+  password-reset:
+    limit: 3
+    window: 1h
+
   api:
     limit: 120
     window: 1m
@@ -71,6 +75,10 @@ auth:
     email-change-token-ttl: 24h
     unverified-retention: 7d
     cleanup-interval: 1h
+
+  password-reset:
+    frontend-url: ${PASSWORD_RESET_URL:http://localhost:5173/reset-password}
+    token-ttl: 30m
 
 email:
   resend:

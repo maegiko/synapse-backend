@@ -13,6 +13,7 @@ public record RateLimitProperties(
     Limit register,
     Limit verificationResend,
     Limit emailChange,
+    Limit passwordReset,
     Limit api
 ) {
 

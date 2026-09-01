@@ -92,11 +92,7 @@ class EmailVerificationCleanupIntegrationTest extends PostgresIntegrationTest {
     void expiredTokensOfALiveAccountAreDeletedAndUsableOnesAreKept() throws Exception {
         registerVerifiedUser("Kenneth", "kenneth@example.com", VALID_PASSWORD, null);
 
-        Long userId = jdbcTemplate.queryForObject(
-            "SELECT id FROM app_user WHERE email = ?",
-            Long.class,
-            "kenneth@example.com"
-        );
+        Long userId = userIdOf("kenneth@example.com");
 
         insertToken(userId, "kenneth@example.com", "expired-hash", NOW.minus(Duration.ofHours(1)));
         insertToken(userId, "kenneth@example.com", "live-hash", NOW.plus(Duration.ofHours(1)));
@@ -105,6 +101,22 @@ class EmailVerificationCleanupIntegrationTest extends PostgresIntegrationTest {
 
         assertThat(countTokensWithHash("expired-hash")).isZero();
         assertThat(countTokensWithHash("live-hash")).isEqualTo(1);
+        assertThat(countUsers("kenneth@example.com")).isEqualTo(1);
+    }
+
+    @Test
+    void expiredPasswordResetTokensAreDeletedAndUsableOnesAreKept() throws Exception {
+        registerVerifiedUser("Kenneth", "kenneth@example.com", VALID_PASSWORD, null);
+
+        Long userId = userIdOf("kenneth@example.com");
+
+        insertResetToken(userId, "expired-reset-hash", NOW.minus(Duration.ofMinutes(1)));
+        insertResetToken(userId, "live-reset-hash", NOW.plus(Duration.ofMinutes(30)));
+
+        emailVerificationCleanupService.removeExpiredPasswordResetTokens();
+
+        assertThat(countResetTokensWithHash("expired-reset-hash")).isZero();
+        assertThat(countResetTokensWithHash("live-reset-hash")).isEqualTo(1);
         assertThat(countUsers("kenneth@example.com")).isEqualTo(1);
     }
 
@@ -135,6 +147,27 @@ class EmailVerificationCleanupIntegrationTest extends PostgresIntegrationTest {
         );
 
         insertToken(userId, email, email + "-hash", createdAt.plus(Duration.ofDays(1)));
+    }
+
+    private void insertResetToken(Long userId, String tokenHash, Instant expiresAt) {
+        jdbcTemplate.update(
+            "INSERT INTO password_reset_token (user_id, token_hash, expires_at) VALUES (?, ?, ?)",
+            userId,
+            tokenHash,
+            LocalDateTime.ofInstant(expiresAt, ZoneOffset.UTC)
+        );
+    }
+
+    private Long userIdOf(String email) {
+        return jdbcTemplate.queryForObject("SELECT id FROM app_user WHERE email = ?", Long.class, email);
+    }
+
+    private int countResetTokensWithHash(String tokenHash) {
+        return jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM password_reset_token WHERE token_hash = ?",
+            Integer.class,
+            tokenHash
+        );
     }
 
     private void insertToken(Long userId, String email, String tokenHash, Instant expiresAt) {

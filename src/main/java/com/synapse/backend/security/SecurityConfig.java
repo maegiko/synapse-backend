@@ -66,15 +66,17 @@ public class SecurityConfig {
     /**
      * Configures HTTP security for the API.
      *
-     * <p>Swagger documentation, registration, login, refresh, logout, and the two
-     * email verification routes are public. Email verification is unauthenticated
-     * because the visitor following a link out of their inbox has no access token
-     * yet; the emailed single-use token is the only credential it accepts, and a
-     * registration token is enough to be signed in with. All other requests
-     * require JWT authentication. Sessions are stateless and CSRF is disabled
-     * because the API authenticates with bearer tokens; refresh and logout are
-     * the only routes that read a cookie, and they are protected by the SameSite
-     * attribute on that cookie.</p>
+     * <p>Swagger documentation, registration, login, refresh, logout, the two email
+     * verification routes, and the two password reset routes are public. They are
+     * unauthenticated because the visitor following a link out of their inbox has no
+     * access token yet; the emailed single-use token is the only credential they
+     * accept, and a registration token is enough to be signed in with. Only those
+     * exact POST routes are opened: {@code PUT /api/auth/password}, which changes a
+     * known password, still requires a bearer token. All other requests require JWT
+     * authentication. Sessions are stateless and CSRF is disabled because the API
+     * authenticates with bearer tokens; refresh and logout are the only routes that
+     * read a cookie, and they are protected by the SameSite attribute on that
+     * cookie.</p>
      *
      * @param http the Spring Security HTTP configuration builder.
      * @return the configured security filter chain.
@@ -96,6 +98,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/email/verify").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/email/resend").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/password/forgot").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/password/reset").permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
