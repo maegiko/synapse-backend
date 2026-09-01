@@ -1,7 +1,9 @@
 package com.synapse.backend.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -52,6 +54,19 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
     @BeforeEach
     void deleteUsers() {
         jdbcTemplate.execute("DELETE FROM app_user");
+    }
+
+    @Test
+    void developmentRootRedirectsToSwaggerUi() throws Exception {
+        mockMvc.perform(get("/"))
+            .andExpect(status().is3xxRedirection())
+            .andExpect(redirectedUrl("/swagger-ui.html"));
+    }
+
+    @Test
+    void developmentOpenApiDocumentationIsAvailable() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+            .andExpect(status().isOk());
     }
 
     @Test
