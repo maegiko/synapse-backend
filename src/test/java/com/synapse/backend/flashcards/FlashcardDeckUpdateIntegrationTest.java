@@ -134,6 +134,62 @@ class FlashcardDeckUpdateIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void updateDeckPinsAndUnpinsADeck() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        Long deckId = createDeck(user.id(), "deckpin001", "Old deck", LocalDateTime.of(2026, 1, 7, 9, 0));
+
+        mockMvc.perform(patch(DECK_ENDPOINT, "deckpin001")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("pinned", true))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.title").value("Old deck"))
+            .andExpect(jsonPath("$.pinned").value(true));
+
+        assertEquals(Boolean.TRUE, deckPinned(deckId));
+
+        mockMvc.perform(patch(DECK_ENDPOINT, "deckpin001")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("pinned", false))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pinned").value(false));
+
+        assertEquals(Boolean.FALSE, deckPinned(deckId));
+    }
+
+    @Test
+    void updateDeckAcceptsARequestWithOnlyThePinFlag() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        Long deckId = createDeck(user.id(), "deckpin002", "Old deck", LocalDateTime.of(2026, 1, 8, 9, 0));
+
+        mockMvc.perform(patch(DECK_ENDPOINT, "deckpin002")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"pinned\":true}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pinned").value(true));
+
+        assertEquals("Old deck", deckTitle(deckId));
+        assertEquals(Boolean.TRUE, deckPinned(deckId));
+    }
+
+    @Test
+    void updateDeckDoesNotChangeAnotherUsersPinState() throws Exception {
+        TestUser currentUser = register("Kenneth", "kenneth@example.com");
+        TestUser otherUser = register("Ada", "ada@example.com");
+        Long otherDeckId = createDeck(otherUser.id(), "deckpin003", "Private deck", LocalDateTime.of(2026, 1, 9, 9, 0));
+
+        mockMvc.perform(patch(DECK_ENDPOINT, "deckpin003")
+                .header(HttpHeaders.AUTHORIZATION, bearer(currentUser.accessToken()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"pinned\":true}"))
+            .andExpect(status().isNotFound());
+
+        assertEquals(Boolean.FALSE, deckPinned(otherDeckId));
+    }
+
+    @Test
     void updateDeckReturnsNotFoundWhenDeckDoesNotExist() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
 
@@ -219,6 +275,10 @@ class FlashcardDeckUpdateIntegrationTest extends PostgresIntegrationTest {
 
     private String deckTitle(Long deckId) {
         return jdbcTemplate.queryForObject("SELECT title FROM flashcard_deck WHERE id = ?", String.class, deckId);
+    }
+
+    private Boolean deckPinned(Long deckId) {
+        return jdbcTemplate.queryForObject("SELECT pinned FROM flashcard_deck WHERE id = ?", Boolean.class, deckId);
     }
 
     private LocalDateTime deckUpdatedAt(Long deckId) {

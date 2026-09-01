@@ -78,6 +78,7 @@ class FlashcardGenerateIntegrationTest extends PostgresIntegrationTest {
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.deckId").isString())
+            .andExpect(jsonPath("$.pinned").value(false))
             .andExpect(jsonPath("$.flashcards", hasSize(3)))
             .andExpect(jsonPath("$.flashcards[0].title").value("Cell"))
             .andExpect(jsonPath("$.flashcards[0].answer").value("The basic unit of life."))
@@ -104,6 +105,10 @@ class FlashcardGenerateIntegrationTest extends PostgresIntegrationTest {
         assertEquals(note.id(), deck.get("note_id"));
         assertEquals("Biology notes", deck.get("title"));
         assertEquals("NOTE", deck.get("source_type"));
+        assertEquals(
+            Boolean.FALSE,
+            jdbcTemplate.queryForObject("SELECT pinned FROM flashcard_deck WHERE id = ?", Boolean.class, deckId)
+        );
 
         List<Map<String, Object>> flashcards = jdbcTemplate.queryForList(
             "SELECT deck_id, question, answer, position FROM flashcard WHERE deck_id = ? ORDER BY position ASC",

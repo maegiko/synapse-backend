@@ -139,6 +139,7 @@ class QuizGetIntegrationTest extends PostgresIntegrationTest {
             .andExpect(jsonPath("$.id").value("quizfull01"))
             .andExpect(jsonPath("$.title").value("Sequence quiz"))
             .andExpect(jsonPath("$.description").value("Checks sequence diagram concepts."))
+            .andExpect(jsonPath("$.pinned").value(false))
             .andExpect(jsonPath("$.createdAt").value("2026-01-05T10:00:00"))
             .andExpect(jsonPath("$.questions", hasSize(2)))
             .andExpect(jsonPath("$.questions[0].id").value("question01"))

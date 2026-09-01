@@ -85,6 +85,7 @@ class QuizGenerateIntegrationTest extends PostgresIntegrationTest {
             .andExpect(jsonPath("$.id").isString())
             .andExpect(jsonPath("$.title").value("Sequence Diagram Fundamentals"))
             .andExpect(jsonPath("$.description").value("Checks understanding of lifelines, messages, and activations."))
+            .andExpect(jsonPath("$.pinned").value(false))
             .andExpect(jsonPath("$.createdAt").isString())
             .andExpect(jsonPath("$.questions", hasSize(10)))
             .andExpect(jsonPath("$.questions[0].id").isString())

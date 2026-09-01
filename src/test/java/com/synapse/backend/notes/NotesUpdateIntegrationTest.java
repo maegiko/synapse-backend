@@ -73,11 +73,12 @@ class NotesUpdateIntegrationTest extends PostgresIntegrationTest {
         createConcept(note.id(), 0, "Concept", "Concept explanation.");
         createImportantTerm(note.id(), 0, "term");
 
-        updateNote(user, note.publicId(), new UpdateNoteRequest("New title", null))
+        updateNote(user, note.publicId(), new UpdateNoteRequest("New title", null, null))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(note.publicId()))
             .andExpect(jsonPath("$.title").value("New title"))
             .andExpect(jsonPath("$.overview").value("The overview."))
+            .andExpect(jsonPath("$.pinned").value(false))
             .andExpect(jsonPath("$.keypoints", hasSize(1)))
             .andExpect(jsonPath("$.keypoints[0]").value("A keypoint."))
             .andExpect(jsonPath("$.concepts[0].name").value("Concept"))
@@ -92,7 +93,7 @@ class NotesUpdateIntegrationTest extends PostgresIntegrationTest {
         TestUser user = register("Kenneth", "kenneth@example.com");
         TestNote note = createNote(user.id(), "The title", "Old overview.");
 
-        updateNote(user, note.publicId(), new UpdateNoteRequest(null, "New overview."))
+        updateNote(user, note.publicId(), new UpdateNoteRequest(null, "New overview.", null))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.title").value("The title"))
             .andExpect(jsonPath("$.overview").value("New overview."));
@@ -106,7 +107,7 @@ class NotesUpdateIntegrationTest extends PostgresIntegrationTest {
         TestUser user = register("Kenneth", "kenneth@example.com");
         TestNote note = createNote(user.id(), "Old title", "Old overview.");
 
-        updateNote(user, note.publicId(), new UpdateNoteRequest("  New title  ", "  New overview.  "))
+        updateNote(user, note.publicId(), new UpdateNoteRequest("  New title  ", "  New overview.  ", null))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.title").value("New title"))
             .andExpect(jsonPath("$.overview").value("New overview."));
@@ -125,7 +126,7 @@ class NotesUpdateIntegrationTest extends PostgresIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("At least one of title or overview must be supplied."));
+            .andExpect(jsonPath("$.message").value("At least one of title, overview, or pinned must be supplied."));
 
         assertEquals("The title", noteColumn(note.id(), "title"));
     }
@@ -135,11 +136,11 @@ class NotesUpdateIntegrationTest extends PostgresIntegrationTest {
         TestUser user = register("Kenneth", "kenneth@example.com");
         TestNote note = createNote(user.id(), "The title", "The overview.");
 
-        updateNote(user, note.publicId(), new UpdateNoteRequest("   ", null))
+        updateNote(user, note.publicId(), new UpdateNoteRequest("   ", null, null))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value("title: must not be blank"));
 
-        updateNote(user, note.publicId(), new UpdateNoteRequest(null, "   "))
+        updateNote(user, note.publicId(), new UpdateNoteRequest(null, "   ", null))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value("overview: must not be blank"));
 
@@ -151,7 +152,7 @@ class NotesUpdateIntegrationTest extends PostgresIntegrationTest {
     void updateNoteReturnsNotFoundWhenNoteDoesNotExist() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
 
-        updateNote(user, "noteupd999", new UpdateNoteRequest("New title", null))
+        updateNote(user, "noteupd999", new UpdateNoteRequest("New title", null, null))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.message").value("Requested note not found."));
     }
@@ -162,7 +163,7 @@ class NotesUpdateIntegrationTest extends PostgresIntegrationTest {
         TestUser otherUser = register("Ada", "ada@example.com");
         TestNote otherUsersNote = createNote(otherUser.id(), "Private title", "Private overview.");
 
-        updateNote(user, otherUsersNote.publicId(), new UpdateNoteRequest("Stolen title", null))
+        updateNote(user, otherUsersNote.publicId(), new UpdateNoteRequest("Stolen title", null, null))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.message").value("Requested note not found."));
 
@@ -171,10 +172,73 @@ class NotesUpdateIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void updateNotePinsAndUnpinsANote() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        TestNote note = createNote(user.id(), "The title", "The overview.");
+
+        updateNote(user, note.publicId(), new UpdateNoteRequest(null, null, true))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.title").value("The title"))
+            .andExpect(jsonPath("$.pinned").value(true));
+
+        assertEquals(Boolean.TRUE, notePinned(note.id()));
+
+        updateNote(user, note.publicId(), new UpdateNoteRequest(null, null, false))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pinned").value(false));
+
+        assertEquals(Boolean.FALSE, notePinned(note.id()));
+    }
+
+    @Test
+    void updateNoteAcceptsARequestWithOnlyThePinFlag() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        TestNote note = createNote(user.id(), "The title", "The overview.");
+
+        mockMvc.perform(patch(NOTE_ENDPOINT, note.publicId())
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"pinned\":true}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pinned").value(true));
+
+        assertEquals("The title", noteColumn(note.id(), "title"));
+        assertEquals(Boolean.TRUE, notePinned(note.id()));
+    }
+
+    @Test
+    void updateNoteLeavesThePinStateUnchangedWhenItIsNotSupplied() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        TestNote note = createNote(user.id(), "The title", "The overview.");
+
+        updateNote(user, note.publicId(), new UpdateNoteRequest(null, null, true))
+            .andExpect(status().isOk());
+
+        updateNote(user, note.publicId(), new UpdateNoteRequest("Renamed", null, null))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pinned").value(true));
+
+        assertEquals(Boolean.TRUE, notePinned(note.id()));
+    }
+
+    @Test
+    void updateNoteDoesNotChangeAnotherUsersPinState() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        TestUser otherUser = register("Ada", "ada@example.com");
+        TestNote otherUsersNote = createNote(otherUser.id(), "Private title", "Private overview.");
+
+        updateNote(user, otherUsersNote.publicId(), new UpdateNoteRequest(null, null, true))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.message").value("Requested note not found."));
+
+        assertEquals(Boolean.FALSE, notePinned(otherUsersNote.id()));
+    }
+
+    @Test
     void updateNoteReturnsUnauthorizedWhenTokenIsMissing() throws Exception {
         mockMvc.perform(patch(NOTE_ENDPOINT, "noteupd001")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new UpdateNoteRequest("New title", null))))
+                .content(objectMapper.writeValueAsString(new UpdateNoteRequest("New title", null, null))))
             .andExpect(status().isUnauthorized());
     }
 
@@ -259,6 +323,10 @@ class NotesUpdateIntegrationTest extends PostgresIntegrationTest {
             String.class,
             noteId
         );
+    }
+
+    private Boolean notePinned(Long noteId) {
+        return jdbcTemplate.queryForObject("SELECT pinned FROM note WHERE id = ?", Boolean.class, noteId);
     }
 
     private String bearer(String accessToken) {

@@ -89,7 +89,8 @@ class NotesGetIntegrationTest extends PostgresIntegrationTest {
             .andExpect(jsonPath("$.keypoints[1]").value("Second keypoint."))
             .andExpect(jsonPath("$.concepts[0].name").value("Concept"))
             .andExpect(jsonPath("$.concepts[0].explanation").value("Concept explanation."))
-            .andExpect(jsonPath("$.importantTerms[0]").value("term"));
+            .andExpect(jsonPath("$.importantTerms[0]").value("term"))
+            .andExpect(jsonPath("$.pinned").value(false));
     }
 
     @Test

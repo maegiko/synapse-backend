@@ -300,6 +300,79 @@ class NotesListIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void listNotesReturnsPinnedNotesBeforeNewerUnpinnedNotes() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        TestNote pinned = createNote(user.id(), "Pinned older note", "Overview", "2026-01-01 09:00:00", true);
+        createNote(user.id(), "Unpinned newer note", "Overview", "2026-01-05 09:00:00");
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.notes", hasSize(2)))
+            .andExpect(jsonPath("$.notes[0].id").value(pinned.publicId()))
+            .andExpect(jsonPath("$.notes[0].pinned").value(true))
+            .andExpect(jsonPath("$.notes[1].title").value("Unpinned newer note"))
+            .andExpect(jsonPath("$.notes[1].pinned").value(false));
+    }
+
+    @Test
+    void listNotesOrdersMultiplePinnedNotesByNewestThenIdDescending() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        TestNote pinnedNewer = createNote(user.id(), "Pinned newer", "Overview", "2026-01-04 09:00:00", true);
+        TestNote pinnedTieFirst = createNote(user.id(), "Pinned tie first", "Overview", "2026-01-02 09:00:00", true);
+        TestNote pinnedTieSecond = createNote(user.id(), "Pinned tie second", "Overview", "2026-01-02 09:00:00", true);
+        createNote(user.id(), "Unpinned newest", "Overview", "2026-01-09 09:00:00");
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.notes", hasSize(4)))
+            .andExpect(jsonPath("$.notes[0].id").value(pinnedNewer.publicId()))
+            .andExpect(jsonPath("$.notes[1].id").value(pinnedTieSecond.publicId()))
+            .andExpect(jsonPath("$.notes[2].id").value(pinnedTieFirst.publicId()))
+            .andExpect(jsonPath("$.notes[3].title").value("Unpinned newest"));
+    }
+
+    @Test
+    void listNotesKeepsPinnedFirstWhenSearching() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        TestNote pinned = createNote(user.id(), "System dynamics primer", "Overview", "2026-01-01 09:00:00", true);
+        createNote(user.id(), "Nervous system newer", "Overview", "2026-01-06 09:00:00");
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("query", "system")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.notes", hasSize(2)))
+            .andExpect(jsonPath("$.notes[0].id").value(pinned.publicId()))
+            .andExpect(jsonPath("$.notes[1].title").value("Nervous system newer"));
+    }
+
+    @Test
+    void listNotesKeepsPinnedFirstAcrossPages() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        TestNote pinned = createNote(user.id(), "Pinned note", "Overview", "2026-01-01 09:00:00", true);
+        createNote(user.id(), "Unpinned A", "Overview", "2026-01-03 09:00:00");
+        createNote(user.id(), "Unpinned B", "Overview", "2026-01-02 09:00:00");
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("page", "0")
+                .param("size", "1")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.notes", hasSize(1)))
+            .andExpect(jsonPath("$.notes[0].id").value(pinned.publicId()));
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("page", "1")
+                .param("size", "1")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.notes", hasSize(1)))
+            .andExpect(jsonPath("$.notes[0].title").value("Unpinned A"));
+    }
+
+    @Test
     void listNotesOnlySearchesNotesOwnedByTheAuthenticatedUser() throws Exception {
         TestUser currentUser = register("Kenneth", "kenneth@example.com");
         TestUser otherUser = register("Ada", "ada@example.com");
@@ -380,6 +453,10 @@ class NotesListIntegrationTest extends PostgresIntegrationTest {
     }
 
     private TestNote createNote(Long userId, String title, String overview, String createdAt) {
+        return createNote(userId, title, overview, createdAt, false);
+    }
+
+    private TestNote createNote(Long userId, String title, String overview, String createdAt, boolean pinned) {
         String publicId = NanoIdUtils.randomNanoId(
             NanoIdUtils.DEFAULT_NUMBER_GENERATOR,
             NanoIdUtils.DEFAULT_ALPHABET,
@@ -387,8 +464,8 @@ class NotesListIntegrationTest extends PostgresIntegrationTest {
         );
         Long id = jdbcTemplate.queryForObject(
             """
-            INSERT INTO note (user_id, public_id, title, overview, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?::timestamp, ?::timestamp)
+            INSERT INTO note (user_id, public_id, title, overview, created_at, updated_at, pinned)
+            VALUES (?, ?, ?, ?, ?::timestamp, ?::timestamp, ?)
             RETURNING id
             """,
             Long.class,
@@ -397,7 +474,8 @@ class NotesListIntegrationTest extends PostgresIntegrationTest {
             title,
             overview,
             createdAt,
-            createdAt
+            createdAt,
+            pinned
         );
 
         return new TestNote(id, publicId);

@@ -152,9 +152,77 @@ class QuizUpdateIntegrationTest extends PostgresIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("At least one of title or description must be supplied."));
+            .andExpect(jsonPath("$.message").value("At least one of title, description, or pinned must be supplied."));
 
         assertEquals("The title", quizColumn(quizId, "title"));
+    }
+
+    @Test
+    void updateQuizPinsAndUnpinsAQuiz() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        Long quizId = createQuiz(user.id(), "quizpin001", "The title", "The description.", LocalDateTime.of(2026, 2, 7, 9, 0));
+
+        Map<String, Object> pin = new HashMap<>();
+        pin.put("pinned", true);
+
+        mockMvc.perform(patch(QUIZ_ENDPOINT, "quizpin001")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(pin)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.title").value("The title"))
+            .andExpect(jsonPath("$.pinned").value(true));
+
+        assertEquals(Boolean.TRUE, quizPinned(quizId));
+
+        Map<String, Object> unpin = new HashMap<>();
+        unpin.put("pinned", false);
+
+        mockMvc.perform(patch(QUIZ_ENDPOINT, "quizpin001")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(unpin)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pinned").value(false));
+
+        assertEquals(Boolean.FALSE, quizPinned(quizId));
+    }
+
+    @Test
+    void updateQuizAcceptsARequestWithOnlyThePinFlag() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        Long quizId = createQuiz(user.id(), "quizpin002", "The title", "The description.", LocalDateTime.of(2026, 2, 8, 9, 0));
+
+        mockMvc.perform(patch(QUIZ_ENDPOINT, "quizpin002")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"pinned\":true}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pinned").value(true));
+
+        assertEquals("The title", quizColumn(quizId, "title"));
+        assertEquals(Boolean.TRUE, quizPinned(quizId));
+    }
+
+    @Test
+    void updateQuizDoesNotChangeAnotherUsersPinState() throws Exception {
+        TestUser currentUser = register("Kenneth", "kenneth@example.com");
+        TestUser otherUser = register("Ada", "ada@example.com");
+        Long otherQuizId = createQuiz(
+            otherUser.id(),
+            "quizpin003",
+            "Private title",
+            "Private description.",
+            LocalDateTime.of(2026, 2, 9, 9, 0)
+        );
+
+        mockMvc.perform(patch(QUIZ_ENDPOINT, "quizpin003")
+                .header(HttpHeaders.AUTHORIZATION, bearer(currentUser.accessToken()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"pinned\":true}"))
+            .andExpect(status().isNotFound());
+
+        assertEquals(Boolean.FALSE, quizPinned(otherQuizId));
     }
 
     @Test
@@ -292,6 +360,10 @@ class QuizUpdateIntegrationTest extends PostgresIntegrationTest {
 
     private String quizColumn(Long quizId, String column) {
         return jdbcTemplate.queryForObject("SELECT " + column + " FROM quiz WHERE id = ?", String.class, quizId);
+    }
+
+    private Boolean quizPinned(Long quizId) {
+        return jdbcTemplate.queryForObject("SELECT pinned FROM quiz WHERE id = ?", Boolean.class, quizId);
     }
 
     private Integer quizDifficulty(Long quizId) {

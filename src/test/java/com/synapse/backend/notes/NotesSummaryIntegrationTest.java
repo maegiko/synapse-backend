@@ -78,6 +78,7 @@ class NotesSummaryIntegrationTest extends PostgresIntegrationTest {
             .andExpect(jsonPath("$.concepts[0].name").value("Model"))
             .andExpect(jsonPath("$.concepts[0].explanation").value("A simplified representation."))
             .andExpect(jsonPath("$.importantTerms[0]").value("behaviour"))
+            .andExpect(jsonPath("$.pinned").value(false))
             .andReturn();
 
         String noteId = objectMapper
@@ -86,6 +87,12 @@ class NotesSummaryIntegrationTest extends PostgresIntegrationTest {
             .asString();
 
         org.assertj.core.api.Assertions.assertThat(noteId).hasSize(10);
+        Boolean pinned = jdbcTemplate.queryForObject(
+            "SELECT pinned FROM note WHERE public_id = ?",
+            Boolean.class,
+            noteId
+        );
+        org.assertj.core.api.Assertions.assertThat(pinned).isFalse();
         Integer savedNoteCount = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM note WHERE public_id = ?",
             Integer.class,

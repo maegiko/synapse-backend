@@ -306,6 +306,33 @@ class QuizListIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void getAllQuizzesReturnsPinnedQuizzesBeforeNewerUnpinnedQuizzesIncludingWhenSearching() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        Long pinnedOlder = createQuiz(user.id(), "quizpin001", "System pinned", "A quiz", "2026-01-01 09:00:00");
+        Long pinnedTie = createQuiz(user.id(), "quizpin002", "System pinned tie", "A quiz", "2026-01-02 09:00:00");
+        createQuiz(user.id(), "quizpin003", "System unpinned newer", "A quiz", "2026-01-09 09:00:00");
+        jdbcTemplate.update("UPDATE quiz SET pinned = true WHERE id IN (?, ?)", pinnedOlder, pinnedTie);
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.quizzes", hasSize(3)))
+            .andExpect(jsonPath("$.quizzes[0].id").value("quizpin002"))
+            .andExpect(jsonPath("$.quizzes[0].pinned").value(true))
+            .andExpect(jsonPath("$.quizzes[1].id").value("quizpin001"))
+            .andExpect(jsonPath("$.quizzes[2].id").value("quizpin003"))
+            .andExpect(jsonPath("$.quizzes[2].pinned").value(false));
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("query", "system")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.quizzes[0].id").value("quizpin002"))
+            .andExpect(jsonPath("$.quizzes[1].id").value("quizpin001"))
+            .andExpect(jsonPath("$.quizzes[2].id").value("quizpin003"));
+    }
+
+    @Test
     void getAllQuizzesOnlySearchesQuizzesOwnedByTheAuthenticatedUser() throws Exception {
         TestUser currentUser = register("Kenneth", "kenneth@example.com");
         TestUser otherUser = register("Ada", "ada@example.com");

@@ -127,6 +127,80 @@ class GroupContentIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void groupContentListsPinnedResourcesBeforeNewerUnpinnedOnes() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        String groupId = createGroupId(user, "Systems");
+
+        String pinnedNote = createNote(user.id(), "Pinned note", "2026-01-01 09:00:00");
+        String unpinnedNote = createNote(user.id(), "Unpinned newer note", "2026-01-05 09:00:00");
+        String pinnedDeck = createDeck(user.id(), "Pinned deck", "2026-01-01 09:00:00");
+        String unpinnedDeck = createDeck(user.id(), "Unpinned newer deck", "2026-01-05 09:00:00");
+        String pinnedQuiz = createQuiz(user.id(), "Pinned quiz", "2026-01-01 09:00:00");
+        String unpinnedQuiz = createQuiz(user.id(), "Unpinned newer quiz", "2026-01-05 09:00:00");
+
+        jdbcTemplate.update("UPDATE note SET pinned = true WHERE public_id = ?", pinnedNote);
+        jdbcTemplate.update("UPDATE flashcard_deck SET pinned = true WHERE public_id = ?", pinnedDeck);
+        jdbcTemplate.update("UPDATE quiz SET pinned = true WHERE public_id = ?", pinnedQuiz);
+
+        for (String publicId : new String[] {pinnedNote, unpinnedNote}) {
+            addNote(user, groupId, publicId).andExpect(status().isNoContent());
+        }
+        for (String publicId : new String[] {pinnedDeck, unpinnedDeck}) {
+            addDeck(user, groupId, publicId).andExpect(status().isNoContent());
+        }
+        for (String publicId : new String[] {pinnedQuiz, unpinnedQuiz}) {
+            addQuiz(user, groupId, publicId).andExpect(status().isNoContent());
+        }
+
+        mockMvc.perform(get(GROUP_ENDPOINT, groupId)
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.notes[0].id").value(pinnedNote))
+            .andExpect(jsonPath("$.notes[0].pinned").value(true))
+            .andExpect(jsonPath("$.notes[1].id").value(unpinnedNote))
+            .andExpect(jsonPath("$.notes[1].pinned").value(false))
+            .andExpect(jsonPath("$.decks[0].id").value(pinnedDeck))
+            .andExpect(jsonPath("$.decks[0].pinned").value(true))
+            .andExpect(jsonPath("$.decks[1].id").value(unpinnedDeck))
+            .andExpect(jsonPath("$.quizzes[0].id").value(pinnedQuiz))
+            .andExpect(jsonPath("$.quizzes[0].pinned").value(true))
+            .andExpect(jsonPath("$.quizzes[1].id").value(unpinnedQuiz));
+    }
+
+    @Test
+    void groupContentBreaksPinnedAndCreatedAtTiesByNewestIdFirst() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        String groupId = createGroupId(user, "Systems");
+
+        String olderNote = createNote(user.id(), "Older note", "2026-01-01 09:00:00");
+        String newerNote = createNote(user.id(), "Newer note", "2026-01-01 09:00:00");
+        String olderDeck = createDeck(user.id(), "Older deck", "2026-01-01 09:00:00");
+        String newerDeck = createDeck(user.id(), "Newer deck", "2026-01-01 09:00:00");
+        String olderQuiz = createQuiz(user.id(), "Older quiz", "2026-01-01 09:00:00");
+        String newerQuiz = createQuiz(user.id(), "Newer quiz", "2026-01-01 09:00:00");
+
+        for (String publicId : new String[] {olderNote, newerNote}) {
+            addNote(user, groupId, publicId).andExpect(status().isNoContent());
+        }
+        for (String publicId : new String[] {olderDeck, newerDeck}) {
+            addDeck(user, groupId, publicId).andExpect(status().isNoContent());
+        }
+        for (String publicId : new String[] {olderQuiz, newerQuiz}) {
+            addQuiz(user, groupId, publicId).andExpect(status().isNoContent());
+        }
+
+        mockMvc.perform(get(GROUP_ENDPOINT, groupId)
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.notes[0].id").value(newerNote))
+            .andExpect(jsonPath("$.notes[1].id").value(olderNote))
+            .andExpect(jsonPath("$.decks[0].id").value(newerDeck))
+            .andExpect(jsonPath("$.decks[1].id").value(olderDeck))
+            .andExpect(jsonPath("$.quizzes[0].id").value(newerQuiz))
+            .andExpect(jsonPath("$.quizzes[1].id").value(olderQuiz));
+    }
+
+    @Test
     void addingAGroupedResourceToAnotherGroupMovesIt() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
         String first = createGroupId(user, "First");
@@ -449,6 +523,24 @@ class GroupContentIntegrationTest extends PostgresIntegrationTest {
         return publicId;
     }
 
+    private String createNote(Long userId, String title, String createdAt) {
+        String publicId = nanoId();
+
+        jdbcTemplate.update(
+            """
+            INSERT INTO note (user_id, public_id, title, overview, created_at, updated_at)
+            VALUES (?, ?, ?, 'An overview.', ?::timestamp, ?::timestamp)
+            """,
+            userId,
+            publicId,
+            title,
+            createdAt,
+            createdAt
+        );
+
+        return publicId;
+    }
+
     private String createDeck(Long userId, String title) {
         String publicId = nanoId();
 
@@ -465,6 +557,24 @@ class GroupContentIntegrationTest extends PostgresIntegrationTest {
         return publicId;
     }
 
+    private String createDeck(Long userId, String title, String createdAt) {
+        String publicId = nanoId();
+
+        jdbcTemplate.update(
+            """
+            INSERT INTO flashcard_deck (user_id, title, source_type, public_id, created_at, updated_at)
+            VALUES (?, ?, 'NOTE', ?, ?::timestamp, ?::timestamp)
+            """,
+            userId,
+            title,
+            publicId,
+            createdAt,
+            createdAt
+        );
+
+        return publicId;
+    }
+
     private String createQuiz(Long userId, String title) {
         String publicId = nanoId();
 
@@ -476,6 +586,24 @@ class GroupContentIntegrationTest extends PostgresIntegrationTest {
             userId,
             publicId,
             title
+        );
+
+        return publicId;
+    }
+
+    private String createQuiz(Long userId, String title, String createdAt) {
+        String publicId = nanoId();
+
+        jdbcTemplate.update(
+            """
+            INSERT INTO quiz (user_id, public_id, title, description, source_type, created_at, updated_at)
+            VALUES (?, ?, ?, 'A saved quiz.', 'NOTE', ?::timestamp, ?::timestamp)
+            """,
+            userId,
+            publicId,
+            title,
+            createdAt,
+            createdAt
         );
 
         return publicId;

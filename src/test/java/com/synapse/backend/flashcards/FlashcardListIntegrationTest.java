@@ -306,6 +306,33 @@ class FlashcardListIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void listFlashcardsReturnsPinnedDecksBeforeNewerUnpinnedDecksIncludingWhenSearching() throws Exception {
+        TestUser user = register("Kenneth", "kenneth@example.com");
+        Long pinnedOlder = createDeck(user.id(), "deckpin001", "System pinned", "2026-01-01 09:00:00");
+        Long pinnedTie = createDeck(user.id(), "deckpin002", "System pinned tie", "2026-01-02 09:00:00");
+        createDeck(user.id(), "deckpin003", "System unpinned newer", "2026-01-09 09:00:00");
+        jdbcTemplate.update("UPDATE flashcard_deck SET pinned = true WHERE id IN (?, ?)", pinnedOlder, pinnedTie);
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.flashcardDecks", hasSize(3)))
+            .andExpect(jsonPath("$.flashcardDecks[0].deckId").value("deckpin002"))
+            .andExpect(jsonPath("$.flashcardDecks[0].pinned").value(true))
+            .andExpect(jsonPath("$.flashcardDecks[1].deckId").value("deckpin001"))
+            .andExpect(jsonPath("$.flashcardDecks[2].deckId").value("deckpin003"))
+            .andExpect(jsonPath("$.flashcardDecks[2].pinned").value(false));
+
+        mockMvc.perform(get(LIST_ENDPOINT)
+                .param("query", "system")
+                .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.flashcardDecks[0].deckId").value("deckpin002"))
+            .andExpect(jsonPath("$.flashcardDecks[1].deckId").value("deckpin001"))
+            .andExpect(jsonPath("$.flashcardDecks[2].deckId").value("deckpin003"));
+    }
+
+    @Test
     void listFlashcardsOnlySearchesDecksOwnedByTheAuthenticatedUser() throws Exception {
         TestUser currentUser = register("Kenneth", "kenneth@example.com");
         TestUser otherUser = register("Ada", "ada@example.com");
