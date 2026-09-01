@@ -14,8 +14,8 @@ import com.synapse.backend.auth.dto.RefreshResponse;
 import com.synapse.backend.auth.dto.RefreshResult;
 import com.synapse.backend.auth.dto.RegisterRequest;
 import com.synapse.backend.auth.dto.RegisterResponse;
-import com.synapse.backend.auth.dto.RegisterResult;
 import com.synapse.backend.auth.exceptions.EmailAlreadyExistsException;
+import com.synapse.backend.auth.exceptions.EmailNotVerifiedException;
 import com.synapse.backend.auth.exceptions.IncorrectPasswordException;
 import com.synapse.backend.auth.exceptions.InvalidRefreshTokenException;
 import com.synapse.backend.auth.exceptions.LoginFailException;
@@ -39,6 +39,7 @@ public class AuthService {
     private final RateLimitService rateLimitService;
     private final RateLimitProperties rateLimitProperties;
     private final UserTimeZoneService userTimeZoneService;
+    private final EmailVerificationService emailVerificationService;
 
     public AuthService(
         UserRepository userRepository,
@@ -47,7 +48,8 @@ public class AuthService {
         RefreshTokenPersistenceService refreshTokenPersistenceService,
         RateLimitService rateLimitService,
         RateLimitProperties rateLimitProperties,
-        UserTimeZoneService userTimeZoneService
+        UserTimeZoneService userTimeZoneService,
+        EmailVerificationService emailVerificationService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -56,53 +58,69 @@ public class AuthService {
         this.rateLimitService = rateLimitService;
         this.rateLimitProperties = rateLimitProperties;
         this.userTimeZoneService = userTimeZoneService;
+        this.emailVerificationService = emailVerificationService;
     }
 
     /**
-     * Registers a new user and returns their details with an access token.
+     * Registers an unverified user and emails them a verification link.
+     *
+     * <p>Registration no longer signs anybody in: no access token is returned and
+     * no refresh token is issued, because the account cannot be used until the
+     * emailed link is confirmed.</p>
+     *
+     * <p>An address that already belongs to a verified account is rejected with a
+     * conflict, exactly as before. An address that belongs to an account that is
+     * still unverified gets a replacement link instead, and its stored password,
+     * name, and time zone are left untouched, so registering over a pending
+     * account can neither take it over nor reveal that it exists.</p>
+     *
+     * <p>The account and its token are saved before the provider is called, so a
+     * failed send leaves an account the resend endpoint can recover rather than an
+     * account nobody can ever verify.</p>
      *
      * @param registerRequest validated registration details.
      * @param clientIp the address the request came from.
-     * @return the user's name, email and an access token, plus a refresh token for the client cookie.
-     * @throws EmailAlreadyExistsException if email is already registered.
+     * @return the address the verification link was sent to.
+     * @throws EmailAlreadyExistsException if the email already belongs to a verified account.
      * @throws InvalidUserDetailsException if a time zone was supplied but is not a real IANA zone.
      * @throws RateLimitExceededException if the address has registered too many accounts.
+     * @throws EmailProviderException if the verification email could not be sent.
      */
-    public RegisterResult registerUser(RegisterRequest registerRequest, String clientIp) {
+    public RegisterResponse registerUser(RegisterRequest registerRequest, String clientIp) {
         rateLimitService.check("register:" + clientIp, rateLimitProperties.register());
 
         String email = registerRequest.email().trim().toLowerCase(Locale.ROOT);
+        String timeZone = userTimeZoneService.resolveOrDefault(registerRequest.timeZone());
+        Optional<User> existingUser = findUserByEmail(email);
 
-        if (isEmailInUse(email)) {
-            throw new EmailAlreadyExistsException(email);
+        if (existingUser.isPresent()) {
+            if (existingUser.get().isEmailVerified())
+                throw new EmailAlreadyExistsException(email);
+
+            emailVerificationService.sendRegistrationVerification(existingUser.get());
+
+            return registrationAccepted(email);
         }
 
         String passwordHash = passwordEncoder.encode(registerRequest.password());
-        String timeZone = userTimeZoneService.resolveOrDefault(registerRequest.timeZone());
 
-        User user = new User(
+        User newUser = userRepository.save(new User(
             registerRequest.fullName(),
             email,
             passwordHash,
             timeZone
-        );
+        ));
 
-        User newUser = userRepository.save(user);
-        String accessToken = jwtService.generateAccessToken(newUser);
-        String refreshToken = refreshTokenPersistenceService.issueRefreshToken(newUser.getId());
+        emailVerificationService.sendRegistrationVerification(newUser);
 
-        return new RegisterResult(
-            new RegisterResponse(
-                newUser.getName(),
-                newUser.getEmail(),
-                accessToken
-            ),
-            refreshToken
-        );
+        return registrationAccepted(email);
     }
 
-    private boolean isEmailInUse(String email) {
-        return userRepository.existsByEmail(email);
+    private RegisterResponse registrationAccepted(String email) {
+        return new RegisterResponse(
+            email,
+            "Check your email for a verification link to finish creating your account."
+        );
     }
 
     /**
@@ -112,6 +130,7 @@ public class AuthService {
      * @param clientIp the address the request came from.
      * @return the user's name, email and an access token, plus a refresh token for the client cookie.
      * @throws LoginFailException if the email address is not registered or the password is incorrect.
+     * @throws EmailNotVerifiedException if the credentials are correct but the address is not verified yet.
      * @throws RateLimitExceededException if the email or the address has made too many login attempts.
      */
     public LoginResult loginUser(LoginRequest loginRequest, String clientIp) {
@@ -125,6 +144,9 @@ public class AuthService {
 
         if (!doesPasswordMatch(password, user.getPasswordHash()))
             throw new LoginFailException();
+
+        if (!user.isEmailVerified())
+            throw new EmailNotVerifiedException();
 
         String accessToken = jwtService.generateAccessToken(user);
         String refreshToken = refreshTokenPersistenceService.issueRefreshToken(user.getId());

@@ -10,7 +10,6 @@ import com.synapse.backend.auth.dto.RefreshResponse;
 import com.synapse.backend.auth.dto.RefreshResult;
 import com.synapse.backend.auth.dto.RegisterRequest;
 import com.synapse.backend.auth.dto.RegisterResponse;
-import com.synapse.backend.auth.dto.RegisterResult;
 import com.synapse.backend.security.jwt.JwtProperties;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -57,9 +56,12 @@ public class AuthController {
     @PostMapping("/register")
     @Operation(
         summary = "Register a new user",
-        description = "Creates a user account, returns a JWT access token, and sets a refresh token cookie.",
+        description = "Creates an unverified account and emails a verification link to the address. No access "
+            + "token is returned and no refresh cookie is set: the account cannot be used until the link is "
+            + "confirmed with POST /api/auth/email/verify. An address that already belongs to an unverified "
+            + "account is sent a replacement link and gets this same response.",
         responses = {
-            @ApiResponse(responseCode = "201", description = "User registered"),
+            @ApiResponse(responseCode = "202", description = "Verification email sent"),
             @ApiResponse(
                 responseCode = "400",
                 description = "Invalid registration request",
@@ -67,12 +69,17 @@ public class AuthController {
             ),
             @ApiResponse(
                 responseCode = "409",
-                description = "Email is already registered",
+                description = "Email is already registered to a verified account",
                 content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
             ),
             @ApiResponse(
                 responseCode = "429",
                 description = "Too many registrations from this address",
+                content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
+            ),
+            @ApiResponse(
+                responseCode = "502",
+                description = "The verification email could not be sent",
                 content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
             )
         }
@@ -81,17 +88,16 @@ public class AuthController {
         @Valid @RequestBody RegisterRequest registerRequest,
         HttpServletRequest httpRequest
     ) {
-        RegisterResult res = authService.registerUser(registerRequest, httpRequest.getRemoteAddr());
+        RegisterResponse res = authService.registerUser(registerRequest, httpRequest.getRemoteAddr());
 
-        return ResponseEntity.status(HttpStatus.CREATED)
-            .header(HttpHeaders.SET_COOKIE, refreshTokenCookie(res.refreshToken()).toString())
-            .body(res.response());
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(res);
     }
 
     @PostMapping("/login")
     @Operation(
         summary = "Log in a user",
-        description = "Logs in a user, returns a JWT access token, and sets a refresh token cookie.",
+        description = "Logs in a user, returns a JWT access token, and sets a refresh token cookie. An account "
+            + "whose email address has not been verified cannot log in, even with the correct password.",
         responses = {
             @ApiResponse(responseCode = "200", description = "User logged in"),
             @ApiResponse(
@@ -101,7 +107,7 @@ public class AuthController {
             ),
             @ApiResponse(
                 responseCode = "401",
-                description = "Invalid credentials",
+                description = "Invalid credentials, or the email address is not verified yet",
                 content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
             ),
             @ApiResponse(

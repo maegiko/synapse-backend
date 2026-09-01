@@ -35,6 +35,9 @@ public class User {
     @Column(name = "time_zone", nullable = false, length = 64)
     private String timeZone;
 
+    @Column(name = "email_verified_at")
+    private LocalDateTime emailVerifiedAt;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -74,6 +77,19 @@ public class User {
     /** The user's IANA time zone, which every calendar-day calculation is made in. */
     public String getTimeZone() {
         return timeZone;
+    }
+
+    /** When the user confirmed their email address, or null while the account is unverified. */
+    public LocalDateTime getEmailVerifiedAt() {
+        return emailVerifiedAt;
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerifiedAt != null;
+    }
+
+    public void markEmailVerified(LocalDateTime verifiedAt) {
+        this.emailVerifiedAt = verifiedAt;
     }
 
     public void updateFullName(String fullName) {

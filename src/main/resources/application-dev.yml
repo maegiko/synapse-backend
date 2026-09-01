@@ -42,6 +42,14 @@ ratelimit:
     limit: 3
     window: 1h
 
+  verification-resend:
+    limit: 3
+    window: 1h
+
+  email-change:
+    limit: 3
+    window: 1h
+
   api:
     limit: 120
     window: 1m
@@ -56,6 +64,20 @@ auth:
   refresh-cookie:
     secure: true
     same-site: None
+
+  email-verification:
+    frontend-url: ${EMAIL_VERIFICATION_URL:http://localhost:5173/verify-email}
+    token-ttl: 24h
+    unverified-retention: 7d
+    cleanup-interval: 1h
+
+email:
+  resend:
+    api-key: ${RESEND_API_KEY}
+    from: ${RESEND_FROM:Synapse <no-reply@studysynapse.app>}
+    api-url: ${RESEND_API_URL:https://api.resend.com/emails}
+    connect-timeout: 5s
+    read-timeout: 10s
 
 springdoc:
   swagger-ui:

@@ -66,8 +66,11 @@ public class SecurityConfig {
     /**
      * Configures HTTP security for the API.
      *
-     * <p>Swagger documentation, registration, login, refresh, and logout are
-     * public. All other requests require JWT authentication. Sessions are
+     * <p>Swagger documentation, registration, login, refresh, logout, and the two
+     * email verification routes are public. Email verification is unauthenticated
+     * because the visitor following a link out of their inbox has no access token
+     * yet; the emailed single-use token is the only credential it accepts. All
+     * other requests require JWT authentication. Sessions are
      * stateless and CSRF is disabled because the API authenticates with bearer
      * tokens; refresh and logout are the only routes that read a cookie, and
      * they are protected by the SameSite attribute on that cookie.</p>
@@ -90,6 +93,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/email/verify").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/email/resend").permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))

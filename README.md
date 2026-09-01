@@ -6,7 +6,8 @@ The API is secured with short-lived JWT bearer access tokens and rotating refres
 
 ## Features ✨
 
-- JWT-based registration and login
+- JWT-based registration and login, with mandatory email verification before an account can log in
+- Emailed single-use verification links for registration and confirmed email changes, sent through Resend
 - Short-lived access tokens with rotating refresh tokens in `HttpOnly` cookies, plus refresh and logout endpoints
 - Authenticated user profile endpoint
 - PDF, Word (`.docx`), plain text (`.txt`), and Markdown (`.md`) note upload and AI-generated note summaries
@@ -20,6 +21,7 @@ The API is secured with short-lived JWT bearer access tokens and rotating refres
 - Swagger/OpenAPI documentation
 - Integration tests using Testcontainers
 - In-memory per-user and per-IP rate limiting
+- Scheduled cleanup of never-verified accounts and expired verification tokens
 - Checkstyle linting
 
 ## Tech Stack 🛠️
@@ -46,6 +48,7 @@ The API is secured with short-lived JWT bearer access tokens and rotating refres
 - Docker
 - Docker Compose
 - A Groq API key for the currently configured generation client
+- A Resend API key for verification email delivery
 - A JWT secret with at least 32 bytes
 
 ## Getting Started 🚀
@@ -69,7 +72,11 @@ Fill in the required values:
 JWT_SECRET=replace-with-at-least-32-bytes
 GEMINI_API_KEY=optional-if-not-used
 GROQ_API_KEY=replace-with-your-groq-api-key
+RESEND_API_KEY=replace-with-your-resend-api-key
 ```
+
+`RESEND_API_KEY` is created in the Resend dashboard under **API Keys** and must have sending permission for the
+verified sending domain. Never commit it; `.env` is git-ignored.
 
 Start PostgreSQL:
 
@@ -144,6 +151,35 @@ auth:
 browser frontend served from a different origin over HTTPS. Set `same-site` to `Lax` when the frontend and API are
 served from the same site.
 
+Email verification and delivery are configured with:
+
+```yaml
+auth:
+  email-verification:
+    frontend-url: ${EMAIL_VERIFICATION_URL:http://localhost:5173/verify-email}
+    token-ttl: 24h
+    unverified-retention: 7d
+    cleanup-interval: 1h
+
+email:
+  resend:
+    api-key: ${RESEND_API_KEY}
+    from: ${RESEND_FROM:Synapse <no-reply@studysynapse.app>}
+    api-url: ${RESEND_API_URL:https://api.resend.com/emails}
+    connect-timeout: 5s
+    read-timeout: 10s
+```
+
+| Variable | Required | Default | Meaning |
+| --- | --- | --- | --- |
+| `RESEND_API_KEY` | Yes | none | Resend API key used as `Authorization: Bearer <key>` |
+| `EMAIL_VERIFICATION_URL` | No | `http://localhost:5173/verify-email` | Frontend page verification links point at; set it to `https://studysynapse.app/verify-email` in production |
+| `RESEND_FROM` | No | `Synapse <no-reply@studysynapse.app>` | Sender address, which must belong to a domain verified in Resend |
+| `RESEND_API_URL` | No | `https://api.resend.com/emails` | Resend send-email endpoint |
+
+Verification links are `{frontend-url}?token={urlEncodedToken}`. The link opens the frontend, which posts the token to
+`POST /api/auth/email/verify`; no state-changing backend route is ever opened directly from an email.
+
 Groq is the primary LLM client used by generation flows. Gemini client configuration is present as an alternate implementation, but Groq is currently selected by Spring.
 
 For production deployments, prefer setting secrets and profile values through environment variables rather than committing profile-specific configuration.
@@ -160,13 +196,37 @@ Authorization: Bearer <accessToken>
 
 | Method | Endpoint | Description | Auth |
 | --- | --- | --- | --- |
-| `POST` | `/api/auth/register` | Register a new user and receive an access token | No |
+| `POST` | `/api/auth/register` | Register an unverified user and email them a verification link | No |
 | `POST` | `/api/auth/login` | Log in and receive an access token | No |
+| `POST` | `/api/auth/email/verify` | Confirm an emailed verification link | No |
+| `POST` | `/api/auth/email/resend` | Resend a registration verification link | No |
 | `POST` | `/api/auth/refresh` | Exchange the refresh token cookie for a new access token | No |
 | `POST` | `/api/auth/logout` | Revoke the current refresh token and clear the cookie | No |
 | `PUT` | `/api/auth/password` | Change the authenticated user's password | Yes |
 
-Register and login also set a `refreshToken` cookie. The cookie is `HttpOnly`, `Secure`, `SameSite`-restricted, scoped
+`POST /api/auth/register` returns `202` with the address the link was sent to and a message telling the client to check
+its email. It issues no access token and sets no refresh cookie: the account is created with `email_verified_at` null
+and cannot log in until the link is confirmed. Logging in with the right password on an unverified account returns
+`401` with a message naming verification, while a wrong password on the same account still returns the generic
+`Invalid email or password.` An address that already belongs to a **verified** account returns `409` as before. An
+address that belongs to an **unverified** account gets the same `202` and a replacement link, and its stored password,
+name, and time zone are never overwritten.
+
+`POST /api/auth/email/verify` takes `{ "token": "..." }`, consumes the single-use token, and returns `204`. A
+registration token marks the account verified; an email-change token moves the account to its new address after
+re-checking that nobody else has claimed it, returning `409` if they have. Missing, unknown, expired, replaced, and
+already used tokens all return the same generic `400`. The endpoint never logs the user in.
+
+`POST /api/auth/email/resend` takes `{ "email": "..." }` and always returns `204`, whether the address is unknown,
+already verified, or still pending, so it cannot be used to discover who has an account. Only an unverified account
+causes an email to be sent, and the replacement link invalidates the previous one.
+
+Verification tokens are 32 cryptographically random bytes, URL-safe Base64 encoded without padding. Only their SHA-256
+hash is stored, alongside the user, target address, purpose, expiry, and consumption/invalidation state. Consumption is
+a single conditional update, so two concurrent confirmations of the same link race for one row and only the first
+succeeds. Tokens are valid for 24 hours by default.
+
+Login also sets a `refreshToken` cookie. The cookie is `HttpOnly`, `Secure`, `SameSite`-restricted, scoped
 to `/api/auth`, and valid for 30 days. Only a SHA-256 hash of each refresh token is stored server-side, alongside its
 user, expiry, and revocation state.
 
@@ -187,13 +247,21 @@ existing access tokens stay valid until they expire.
 | Method | Endpoint | Description | Auth |
 | --- | --- | --- | --- |
 | `GET` | `/api/user/details` | Get the authenticated user's details | Yes |
-| `PATCH` | `/api/user/details` | Update the authenticated user's full name and/or email | Yes |
+| `PATCH` | `/api/user/details` | Update the authenticated user's full name and/or time zone | Yes |
+| `POST` | `/api/user/email-change` | Request a confirmed change of email address | Yes |
 | `GET` | `/api/user/streak` | Get the authenticated user's study streak | Yes |
 
-`PATCH /api/user/details` accepts an optional `fullName` and an optional `email`, and requires at least one of them.
-Only the supplied fields are changed. The full name is trimmed, the email is trimmed and lowercased, and the length and
-format limits apply to those normalised values. An email that already belongs to another user returns `409`. The response is the updated details; no new access token is issued, so
-`GET /api/user/details` stays the source of current profile data.
+`PATCH /api/user/details` accepts an optional `fullName` and an optional `timeZone`, and requires at least one of them.
+Only the supplied fields are changed, and both are trimmed before their length limits are applied. The email address
+can no longer be changed here; an `email` property in the body is ignored. The response is the updated details; no new
+access token is issued, so `GET /api/user/details` stays the source of current profile data.
+
+`POST /api/user/email-change` takes `{ "email": "..." }`, normalises it exactly like registration, and emails a
+single-use confirmation link to the proposed address. It returns `202` with the pending address and its expiry, `204`
+when the proposed address is the one the user already has, and `409` when the address already belongs to another
+account. Nothing about the account changes until the link is confirmed: the current address keeps working, including
+for login. A newer request invalidates the pending one, and an abandoned request simply expires without reserving the
+address.
 
 ### Notes 📝
 
@@ -258,8 +326,8 @@ longest run in the user's history. A user with no activity gets zeros and a null
 
 ## Example Flow 🔄
 
-1. Register or log in.
-2. Copy the returned `accessToken` and keep the `refreshToken` cookie.
+1. Register, then confirm the emailed verification link before logging in. Existing users just log in.
+2. Copy the `accessToken` returned by login and keep the `refreshToken` cookie.
 3. Upload a PDF, `.docx`, `.txt`, or `.md` file to `/api/notes/summarise`.
 4. Use the saved note id to generate flashcards or a quiz.
 5. Add or delete individual flashcards/questions as needed.
@@ -277,6 +345,36 @@ curl -X POST http://localhost:8080/api/auth/register \
     "fullName": "Ada Lovelace",
     "email": "ada@example.com",
     "password": "password123"
+  }'
+```
+
+It answers `202` and sends the verification email:
+
+```json
+{
+  "email": "ada@example.com",
+  "message": "Check your email for a verification link to finish creating your account."
+}
+```
+
+Example verification request, with the token the frontend page read from the link:
+
+```bash
+curl -X POST http://localhost:8080/api/auth/email/verify \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "<rawTokenFromTheLink>"
+  }'
+```
+
+Example email-change request:
+
+```bash
+curl -X POST http://localhost:8080/api/user/email-change \
+  -H "Authorization: Bearer <accessToken>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "ada.lovelace@example.com"
   }'
 ```
 
@@ -373,6 +471,7 @@ Current migration coverage includes:
 - Quiz difficulty and score history
 - Refresh tokens
 - Study streak activity days
+- Email verification state and verification tokens
 
 The development profile uses:
 
@@ -411,7 +510,13 @@ Integration tests use Testcontainers with PostgreSQL, so Docker must be running 
 
 The test suite covers:
 
-- Authentication
+- Authentication, including that an unverified account cannot log in
+- Email verification: registration state, email contents and link, confirmation, provider failure recovery, and the
+  migration backfill
+- Verification tokens: unknown, expired, invalidated, consumed, reused, and concurrently consumed links
+- Verification resending and its deliberately identical responses
+- Confirmed email changes, including uniqueness re-checks, races, replacement requests, and abandonment
+- Cleanup of never-verified accounts and expired verification tokens
 - Refresh token issuing, rotation, expiry, revocation, concurrent rotation, rotation rollback, and logout
 - User details
 - Note summary/list/get/delete flows
@@ -421,10 +526,12 @@ The test suite covers:
 - Quiz score creation, validation, ownership, ordering, and history retrieval
 - Streak activity awarding, streak calculation, UTC day boundaries, and ownership isolation
 - Flashcard deck completion, ownership, and same-day idempotency
-- Rate limiting of AI, authenticated, login, and registration requests
+- Rate limiting of AI, authenticated, login, registration, and verification-resend requests
 - PDF, DOCX, plain text, and Markdown extraction
 
-LLM-backed endpoint tests mock the `LLMClient`, so tests do not require real LLM API calls or tokens.
+LLM-backed endpoint tests mock the `LLMClient`, so tests do not require real LLM API calls or tokens. The shared
+integration-test base class replaces the `EmailClient` with a mock for every test and points the Resend client at an
+unreachable URL with a dummy key, so no test can send email or reach the provider.
 
 ## Project Structure 🧱
 
@@ -498,6 +605,8 @@ rounded up.
 | Other authenticated `/api/**` requests | 120 per minute | JWT user id |
 | `POST /api/auth/login` | 10 per 15 minutes | Normalized email, and separately client address |
 | `POST /api/auth/register` | 3 per hour | Client address |
+| `POST /api/auth/email/resend` | 3 per hour | Normalized email, and separately client address |
+| `POST /api/user/email-change` | 3 per hour | JWT user id |
 
 CORS preflight requests are not rate limited.
 
@@ -518,6 +627,12 @@ ratelimit:
   register:
     limit: 3
     window: 1h
+  verification-resend:
+    limit: 3
+    window: 1h
+  email-change:
+    limit: 3
+    window: 1h
   api:
     limit: 120
     window: 1m
@@ -532,6 +647,11 @@ Setting `ratelimit.enabled` to `false` turns limiting off.
 - LLM generation quality depends on the configured provider and prompt behavior.
 - Rate limiting is in-memory and single-instance. Counters are not shared between instances and are lost on restart.
 - Rate limiting uses the direct client address, so a reverse proxy must be accounted for before deploying behind one.
-- Expired and revoked refresh tokens are kept in the database. There is no scheduled cleanup job yet.
+- Expired and revoked refresh tokens are kept in the database. There is no scheduled cleanup job for them.
+- Verification emails are sent after the account and token are committed, in a separate step. A provider failure
+  returns `502` and leaves an unverified account that the resend endpoint can recover; the two are deliberately not one
+  transaction.
+- Never-verified accounts are deleted seven days after they are created, and expired verification tokens are swept, by
+  a scheduled job that runs in every instance.
 - Refresh token reuse is rejected but does not revoke the rest of that user's active refresh tokens.
 - The local application profile is development-oriented and should be adjusted for production deployment.

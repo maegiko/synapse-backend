@@ -11,6 +11,8 @@ public record RateLimitProperties(
     Limit aiDaily,
     Limit login,
     Limit register,
+    Limit verificationResend,
+    Limit emailChange,
     Limit api
 ) {
 

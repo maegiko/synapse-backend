@@ -1,5 +1,6 @@
 package com.synapse.backend.user;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -26,5 +27,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT u.timeZone FROM User u WHERE u.id = :userId")
     Optional<String> findTimeZoneById(@Param("userId") Long userId);
+
+    @Modifying(clearAutomatically = true)
+    @Query("""
+        DELETE FROM User u
+        WHERE u.emailVerifiedAt IS NULL
+            AND u.createdAt < :cutoff
+    """)
+    long deleteUnverifiedCreatedBefore(@Param("cutoff") LocalDateTime cutoff);
 
 }

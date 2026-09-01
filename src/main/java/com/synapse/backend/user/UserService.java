@@ -1,9 +1,13 @@
 package com.synapse.backend.user;
 
-import org.springframework.dao.DataIntegrityViolationException;
+import java.time.LocalDateTime;
+
 import org.springframework.stereotype.Service;
 
+import com.synapse.backend.auth.EmailVerificationService;
 import com.synapse.backend.auth.exceptions.EmailAlreadyExistsException;
+import com.synapse.backend.user.dto.ChangeEmailRequest;
+import com.synapse.backend.user.dto.EmailChangeResponse;
 import com.synapse.backend.user.dto.UpdateUserDetailsRequest;
 import com.synapse.backend.user.dto.UserDetailsResponse;
 import com.synapse.backend.user.exceptions.InvalidUserDetailsException;
@@ -15,10 +19,16 @@ import jakarta.transaction.Transactional;
 public class UserService {
     private final UserRepository userRepository;
     private final UserTimeZoneService userTimeZoneService;
+    private final EmailVerificationService emailVerificationService;
 
-    public UserService(UserRepository userRepository, UserTimeZoneService userTimeZoneService) {
+    public UserService(
+        UserRepository userRepository,
+        UserTimeZoneService userTimeZoneService,
+        EmailVerificationService emailVerificationService
+    ) {
         this.userRepository = userRepository;
         this.userTimeZoneService = userTimeZoneService;
+        this.emailVerificationService = emailVerificationService;
     }
 
     /**
@@ -35,11 +45,12 @@ public class UserService {
     }
 
     /**
-     * Updates the full name, email, and/or time zone of the user.
+     * Updates the full name and/or time zone of the user.
      *
      * <p>Only the supplied fields are changed. The request arrives with its full
-     * name and time zone trimmed and its email trimmed and lowercased, matching
-     * registration. Submitting the email the user already has is allowed.</p>
+     * name and time zone trimmed, matching registration. The email address cannot
+     * be changed here: it only moves once the new address has been confirmed, which
+     * {@link #requestEmailChange} starts.</p>
      *
      * <p>A new time zone moves every later calendar-day boundary — streak days, deck
      * due dates — from the next request on. Already recorded streak days and stored
@@ -48,48 +59,59 @@ public class UserService {
      * @param userId the user's ID.
      * @param req the validated details to update, with at least one field supplied.
      * @return the user's updated full name, email, lifetime flashcards reviewed, and time zone.
-     * @throws InvalidUserDetailsException if no field is supplied, the supplied email is blank, or
-     *     the supplied time zone is not a real IANA zone.
+     * @throws InvalidUserDetailsException if no field is supplied, or the supplied time zone is not a
+     *     real IANA zone.
      * @throws UserNotFoundException if the user ID does not exist in DB.
-     * @throws EmailAlreadyExistsException if the email belongs to a different user, including when a
-     *     concurrent request claims it first and the unique constraint rejects the write.
      */
     @Transactional
     public UserDetailsResponse updateUserDetails(Long userId, UpdateUserDetailsRequest req) {
         String fullName = req.fullName();
-        String email = req.email();
         String timeZone = req.timeZone();
 
-        if (fullName == null && email == null && timeZone == null)
-            throw new InvalidUserDetailsException(
-                "At least one of fullName, email, or timeZone must be supplied."
-            );
-
-        if (email != null && email.isBlank())
-            throw new InvalidUserDetailsException("email: must not be blank");
+        if (fullName == null && timeZone == null)
+            throw new InvalidUserDetailsException("At least one of fullName or timeZone must be supplied.");
 
         User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
 
         if (fullName != null)
             user.updateFullName(fullName);
 
-        if (email != null) {
-            if (!email.equals(user.getEmail()) && userRepository.existsByEmail(email))
-                throw new EmailAlreadyExistsException(email);
-
-            user.updateEmail(email);
-        }
-
         if (timeZone != null)
             user.updateTimeZone(userTimeZoneService.validated(timeZone));
 
-        try {
-            userRepository.saveAndFlush(user);
-        } catch (DataIntegrityViolationException ex) {
-            throw new EmailAlreadyExistsException(user.getEmail());
-        }
+        userRepository.save(user);
 
         return toUserDetailsResponse(user);
+    }
+
+    /**
+     * Starts a confirmed change of the user's email address.
+     *
+     * <p>Nothing about the account changes yet. A single-use link is emailed to the
+     * proposed address and the account keeps its current address, and keeps logging
+     * in with it, until that link is confirmed. Asking again replaces the pending
+     * request, and an abandoned request simply expires.</p>
+     *
+     * @param userId the user's ID.
+     * @param req the validated proposed address, already trimmed and lowercased.
+     * @return the pending address and when it expires, or null if it is the address the user already has.
+     * @throws UserNotFoundException if the user ID does not exist in DB.
+     * @throws EmailAlreadyExistsException if the address already belongs to another account.
+     * @throws EmailProviderException if the confirmation email could not be sent.
+     */
+    public EmailChangeResponse requestEmailChange(Long userId, ChangeEmailRequest req) {
+        String email = req.email();
+        User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+
+        if (email.equals(user.getEmail()))
+            return null;
+
+        if (userRepository.existsByEmail(email))
+            throw new EmailAlreadyExistsException(email);
+
+        LocalDateTime expiresAt = emailVerificationService.sendEmailChangeVerification(user, email);
+
+        return new EmailChangeResponse(email, expiresAt);
     }
 
     private UserDetailsResponse toUserDetailsResponse(User user) {
