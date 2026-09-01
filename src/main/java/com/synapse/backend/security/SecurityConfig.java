@@ -69,11 +69,12 @@ public class SecurityConfig {
      * <p>Swagger documentation, registration, login, refresh, logout, and the two
      * email verification routes are public. Email verification is unauthenticated
      * because the visitor following a link out of their inbox has no access token
-     * yet; the emailed single-use token is the only credential it accepts. All
-     * other requests require JWT authentication. Sessions are
-     * stateless and CSRF is disabled because the API authenticates with bearer
-     * tokens; refresh and logout are the only routes that read a cookie, and
-     * they are protected by the SameSite attribute on that cookie.</p>
+     * yet; the emailed single-use token is the only credential it accepts, and a
+     * registration token is enough to be signed in with. All other requests
+     * require JWT authentication. Sessions are stateless and CSRF is disabled
+     * because the API authenticates with bearer tokens; refresh and logout are
+     * the only routes that read a cookie, and they are protected by the SameSite
+     * attribute on that cookie.</p>
      *
      * @param http the Spring Security HTTP configuration builder.
      * @return the configured security filter chain.
@@ -105,8 +106,9 @@ public class SecurityConfig {
      * Configures cross-origin access for the browser-based frontend.
      *
      * <p>Allows the local frontend to call API routes with bearer authentication,
-     * send the refresh token cookie on auth routes, and caches successful
-     * preflight responses for one hour.</p>
+     * send and store the refresh token cookie on auth routes, including the
+     * verification route that signs a confirmed registration in, and caches
+     * successful preflight responses for one hour.</p>
      *
      * @return the CORS configuration source used by Spring Security.
      */

@@ -157,7 +157,8 @@ Email verification and delivery are configured with:
 auth:
   email-verification:
     frontend-url: ${EMAIL_VERIFICATION_URL:http://localhost:5173/verify-email}
-    token-ttl: 24h
+    registration-token-ttl: 1h
+    email-change-token-ttl: 24h
     unverified-retention: 7d
     cleanup-interval: 1h
 
@@ -180,6 +181,10 @@ email:
 Verification links are `{frontend-url}?token={urlEncodedToken}`. The link opens the frontend, which posts the token to
 `POST /api/auth/email/verify`; no state-changing backend route is ever opened directly from an email.
 
+The two token lifetimes differ on purpose. Confirming a registration link signs the account in, which makes that link a
+credential and not merely a proof of address, so it lives for an hour and a lapsed one is recovered with the resend
+endpoint. An email-change link issues no session, so it keeps the full day.
+
 Groq is the primary LLM client used by generation flows. Gemini client configuration is present as an alternate implementation, but Groq is currently selected by Spring.
 
 For production deployments, prefer setting secrets and profile values through environment variables rather than committing profile-specific configuration.
@@ -198,24 +203,30 @@ Authorization: Bearer <accessToken>
 | --- | --- | --- | --- |
 | `POST` | `/api/auth/register` | Register an unverified user and email them a verification link | No |
 | `POST` | `/api/auth/login` | Log in and receive an access token | No |
-| `POST` | `/api/auth/email/verify` | Confirm an emailed verification link | No |
+| `POST` | `/api/auth/email/verify` | Confirm an emailed verification link, signing a confirmed registration in | No |
 | `POST` | `/api/auth/email/resend` | Resend a registration verification link | No |
 | `POST` | `/api/auth/refresh` | Exchange the refresh token cookie for a new access token | No |
 | `POST` | `/api/auth/logout` | Revoke the current refresh token and clear the cookie | No |
 | `PUT` | `/api/auth/password` | Change the authenticated user's password | Yes |
 
-`POST /api/auth/register` returns `202` with the address the link was sent to and a message telling the client to check
-its email. It issues no access token and sets no refresh cookie: the account is created with `email_verified_at` null
+`POST /api/auth/register` stores the full name with each word capitalised — `ada lovelace` and `ADA LOVELACE` are both
+saved as `Ada Lovelace`, while a word typed in a mixture of cases, such as `McDonald`, is kept as it was written. It
+returns `202` with the address the link was sent to and a message telling the client to check its email. It issues no access token and sets no refresh cookie: the account is created with `email_verified_at` null
 and cannot log in until the link is confirmed. Logging in with the right password on an unverified account returns
 `401` with a message naming verification, while a wrong password on the same account still returns the generic
 `Invalid email or password.` An address that already belongs to a **verified** account returns `409` as before. An
 address that belongs to an **unverified** account gets the same `202` and a replacement link, and its stored password,
 name, and time zone are never overwritten.
 
-`POST /api/auth/email/verify` takes `{ "token": "..." }`, consumes the single-use token, and returns `204`. A
-registration token marks the account verified; an email-change token moves the account to its new address after
-re-checking that nobody else has claimed it, returning `409` if they have. Missing, unknown, expired, replaced, and
-already used tokens all return the same generic `400`. The endpoint never logs the user in.
+`POST /api/auth/email/verify` takes `{ "token": "..." }`, consumes the single-use token, and returns `200` with a
+`kind` property naming the kind of link it was. A `REGISTRATION` token marks the account verified and signs it in,
+answering with the account's name, address, and an access token, and setting the same refresh cookie login sets. An
+`EMAIL_CHANGE` token moves the account to its new address after re-checking that nobody else has claimed it, returning
+`409` if they have; it answers with only `kind` and the new address, and issues no token and no cookie, because whoever
+confirms it normally already has a session that a new refresh cookie would needlessly replace. Clients must branch on
+`kind` rather than on whether the visitor happens to be signed in already: somebody signed into one account can open a
+registration link for another. Missing, unknown, expired, replaced, and already used tokens all return the same
+generic `400`, so a link opened twice succeeds once and issues exactly one session.
 
 `POST /api/auth/email/resend` takes `{ "email": "..." }` and always returns `204`, whether the address is unknown,
 already verified, or still pending, so it cannot be used to discover who has an account. Only an unverified account
@@ -224,7 +235,7 @@ causes an email to be sent, and the replacement link invalidates the previous on
 Verification tokens are 32 cryptographically random bytes, URL-safe Base64 encoded without padding. Only their SHA-256
 hash is stored, alongside the user, target address, purpose, expiry, and consumption/invalidation state. Consumption is
 a single conditional update, so two concurrent confirmations of the same link race for one row and only the first
-succeeds. Tokens are valid for 24 hours by default.
+succeeds. A registration token is valid for one hour and an email-change token for 24 hours by default.
 
 Login also sets a `refreshToken` cookie. The cookie is `HttpOnly`, `Secure`, `SameSite`-restricted, scoped
 to `/api/auth`, and valid for 30 days. Only a SHA-256 hash of each refresh token is stored server-side, alongside its
@@ -252,7 +263,8 @@ existing access tokens stay valid until they expire.
 | `GET` | `/api/user/streak` | Get the authenticated user's study streak | Yes |
 
 `PATCH /api/user/details` accepts an optional `fullName` and an optional `timeZone`, and requires at least one of them.
-Only the supplied fields are changed, and both are trimmed before their length limits are applied. The email address
+Only the supplied fields are changed, and both are trimmed before their length limits are applied. A supplied full
+name is capitalised the same way registration capitalises it. The email address
 can no longer be changed here; an `email` property in the body is ignored. The response is the updated details; no new
 access token is issued, so `GET /api/user/details` stays the source of current profile data.
 
@@ -326,8 +338,8 @@ longest run in the user's history. A user with no activity gets zeros and a null
 
 ## Example Flow 🔄
 
-1. Register, then confirm the emailed verification link before logging in. Existing users just log in.
-2. Copy the `accessToken` returned by login and keep the `refreshToken` cookie.
+1. Register, then confirm the emailed verification link, which signs the new account in. Existing users just log in.
+2. Copy the `accessToken` returned by that confirmation or by login, and keep the `refreshToken` cookie.
 3. Upload a PDF, `.docx`, `.txt`, or `.md` file to `/api/notes/summarise`.
 4. Use the saved note id to generate flashcards or a quiz.
 5. Add or delete individual flashcards/questions as needed.
@@ -365,6 +377,26 @@ curl -X POST http://localhost:8080/api/auth/email/verify \
   -d '{
     "token": "<rawTokenFromTheLink>"
   }'
+```
+
+A registration link answers `200`, sets the refresh cookie, and signs the new account in:
+
+```json
+{
+  "kind": "REGISTRATION",
+  "fullName": "Ada Lovelace",
+  "email": "ada@example.com",
+  "accessToken": "<accessToken>"
+}
+```
+
+An email-change link answers `200` with the address the account now uses, and nothing else:
+
+```json
+{
+  "kind": "EMAIL_CHANGE",
+  "email": "ada.lovelace@example.com"
+}
 ```
 
 Example email-change request:
@@ -511,8 +543,8 @@ Integration tests use Testcontainers with PostgreSQL, so Docker must be running 
 The test suite covers:
 
 - Authentication, including that an unverified account cannot log in
-- Email verification: registration state, email contents and link, confirmation, provider failure recovery, and the
-  migration backfill
+- Email verification: registration state, email contents and link and expiry, confirmation, the session a confirmed
+  registration issues, provider failure recovery, and the migration backfill
 - Verification tokens: unknown, expired, invalidated, consumed, reused, and concurrently consumed links
 - Verification resending and its deliberately identical responses
 - Confirmed email changes, including uniqueness re-checks, races, replacement requests, and abandonment

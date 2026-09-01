@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Base64;
@@ -58,7 +59,7 @@ public class EmailVerificationTokenPersistenceService {
         SECURE_RANDOM.nextBytes(tokenBytes);
 
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);
-        LocalDateTime expiresAt = LocalDateTime.now(ZoneOffset.UTC).plus(emailVerificationProperties.tokenTtl());
+        LocalDateTime expiresAt = LocalDateTime.now(ZoneOffset.UTC).plus(tokenTtl(purpose));
 
         EmailVerificationToken saved = emailVerificationTokenRepository.save(
             new EmailVerificationToken(userId, email, purpose, hashToken(token), expiresAt)
@@ -101,6 +102,17 @@ public class EmailVerificationTokenPersistenceService {
     @Transactional
     public long deleteExpiredTokens(LocalDateTime cutoff) {
         return emailVerificationTokenRepository.deleteExpiredBefore(cutoff);
+    }
+
+    /**
+     * How long a token of this purpose stays usable. A registration token is
+     * short-lived because confirming it signs the account in, which makes the
+     * emailed link a credential rather than only a proof of address.
+     */
+    private Duration tokenTtl(EmailVerificationPurpose purpose) {
+        return purpose == EmailVerificationPurpose.REGISTRATION
+            ? emailVerificationProperties.registrationTokenTtl()
+            : emailVerificationProperties.emailChangeTokenTtl();
     }
 
     private String hashToken(String token) {

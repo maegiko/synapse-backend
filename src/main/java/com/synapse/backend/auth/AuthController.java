@@ -10,7 +10,6 @@ import com.synapse.backend.auth.dto.RefreshResponse;
 import com.synapse.backend.auth.dto.RefreshResult;
 import com.synapse.backend.auth.dto.RegisterRequest;
 import com.synapse.backend.auth.dto.RegisterResponse;
-import com.synapse.backend.security.jwt.JwtProperties;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -22,7 +21,6 @@ import jakarta.validation.Valid;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -37,20 +35,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 public class AuthController {
 
     private static final String REFRESH_COOKIE_NAME = "refreshToken";
-    private static final String REFRESH_COOKIE_PATH = "/api/auth";
 
     private final AuthService authService;
-    private final RefreshCookieProperties refreshCookieProperties;
-    private final JwtProperties jwtProperties;
+    private final RefreshCookieFactory refreshCookieFactory;
 
-    public AuthController(
-        AuthService authService,
-        RefreshCookieProperties refreshCookieProperties,
-        JwtProperties jwtProperties
-    ) {
+    public AuthController(AuthService authService, RefreshCookieFactory refreshCookieFactory) {
         this.authService = authService;
-        this.refreshCookieProperties = refreshCookieProperties;
-        this.jwtProperties = jwtProperties;
+        this.refreshCookieFactory = refreshCookieFactory;
     }
 
     @PostMapping("/register")
@@ -124,7 +115,7 @@ public class AuthController {
         LoginResult res = authService.loginUser(loginRequest, httpRequest.getRemoteAddr());
 
         return ResponseEntity.status(HttpStatus.OK)
-            .header(HttpHeaders.SET_COOKIE, refreshTokenCookie(res.refreshToken()).toString())
+            .header(HttpHeaders.SET_COOKIE, refreshCookieFactory.issued(res.refreshToken()).toString())
             .body(res.response());
     }
 
@@ -147,7 +138,7 @@ public class AuthController {
         RefreshResult res = authService.refreshAccessToken(refreshToken);
 
         return ResponseEntity.status(HttpStatus.OK)
-            .header(HttpHeaders.SET_COOKIE, refreshTokenCookie(res.refreshToken()).toString())
+            .header(HttpHeaders.SET_COOKIE, refreshCookieFactory.issued(res.refreshToken()).toString())
             .body(res.response());
     }
 
@@ -165,7 +156,7 @@ public class AuthController {
         authService.logoutUser(refreshToken);
 
         return ResponseEntity.status(HttpStatus.NO_CONTENT)
-            .header(HttpHeaders.SET_COOKIE, clearedRefreshTokenCookie().toString())
+            .header(HttpHeaders.SET_COOKIE, refreshCookieFactory.cleared().toString())
             .build();
     }
 
@@ -202,24 +193,8 @@ public class AuthController {
         authService.changePassword(userId, changePasswordRequest);
 
         return ResponseEntity.status(HttpStatus.NO_CONTENT)
-            .header(HttpHeaders.SET_COOKIE, clearedRefreshTokenCookie().toString())
+            .header(HttpHeaders.SET_COOKIE, refreshCookieFactory.cleared().toString())
             .build();
-    }
-
-    private ResponseCookie refreshTokenCookie(String refreshToken) {
-        return buildRefreshTokenCookie(refreshToken).maxAge(jwtProperties.refreshTokenTtl()).build();
-    }
-
-    private ResponseCookie clearedRefreshTokenCookie() {
-        return buildRefreshTokenCookie("").maxAge(0).build();
-    }
-
-    private ResponseCookie.ResponseCookieBuilder buildRefreshTokenCookie(String refreshToken) {
-        return ResponseCookie.from(REFRESH_COOKIE_NAME, refreshToken)
-            .httpOnly(true)
-            .secure(refreshCookieProperties.secure())
-            .sameSite(refreshCookieProperties.sameSite())
-            .path(REFRESH_COOKIE_PATH);
     }
 
 }

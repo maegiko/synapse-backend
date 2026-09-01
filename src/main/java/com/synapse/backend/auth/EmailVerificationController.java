@@ -1,5 +1,6 @@
 package com.synapse.backend.auth;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -9,6 +10,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.synapse.backend.auth.dto.ResendVerificationRequest;
 import com.synapse.backend.auth.dto.VerifyEmailRequest;
+import com.synapse.backend.auth.dto.VerifyEmailResponse;
+import com.synapse.backend.auth.dto.VerifyEmailResult;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -22,20 +25,28 @@ import jakarta.validation.Valid;
 public class EmailVerificationController {
 
     private final EmailVerificationService emailVerificationService;
+    private final RefreshCookieFactory refreshCookieFactory;
 
-    public EmailVerificationController(EmailVerificationService emailVerificationService) {
+    public EmailVerificationController(
+        EmailVerificationService emailVerificationService,
+        RefreshCookieFactory refreshCookieFactory
+    ) {
         this.emailVerificationService = emailVerificationService;
+        this.refreshCookieFactory = refreshCookieFactory;
     }
 
     @PostMapping("/verify")
     @Operation(
         summary = "Confirm an emailed verification link",
-        description = "Consumes the single-use token from a verification email. A registration token marks the "
-            + "account verified so it can log in; an email-change token moves the account to its new address. "
-            + "The user is not logged in by this call, so the client should route to login afterwards. Missing, "
-            + "unknown, expired, replaced, and already used tokens all fail the same way.",
+        description = "Consumes the single-use token from a verification email and reports which kind of link it "
+            + "was in the response's kind property. A REGISTRATION link marks the account verified and signs it "
+            + "in, returning an access token and setting the same refresh cookie login does. An EMAIL_CHANGE link "
+            + "moves the account to its new address and returns only that address: no token and no cookie, because "
+            + "the person confirming it normally already has a session. Clients must branch on kind rather than on "
+            + "whether the visitor is already signed in. Missing, unknown, expired, replaced, and already used "
+            + "tokens all fail the same way.",
         responses = {
-            @ApiResponse(responseCode = "204", description = "Email address confirmed"),
+            @ApiResponse(responseCode = "200", description = "Email address confirmed"),
             @ApiResponse(
                 responseCode = "400",
                 description = "Missing, unknown, expired, replaced, or already used token",
@@ -48,10 +59,15 @@ public class EmailVerificationController {
             )
         }
     )
-    public ResponseEntity<Void> verifyEmail(@Valid @RequestBody VerifyEmailRequest verifyEmailRequest) {
-        emailVerificationService.verifyEmail(verifyEmailRequest.token());
+    public ResponseEntity<VerifyEmailResponse> verifyEmail(@Valid @RequestBody VerifyEmailRequest verifyEmailRequest) {
+        VerifyEmailResult res = emailVerificationService.verifyEmail(verifyEmailRequest.token());
 
-        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+        if (res.refreshToken() == null)
+            return ResponseEntity.status(HttpStatus.OK).body(res.response());
+
+        return ResponseEntity.status(HttpStatus.OK)
+            .header(HttpHeaders.SET_COOKIE, refreshCookieFactory.issued(res.refreshToken()).toString())
+            .body(res.response());
     }
 
     @PostMapping("/resend")

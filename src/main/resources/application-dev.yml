@@ -67,7 +67,8 @@ auth:
 
   email-verification:
     frontend-url: ${EMAIL_VERIFICATION_URL:http://localhost:5173/verify-email}
-    token-ttl: 24h
+    registration-token-ttl: 1h
+    email-change-token-ttl: 24h
     unverified-retention: 7d
     cleanup-interval: 1h
 
