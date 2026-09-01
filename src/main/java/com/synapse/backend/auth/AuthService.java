@@ -23,6 +23,7 @@ import com.synapse.backend.security.jwt.JwtService;
 import com.synapse.backend.shared.ratelimit.RateLimitProperties;
 import com.synapse.backend.shared.ratelimit.RateLimitService;
 import com.synapse.backend.user.User;
+import com.synapse.backend.user.UserNameService;
 import com.synapse.backend.user.UserRepository;
 import com.synapse.backend.user.UserTimeZoneService;
 import com.synapse.backend.user.exceptions.UserNotFoundException;
@@ -39,6 +40,7 @@ public class AuthService {
     private final RateLimitService rateLimitService;
     private final RateLimitProperties rateLimitProperties;
     private final UserTimeZoneService userTimeZoneService;
+    private final UserNameService userNameService;
     private final EmailVerificationService emailVerificationService;
 
     public AuthService(
@@ -49,6 +51,7 @@ public class AuthService {
         RateLimitService rateLimitService,
         RateLimitProperties rateLimitProperties,
         UserTimeZoneService userTimeZoneService,
+        UserNameService userNameService,
         EmailVerificationService emailVerificationService
     ) {
         this.userRepository = userRepository;
@@ -58,6 +61,7 @@ public class AuthService {
         this.rateLimitService = rateLimitService;
         this.rateLimitProperties = rateLimitProperties;
         this.userTimeZoneService = userTimeZoneService;
+        this.userNameService = userNameService;
         this.emailVerificationService = emailVerificationService;
     }
 
@@ -67,6 +71,9 @@ public class AuthService {
      * <p>Registration no longer signs anybody in: no access token is returned and
      * no refresh token is issued, because the account cannot be used until the
      * emailed link is confirmed.</p>
+     *
+     * <p>The full name is stored with each word capitalised, so a name typed in a
+     * hurry still reads like a name everywhere it is shown.</p>
      *
      * <p>An address that already belongs to a verified account is rejected with a
      * conflict, exactly as before. An address that belongs to an account that is
@@ -90,6 +97,7 @@ public class AuthService {
         rateLimitService.check("register:" + clientIp, rateLimitProperties.register());
 
         String email = registerRequest.email().trim().toLowerCase(Locale.ROOT);
+        String fullName = userNameService.capitalised(registerRequest.fullName());
         String timeZone = userTimeZoneService.resolveOrDefault(registerRequest.timeZone());
         Optional<User> existingUser = findUserByEmail(email);
 
@@ -105,7 +113,7 @@ public class AuthService {
         String passwordHash = passwordEncoder.encode(registerRequest.password());
 
         User newUser = userRepository.save(new User(
-            registerRequest.fullName(),
+            fullName,
             email,
             passwordHash,
             timeZone

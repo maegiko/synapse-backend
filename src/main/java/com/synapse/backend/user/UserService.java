@@ -19,15 +19,18 @@ import jakarta.transaction.Transactional;
 public class UserService {
     private final UserRepository userRepository;
     private final UserTimeZoneService userTimeZoneService;
+    private final UserNameService userNameService;
     private final EmailVerificationService emailVerificationService;
 
     public UserService(
         UserRepository userRepository,
         UserTimeZoneService userTimeZoneService,
+        UserNameService userNameService,
         EmailVerificationService emailVerificationService
     ) {
         this.userRepository = userRepository;
         this.userTimeZoneService = userTimeZoneService;
+        this.userNameService = userNameService;
         this.emailVerificationService = emailVerificationService;
     }
 
@@ -48,9 +51,10 @@ public class UserService {
      * Updates the full name and/or time zone of the user.
      *
      * <p>Only the supplied fields are changed. The request arrives with its full
-     * name and time zone trimmed, matching registration. The email address cannot
-     * be changed here: it only moves once the new address has been confirmed, which
-     * {@link #requestEmailChange} starts.</p>
+     * name and time zone trimmed, and the name is capitalised exactly as registration
+     * capitalises it, so a name reads the same however it was set. The email address
+     * cannot be changed here: it only moves once the new address has been confirmed,
+     * which {@link #requestEmailChange} starts.</p>
      *
      * <p>A new time zone moves every later calendar-day boundary — streak days, deck
      * due dates — from the next request on. Already recorded streak days and stored
@@ -74,7 +78,7 @@ public class UserService {
         User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
 
         if (fullName != null)
-            user.updateFullName(fullName);
+            user.updateFullName(userNameService.capitalised(fullName));
 
         if (timeZone != null)
             user.updateTimeZone(userTimeZoneService.validated(timeZone));
