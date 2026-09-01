@@ -1,0 +1,13 @@
+.git
+.gradle
+.gradle-home
+.idea
+.vscode
+build
+.env
+.env.*
+!.env.example
+*.iml
+AGENTS.md
+FRONTEND_API.md
+README.md
