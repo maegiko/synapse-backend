@@ -30,7 +30,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import com.synapse.backend.ai.clients.LLMClient;
-import com.synapse.backend.auth.dto.RegisterRequest;
 import com.synapse.backend.support.PostgresIntegrationTest;
 
 import tools.jackson.databind.JsonNode;
@@ -40,7 +39,6 @@ import tools.jackson.databind.ObjectMapper;
 @AutoConfigureMockMvc
 class QuizCreateQuestionIntegrationTest extends PostgresIntegrationTest {
 
-    private static final String REGISTER_ENDPOINT = "/api/auth/register";
     private static final String CREATE_QUESTION_ENDPOINT = "/api/quiz/{quizId}/questions";
     private static final String QUIZ_ENDPOINT = "/api/quiz/{quizId}";
     private static final String VALID_PASSWORD = "password123";
@@ -344,18 +342,7 @@ class QuizCreateQuestionIntegrationTest extends PostgresIntegrationTest {
     }
 
     private TestUser register(String fullName, String email) throws Exception {
-        RegisterRequest request = new RegisterRequest(fullName, email, VALID_PASSWORD);
-
-        MvcResult result = mockMvc.perform(post(REGISTER_ENDPOINT)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated())
-            .andReturn();
-
-        String accessToken = objectMapper
-            .readTree(result.getResponse().getContentAsString())
-            .get("accessToken")
-            .asString();
+        String accessToken = registerAndAuthenticate(fullName, email, VALID_PASSWORD);
         Long userId = Long.valueOf(jwtDecoder.decode(accessToken).getSubject());
 
         return new TestUser(userId, accessToken);

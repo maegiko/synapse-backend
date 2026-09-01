@@ -3,7 +3,6 @@ package com.synapse.backend.notes;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -17,32 +16,23 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 
 import com.synapse.backend.ai.clients.LLMClient;
-import com.synapse.backend.auth.dto.RegisterRequest;
 import com.synapse.backend.support.PostgresIntegrationTest;
-
-import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 class NotesGetIntegrationTest extends PostgresIntegrationTest {
 
-    private static final String REGISTER_ENDPOINT = "/api/auth/register";
     private static final String NOTES_ENDPOINT = "/api/notes/";
     private static final String VALID_PASSWORD = "password123";
 
     @Autowired
     private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -128,18 +118,7 @@ class NotesGetIntegrationTest extends PostgresIntegrationTest {
     }
 
     private TestUser register(String fullName, String email) throws Exception {
-        RegisterRequest request = new RegisterRequest(fullName, email, VALID_PASSWORD);
-
-        MvcResult result = mockMvc.perform(post(REGISTER_ENDPOINT)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated())
-            .andReturn();
-
-        String accessToken = objectMapper
-            .readTree(result.getResponse().getContentAsString())
-            .get("accessToken")
-            .asString();
+        String accessToken = registerAndAuthenticate(fullName, email, VALID_PASSWORD);
         Long userId = Long.valueOf(jwtDecoder.decode(accessToken).getSubject());
 
         return new TestUser(userId, accessToken);

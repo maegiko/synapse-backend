@@ -75,14 +75,25 @@ class RefreshTokenIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void registerSetsRefreshCookieAndStoresOnlyItsHash() throws Exception {
+    void registerSetsNoRefreshCookieAndStoresNoRefreshToken() throws Exception {
         RegisterRequest request = new RegisterRequest("Kenneth", EMAIL, VALID_PASSWORD);
 
         MvcResult result = mockMvc.perform(post(REGISTER_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated())
+            .andExpect(status().isAccepted())
             .andReturn();
+
+        assertThat(result.getResponse().getCookie(REFRESH_COOKIE_NAME)).isNull();
+        assertThat(result.getResponse().getHeader(HttpHeaders.SET_COOKIE)).isNull();
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM refresh_token", Integer.class)).isZero();
+    }
+
+    @Test
+    void loginStoresOnlyTheHashOfTheRefreshCookie() throws Exception {
+        createUser("Kenneth", EMAIL, VALID_PASSWORD);
+
+        MvcResult result = login();
 
         Cookie cookie = result.getResponse().getCookie(REFRESH_COOKIE_NAME);
         Map<String, Object> savedToken = jdbcTemplate.queryForMap("SELECT * FROM refresh_token");
@@ -341,7 +352,10 @@ class RefreshTokenIntegrationTest extends PostgresIntegrationTest {
         String passwordHash = passwordEncoder.encode(password);
 
         jdbcTemplate.update(
-            "INSERT INTO app_user (full_name, email, password_hash) VALUES (?, ?, ?)",
+            """
+            INSERT INTO app_user (full_name, email, password_hash, email_verified_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            """,
             fullName,
             email,
             passwordHash

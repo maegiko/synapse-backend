@@ -24,18 +24,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 
-import com.synapse.backend.auth.dto.RegisterRequest;
 import com.synapse.backend.support.PostgresIntegrationTest;
-
-import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 class FlashcardReviewQueueIntegrationTest extends PostgresIntegrationTest {
 
-    private static final String REGISTER_ENDPOINT = "/api/auth/register";
     private static final String REVIEW_QUEUE_ENDPOINT = "/api/flashcards/review";
     private static final String VALID_PASSWORD = "password123";
     private static final LocalDate TODAY = LocalDate.now(ZoneOffset.UTC);
@@ -44,9 +39,6 @@ class FlashcardReviewQueueIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -248,18 +240,7 @@ class FlashcardReviewQueueIntegrationTest extends PostgresIntegrationTest {
     }
 
     private TestUser register(String fullName, String email) throws Exception {
-        RegisterRequest request = new RegisterRequest(fullName, email, VALID_PASSWORD);
-
-        MvcResult result = mockMvc.perform(post(REGISTER_ENDPOINT)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated())
-            .andReturn();
-
-        String accessToken = objectMapper
-            .readTree(result.getResponse().getContentAsString())
-            .get("accessToken")
-            .asString();
+        String accessToken = registerAndAuthenticate(fullName, email, VALID_PASSWORD);
         Long userId = Long.valueOf(jwtDecoder.decode(accessToken).getSubject());
 
         return new TestUser(userId, accessToken);

@@ -25,7 +25,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 
-import com.synapse.backend.auth.dto.RegisterRequest;
 import com.synapse.backend.groups.dto.CreateGroupRequest;
 import com.synapse.backend.groups.dto.UpdateGroupRequest;
 import com.synapse.backend.support.PostgresIntegrationTest;
@@ -36,7 +35,6 @@ import tools.jackson.databind.ObjectMapper;
 @AutoConfigureMockMvc
 class GroupCrudIntegrationTest extends PostgresIntegrationTest {
 
-    private static final String REGISTER_ENDPOINT = "/api/auth/register";
     private static final String GROUPS_ENDPOINT = "/api/groups";
     private static final String GROUP_LIST_ENDPOINT = "/api/groups/list";
     private static final String GROUP_ENDPOINT = "/api/groups/{groupId}";
@@ -656,18 +654,7 @@ class GroupCrudIntegrationTest extends PostgresIntegrationTest {
     }
 
     private TestUser register(String fullName, String email) throws Exception {
-        RegisterRequest request = new RegisterRequest(fullName, email, VALID_PASSWORD);
-
-        MvcResult result = mockMvc.perform(post(REGISTER_ENDPOINT)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated())
-            .andReturn();
-
-        String accessToken = objectMapper
-            .readTree(result.getResponse().getContentAsString())
-            .get("accessToken")
-            .asString();
+        String accessToken = registerAndAuthenticate(fullName, email, VALID_PASSWORD);
         Long userId = Long.valueOf(jwtDecoder.decode(accessToken).getSubject());
 
         return new TestUser(userId, accessToken);

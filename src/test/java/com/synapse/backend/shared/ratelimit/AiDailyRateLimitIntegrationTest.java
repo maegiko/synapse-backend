@@ -4,7 +4,6 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -17,28 +16,22 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 
 import com.synapse.backend.ai.clients.LLMClient;
 import com.synapse.backend.ai.clients.dto.LLMRequest;
-import com.synapse.backend.auth.dto.RegisterRequest;
 import com.synapse.backend.support.PostgresIntegrationTest;
-
-import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {"ratelimit.ai.limit=10", "ratelimit.ai-daily.limit=2"})
 class AiDailyRateLimitIntegrationTest extends PostgresIntegrationTest {
 
-    private static final String REGISTER_ENDPOINT = "/api/auth/register";
     private static final String SUMMARY_ENDPOINT = "/api/notes/summarise";
     private static final String VALID_PASSWORD = "password123";
 
@@ -46,9 +39,6 @@ class AiDailyRateLimitIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -104,18 +94,7 @@ class AiDailyRateLimitIntegrationTest extends PostgresIntegrationTest {
     }
 
     private String registerAndGetAccessToken(String fullName, String email) throws Exception {
-        RegisterRequest request = new RegisterRequest(fullName, email, VALID_PASSWORD);
-
-        MvcResult result = mockMvc.perform(post(REGISTER_ENDPOINT)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated())
-            .andReturn();
-
-        return objectMapper
-            .readTree(result.getResponse().getContentAsString())
-            .get("accessToken")
-            .asString();
+        return registerAndAuthenticate(fullName, email, VALID_PASSWORD);
     }
 
     private String validSummaryJson() {

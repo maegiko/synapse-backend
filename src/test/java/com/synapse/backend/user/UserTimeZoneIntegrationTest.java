@@ -33,10 +33,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 
-import com.synapse.backend.auth.dto.RegisterRequest;
 import com.synapse.backend.groups.entities.StudyGroup;
 import com.synapse.backend.groups.repositories.StudyGroupRepository;
 import com.synapse.backend.support.PostgresIntegrationTest;
@@ -56,7 +54,6 @@ import tools.jackson.databind.ObjectMapper;
 @AutoConfigureMockMvc
 class UserTimeZoneIntegrationTest extends PostgresIntegrationTest {
 
-    private static final String REGISTER_ENDPOINT = "/api/auth/register";
     private static final String USER_DETAILS_ENDPOINT = "/api/user/details";
     private static final String STREAK_ENDPOINT = "/api/user/streak";
     private static final String DECK_REVIEW_ENDPOINT = "/api/flashcards/{deckId}/review";
@@ -202,7 +199,7 @@ class UserTimeZoneIntegrationTest extends PostgresIntegrationTest {
 
         mockMvc.perform(patch(USER_DETAILS_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new UpdateUserDetailsRequest(null, null, SYDNEY)))
+                .content(objectMapper.writeValueAsString(new UpdateUserDetailsRequest(null, SYDNEY)))
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isOk());
 
@@ -319,7 +316,7 @@ class UserTimeZoneIntegrationTest extends PostgresIntegrationTest {
 
         mockMvc.perform(patch(USER_DETAILS_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new UpdateUserDetailsRequest(null, null, SYDNEY)))
+                .content(objectMapper.writeValueAsString(new UpdateUserDetailsRequest(null, SYDNEY)))
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isOk());
 
@@ -421,18 +418,7 @@ class UserTimeZoneIntegrationTest extends PostgresIntegrationTest {
     }
 
     private TestUser register(String fullName, String email, String timeZone) throws Exception {
-        RegisterRequest request = new RegisterRequest(fullName, email, VALID_PASSWORD, timeZone);
-
-        MvcResult result = mockMvc.perform(post(REGISTER_ENDPOINT)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated())
-            .andReturn();
-
-        String accessToken = objectMapper
-            .readTree(result.getResponse().getContentAsString())
-            .get("accessToken")
-            .asString();
+        String accessToken = registerAndAuthenticate(fullName, email, VALID_PASSWORD, timeZone);
         Long userId = Long.valueOf(jwtDecoder.decode(accessToken).getSubject());
 
         return new TestUser(userId, accessToken);

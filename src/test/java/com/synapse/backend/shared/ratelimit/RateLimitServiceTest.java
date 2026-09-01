@@ -170,6 +170,8 @@ class RateLimitServiceTest {
             new Limit(50, Duration.ofDays(1)),
             new Limit(10, Duration.ofMinutes(15)),
             new Limit(3, Duration.ofHours(1)),
+            new Limit(3, Duration.ofHours(1)),
+            new Limit(3, Duration.ofHours(1)),
             new Limit(120, Duration.ofMinutes(1))
         );
     }

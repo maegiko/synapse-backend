@@ -24,13 +24,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 
-import com.synapse.backend.auth.dto.RegisterRequest;
 import com.synapse.backend.support.PostgresIntegrationTest;
-
-import tools.jackson.databind.ObjectMapper;
 
 /**
  * Study analytics over a window of the user's own calendar days.
@@ -43,7 +39,6 @@ import tools.jackson.databind.ObjectMapper;
 @AutoConfigureMockMvc
 class AnalyticsIntegrationTest extends PostgresIntegrationTest {
 
-    private static final String REGISTER_ENDPOINT = "/api/auth/register";
     private static final String ANALYTICS_ENDPOINT = "/api/user/analytics";
     private static final String DECK_REVIEW_ENDPOINT = "/api/flashcards/{deckId}/review";
     private static final String QUIZ_SCORE_ENDPOINT = "/api/quiz/{quizId}/score";
@@ -58,9 +53,6 @@ class AnalyticsIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -611,18 +603,7 @@ class AnalyticsIntegrationTest extends PostgresIntegrationTest {
     }
 
     private TestUser register(String fullName, String email, String timeZone) throws Exception {
-        RegisterRequest request = new RegisterRequest(fullName, email, VALID_PASSWORD, timeZone);
-
-        MvcResult result = mockMvc.perform(post(REGISTER_ENDPOINT)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated())
-            .andReturn();
-
-        String accessToken = objectMapper
-            .readTree(result.getResponse().getContentAsString())
-            .get("accessToken")
-            .asString();
+        String accessToken = registerAndAuthenticate(fullName, email, VALID_PASSWORD, timeZone);
         Long userId = Long.valueOf(jwtDecoder.decode(accessToken).getSubject());
 
         return new TestUser(userId, accessToken);

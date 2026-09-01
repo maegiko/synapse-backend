@@ -25,7 +25,6 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import com.synapse.backend.auth.dto.ChangePasswordRequest;
 import com.synapse.backend.auth.dto.LoginRequest;
-import com.synapse.backend.auth.dto.RegisterRequest;
 import com.synapse.backend.support.PostgresIntegrationTest;
 
 import jakarta.servlet.http.Cookie;
@@ -35,7 +34,6 @@ import tools.jackson.databind.ObjectMapper;
 @AutoConfigureMockMvc
 class ChangePasswordIntegrationTest extends PostgresIntegrationTest {
 
-    private static final String REGISTER_ENDPOINT = "/api/auth/register";
     private static final String LOGIN_ENDPOINT = "/api/auth/login";
     private static final String REFRESH_ENDPOINT = "/api/auth/refresh";
     private static final String PASSWORD_ENDPOINT = "/api/auth/password";
@@ -60,7 +58,7 @@ class ChangePasswordIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void changePasswordReturnsNoContentAndStoresANewHash() throws Exception {
-        MvcResult registration = register();
+        MvcResult registration = registerAndLogin();
         String accessToken = accessToken(registration);
         String oldPasswordHash = passwordHash();
 
@@ -76,7 +74,7 @@ class ChangePasswordIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void changePasswordClearsTheRefreshTokenCookie() throws Exception {
-        String accessToken = accessToken(register());
+        String accessToken = accessToken(registerAndLogin());
 
         MvcResult result = changePassword(accessToken, new ChangePasswordRequest(CURRENT_PASSWORD, NEW_PASSWORD))
             .andExpect(status().isNoContent())
@@ -96,7 +94,7 @@ class ChangePasswordIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void changePasswordBlocksLoginWithTheOldPassword() throws Exception {
-        String accessToken = accessToken(register());
+        String accessToken = accessToken(registerAndLogin());
 
         changePassword(accessToken, new ChangePasswordRequest(CURRENT_PASSWORD, NEW_PASSWORD))
             .andExpect(status().isNoContent());
@@ -108,7 +106,7 @@ class ChangePasswordIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void changePasswordAllowsLoginWithTheNewPassword() throws Exception {
-        String accessToken = accessToken(register());
+        String accessToken = accessToken(registerAndLogin());
 
         changePassword(accessToken, new ChangePasswordRequest(CURRENT_PASSWORD, NEW_PASSWORD))
             .andExpect(status().isNoContent());
@@ -120,7 +118,7 @@ class ChangePasswordIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void changePasswordRevokesEveryRefreshTokenOfTheUser() throws Exception {
-        MvcResult registration = register();
+        MvcResult registration = registerAndLogin();
         String accessToken = accessToken(registration);
         String registrationToken = refreshCookieValue(registration);
         String secondSessionToken = refreshCookieValue(login(CURRENT_PASSWORD).andExpect(status().isOk()).andReturn());
@@ -137,7 +135,7 @@ class ChangePasswordIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void refreshWithATokenIssuedBeforeThePasswordChangeIsRejected() throws Exception {
-        MvcResult registration = register();
+        MvcResult registration = registerAndLogin();
         String accessToken = accessToken(registration);
         String refreshToken = refreshCookieValue(registration);
 
@@ -151,7 +149,7 @@ class ChangePasswordIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void changePasswordReturnsUnauthorizedWhenCurrentPasswordIsIncorrect() throws Exception {
-        MvcResult registration = register();
+        MvcResult registration = registerAndLogin();
         String accessToken = accessToken(registration);
         String refreshToken = refreshCookieValue(registration);
         String oldPasswordHash = passwordHash();
@@ -168,7 +166,7 @@ class ChangePasswordIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void changePasswordReturnsBadRequestWhenNewPasswordIsTooShort() throws Exception {
-        String accessToken = accessToken(register());
+        String accessToken = accessToken(registerAndLogin());
         String oldPasswordHash = passwordHash();
 
         changePassword(accessToken, new ChangePasswordRequest(CURRENT_PASSWORD, "short"))
@@ -180,7 +178,7 @@ class ChangePasswordIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void changePasswordReturnsBadRequestWhenNewPasswordIsMissing() throws Exception {
-        String accessToken = accessToken(register());
+        String accessToken = accessToken(registerAndLogin());
 
         changePassword(accessToken, new ChangePasswordRequest(CURRENT_PASSWORD, null))
             .andExpect(status().isBadRequest())
@@ -189,7 +187,7 @@ class ChangePasswordIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void changePasswordReturnsBadRequestWhenCurrentPasswordIsMissing() throws Exception {
-        String accessToken = accessToken(register());
+        String accessToken = accessToken(registerAndLogin());
 
         changePassword(accessToken, new ChangePasswordRequest(null, NEW_PASSWORD))
             .andExpect(status().isBadRequest())
@@ -198,7 +196,7 @@ class ChangePasswordIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void changePasswordReturnsUnauthorizedWhenTokenIsMissing() throws Exception {
-        register();
+        registerAndLogin();
         String oldPasswordHash = passwordHash();
 
         mockMvc.perform(put(PASSWORD_ENDPOINT)
@@ -217,14 +215,11 @@ class ChangePasswordIntegrationTest extends PostgresIntegrationTest {
             .content(objectMapper.writeValueAsString(request)));
     }
 
-    private MvcResult register() throws Exception {
-        RegisterRequest request = new RegisterRequest("Kenneth", EMAIL, CURRENT_PASSWORD);
+    /** Registers a user, verifies their address, and logs them in, which is what issues their tokens. */
+    private MvcResult registerAndLogin() throws Exception {
+        registerVerifiedUser("Kenneth", EMAIL, CURRENT_PASSWORD, null);
 
-        return mockMvc.perform(post(REGISTER_ENDPOINT)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated())
-            .andReturn();
+        return login(CURRENT_PASSWORD).andExpect(status().isOk()).andReturn();
     }
 
     private ResultActions login(String password) throws Exception {

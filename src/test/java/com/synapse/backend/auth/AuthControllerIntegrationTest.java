@@ -55,35 +55,30 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void registerCreatesUserAndReturnsAccessToken() throws Exception {
+    void registerCreatesAnUnverifiedUserAndReturnsNoTokens() throws Exception {
         RegisterRequest request = new RegisterRequest("Kenneth", "kenneth@example.com", VALID_PASSWORD);
 
         MvcResult result = mockMvc.perform(post(REGISTER_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.fullName").value("Kenneth"))
+            .andExpect(status().isAccepted())
             .andExpect(jsonPath("$.email").value("kenneth@example.com"))
-            .andExpect(jsonPath("$.accessToken").isNotEmpty())
+            .andExpect(jsonPath("$.message").isNotEmpty())
+            .andExpect(jsonPath("$.accessToken").doesNotExist())
             .andReturn();
 
         Map<String, Object> savedUser = jdbcTemplate.queryForMap(
-            "SELECT id, full_name, email, password_hash FROM app_user WHERE email = ?",
+            "SELECT id, full_name, email, password_hash, email_verified_at FROM app_user WHERE email = ?",
             "kenneth@example.com"
         );
-        String accessToken = objectMapper
-            .readTree(result.getResponse().getContentAsString())
-            .get("accessToken")
-            .asString();
-        Jwt jwt = jwtDecoder.decode(accessToken);
 
         assertThat(savedUser.get("full_name")).isEqualTo("Kenneth");
         assertThat(savedUser.get("email")).isEqualTo("kenneth@example.com");
         assertThat(savedUser.get("password_hash")).isNotEqualTo(VALID_PASSWORD);
         assertThat(savedUser.get("password_hash").toString()).startsWith("$2");
-        assertThat(jwt.getSubject()).isEqualTo(savedUser.get("id").toString());
-        assertThat(jwt.getClaimAsString("email")).isEqualTo("kenneth@example.com");
-        assertThat(jwt.getClaimAsString("name")).isEqualTo("Kenneth");
+        assertThat(savedUser.get("email_verified_at")).isNull();
+        assertThat(result.getResponse().getCookie("refreshToken")).isNull();
+        assertThat(countRefreshTokens()).isZero();
     }
 
     @Test
@@ -94,7 +89,7 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
         mockMvc.perform(post(REGISTER_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated());
+            .andExpect(status().isAccepted());
 
         assertThat(timeZoneOf("kenneth@example.com")).isEqualTo("Australia/Sydney");
     }
@@ -107,7 +102,7 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
         mockMvc.perform(post(REGISTER_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated());
+            .andExpect(status().isAccepted());
 
         assertThat(timeZoneOf("kenneth@example.com")).isEqualTo("Europe/London");
     }
@@ -119,7 +114,7 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
         mockMvc.perform(post(REGISTER_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated());
+            .andExpect(status().isAccepted());
 
         assertThat(timeZoneOf("kenneth@example.com")).isEqualTo("UTC");
     }
@@ -132,7 +127,7 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
         mockMvc.perform(post(REGISTER_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated());
+            .andExpect(status().isAccepted());
 
         assertThat(timeZoneOf("kenneth@example.com")).isEqualTo("UTC");
     }
@@ -152,19 +147,50 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void registerReturnsConflictWhenEmailAlreadyExists() throws Exception {
+    void registerReturnsConflictWhenEmailBelongsToAVerifiedAccount() throws Exception {
         RegisterRequest request = new RegisterRequest("Kenneth", "kenneth@example.com", VALID_PASSWORD);
 
         mockMvc.perform(post(REGISTER_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated());
+            .andExpect(status().isAccepted());
+
+        markEmailVerified("kenneth@example.com");
 
         mockMvc.perform(post(REGISTER_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isConflict())
             .andExpect(jsonPath("$.message").value("Email is already registered: kenneth@example.com"));
+    }
+
+    @Test
+    void registeringOverAPendingAccountLeavesItAloneAndLooksLikeANewRegistration() throws Exception {
+        mockMvc.perform(post(REGISTER_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    new RegisterRequest("Kenneth", "kenneth@example.com", VALID_PASSWORD))))
+            .andExpect(status().isAccepted());
+
+        Map<String, Object> before = jdbcTemplate.queryForMap(
+            "SELECT full_name, password_hash, time_zone FROM app_user WHERE email = ?",
+            "kenneth@example.com"
+        );
+
+        mockMvc.perform(post(REGISTER_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    new RegisterRequest("Impostor", "kenneth@example.com", "another-password", "Europe/London"))))
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.email").value("kenneth@example.com"));
+
+        Map<String, Object> after = jdbcTemplate.queryForMap(
+            "SELECT full_name, password_hash, time_zone FROM app_user WHERE email = ?",
+            "kenneth@example.com"
+        );
+
+        assertThat(after).isEqualTo(before);
+        assertThat(countUsers("kenneth@example.com")).isEqualTo(1);
     }
 
     @Test
@@ -223,6 +249,43 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
         assertThat(jwt.getSubject()).isEqualTo(String.valueOf(userId));
         assertThat(jwt.getClaimAsString("email")).isEqualTo("kenneth@example.com");
         assertThat(jwt.getClaimAsString("name")).isEqualTo("Kenneth");
+    }
+
+    @Test
+    void loginReturnsUnauthorizedWhenTheEmailIsNotVerified() throws Exception {
+        mockMvc.perform(post(REGISTER_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    new RegisterRequest("Kenneth", "kenneth@example.com", VALID_PASSWORD))))
+            .andExpect(status().isAccepted());
+
+        LoginRequest request = new LoginRequest("kenneth@example.com", VALID_PASSWORD);
+
+        mockMvc.perform(post(LOGIN_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.message")
+                .value("Email address is not verified. Check your inbox for the verification link."));
+
+        assertThat(countRefreshTokens()).isZero();
+    }
+
+    @Test
+    void loginWithTheWrongPasswordOnAnUnverifiedAccountStillLooksLikeABadPassword() throws Exception {
+        mockMvc.perform(post(REGISTER_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    new RegisterRequest("Kenneth", "kenneth@example.com", VALID_PASSWORD))))
+            .andExpect(status().isAccepted());
+
+        LoginRequest request = new LoginRequest("kenneth@example.com", "wrong-password");
+
+        mockMvc.perform(post(LOGIN_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.message").value("Invalid email or password."));
     }
 
     @Test
@@ -304,6 +367,10 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
         );
     }
 
+    private int countRefreshTokens() {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM refresh_token", Integer.class);
+    }
+
     private int countUsers(String email) {
         return jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM app_user WHERE email = ?",
@@ -312,11 +379,15 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
         );
     }
 
+    /** An account as it exists after verification, which is also the state the migration left every existing user in. */
     private long createUser(String fullName, String email, String password) {
         String passwordHash = passwordEncoder.encode(password);
 
         jdbcTemplate.update(
-            "INSERT INTO app_user (full_name, email, password_hash) VALUES (?, ?, ?)",
+            """
+            INSERT INTO app_user (full_name, email, password_hash, email_verified_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            """,
             fullName,
             email,
             passwordHash

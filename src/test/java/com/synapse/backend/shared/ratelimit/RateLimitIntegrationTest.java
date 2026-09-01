@@ -26,7 +26,6 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 
 import com.synapse.backend.ai.clients.LLMClient;
@@ -44,6 +43,7 @@ class RateLimitIntegrationTest extends PostgresIntegrationTest {
 
     private static final String REGISTER_ENDPOINT = "/api/auth/register";
     private static final String LOGIN_ENDPOINT = "/api/auth/login";
+    private static final String RESEND_ENDPOINT = "/api/auth/email/resend";
     private static final String SUMMARY_ENDPOINT = "/api/notes/summarise";
     private static final String NOTES_LIST_ENDPOINT = "/api/notes/list";
     private static final String VALID_PASSWORD = "password123";
@@ -53,6 +53,7 @@ class RateLimitIntegrationTest extends PostgresIntegrationTest {
     private static final int API_REQUESTS_PER_MINUTE = 5;
     private static final int LOGIN_ATTEMPTS = 10;
     private static final int REGISTRATIONS_PER_HOUR = 3;
+    private static final int VERIFICATION_RESENDS_PER_HOUR = 3;
 
     @Autowired
     private MockMvc mockMvc;
@@ -118,7 +119,7 @@ class RateLimitIntegrationTest extends PostgresIntegrationTest {
     @Test
     void registerReturnsTooManyRequestsAfterRegistrationLimit() throws Exception {
         for (int i = 0; i < REGISTRATIONS_PER_HOUR; i++) {
-            register("Kenneth", "kenneth" + i + "@example.com").andExpect(status().isCreated());
+            register("Kenneth", "kenneth" + i + "@example.com").andExpect(status().isAccepted());
         }
 
         register("Kenneth", "kenneth-blocked@example.com")
@@ -129,7 +130,7 @@ class RateLimitIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void loginReturnsTooManyRequestsAfterAttemptLimit() throws Exception {
-        registerAndGetAccessToken("Kenneth", "kenneth@example.com");
+        registerVerifiedUser("Kenneth", "kenneth@example.com", VALID_PASSWORD, null);
 
         for (int i = 0; i < LOGIN_ATTEMPTS; i++) {
             login("kenneth@example.com", "wrong-password").andExpect(status().isUnauthorized());
@@ -143,8 +144,8 @@ class RateLimitIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void loginLimitAppliesPerEmailAcrossAddresses() throws Exception {
-        registerAndGetAccessToken("Kenneth", "kenneth@example.com");
-        registerAndGetAccessToken("Ada", "ada@example.com");
+        registerVerifiedUser("Kenneth", "kenneth@example.com", VALID_PASSWORD, null);
+        registerVerifiedUser("Ada", "ada@example.com", VALID_PASSWORD, null);
 
         for (int i = 0; i < LOGIN_ATTEMPTS; i++) {
             login("kenneth@example.com", "wrong-password", "10.0.0.1").andExpect(status().isUnauthorized());
@@ -156,7 +157,7 @@ class RateLimitIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void loginLimitAppliesPerAddressAcrossEmails() throws Exception {
-        registerAndGetAccessToken("Kenneth", "kenneth@example.com");
+        registerVerifiedUser("Kenneth", "kenneth@example.com", VALID_PASSWORD, null);
 
         for (int i = 0; i < LOGIN_ATTEMPTS; i++) {
             login("unknown" + i + "@example.com", VALID_PASSWORD, "10.0.0.3").andExpect(status().isUnauthorized());
@@ -164,6 +165,35 @@ class RateLimitIntegrationTest extends PostgresIntegrationTest {
 
         login("kenneth@example.com", VALID_PASSWORD, "10.0.0.3").andExpect(status().isTooManyRequests());
         login("kenneth@example.com", VALID_PASSWORD, "10.0.0.4").andExpect(status().isOk());
+    }
+
+    @Test
+    void resendVerificationReturnsTooManyRequestsAfterResendLimitForOneEmail() throws Exception {
+        registerVerifiedUser("Kenneth", "kenneth@example.com", VALID_PASSWORD, null);
+
+        for (int i = 0; i < VERIFICATION_RESENDS_PER_HOUR; i++) {
+            resendVerification("kenneth@example.com", "10.0.0.5").andExpect(status().isNoContent());
+        }
+
+        resendVerification("kenneth@example.com", "10.0.0.6")
+            .andExpect(status().isTooManyRequests())
+            .andExpect(header().exists(HttpHeaders.RETRY_AFTER))
+            .andExpect(jsonPath("$.message").value(startsWith("Too many requests.")));
+
+        resendVerification("ada@example.com", "10.0.0.6").andExpect(status().isNoContent());
+    }
+
+    @Test
+    void resendVerificationLimitAppliesPerAddressAcrossEmails() throws Exception {
+        for (int i = 0; i < VERIFICATION_RESENDS_PER_HOUR; i++) {
+            resendVerification("unknown" + i + "@example.com", "10.0.0.7").andExpect(status().isNoContent());
+        }
+
+        resendVerification("someone@example.com", "10.0.0.7")
+            .andExpect(status().isTooManyRequests())
+            .andExpect(header().exists(HttpHeaders.RETRY_AFTER));
+
+        resendVerification("someone@example.com", "10.0.0.8").andExpect(status().isNoContent());
     }
 
     @Test
@@ -230,6 +260,13 @@ class RateLimitIntegrationTest extends PostgresIntegrationTest {
             .content(objectMapper.writeValueAsString(request)));
     }
 
+    private ResultActions resendVerification(String email, String clientIp) throws Exception {
+        return mockMvc.perform(post(RESEND_ENDPOINT)
+            .with(fromAddress(clientIp))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"email\": \"" + email + "\"}"));
+    }
+
     private ResultActions login(String email, String password) throws Exception {
         return login(email, password, "127.0.0.1");
     }
@@ -252,14 +289,7 @@ class RateLimitIntegrationTest extends PostgresIntegrationTest {
     }
 
     private String registerAndGetAccessToken(String fullName, String email) throws Exception {
-        MvcResult result = register(fullName, email)
-            .andExpect(status().isCreated())
-            .andReturn();
-
-        return objectMapper
-            .readTree(result.getResponse().getContentAsString())
-            .get("accessToken")
-            .asString();
+        return registerAndAuthenticate(fullName, email, VALID_PASSWORD);
     }
 
     private String validSummaryJson() {
