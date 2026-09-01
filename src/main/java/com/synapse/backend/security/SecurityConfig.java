@@ -1,8 +1,7 @@
 package com.synapse.backend.security;
 
-import java.util.List;
-
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -92,6 +91,7 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
@@ -109,20 +109,19 @@ public class SecurityConfig {
     /**
      * Configures cross-origin access for the browser-based frontend.
      *
-     * <p>Allows the local frontend to call API routes with bearer authentication,
+     * <p>Allows the configured frontend origins to call API routes with bearer authentication,
      * send and store the refresh token cookie on auth routes, including the
-     * verification route that signs a confirmed registration in, and caches
-     * successful preflight responses for one hour.</p>
+     * verification route that signs a confirmed registration in. Exposes the
+     * Retry-After response header for rate-limit countdowns and caches successful
+     * preflight responses for one hour.</p>
      *
      * @return the CORS configuration source used by Spring Security.
      */
     @Bean
-    public UrlBasedCorsConfigurationSource corsConfigurationSource() {
+    public UrlBasedCorsConfigurationSource corsConfigurationSource(CorsProperties corsProperties) {
         CorsConfiguration config = new CorsConfiguration();
 
-        config.setAllowedOrigins(List.of(
-            "http://localhost:5173"
-        ));
+        config.setAllowedOrigins(corsProperties.allowedOrigins());
 
         config.setAllowedMethods(List.of(
             "GET",
@@ -136,6 +135,10 @@ public class SecurityConfig {
         config.setAllowedHeaders(List.of(
             "Authorization",
             "Content-Type"
+        ));
+
+        config.setExposedHeaders(List.of(
+            "Retry-After"
         ));
 
         config.setAllowCredentials(true);

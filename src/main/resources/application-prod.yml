@@ -1,0 +1,30 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+
+auth:
+  email-verification:
+    frontend-url: ${EMAIL_VERIFICATION_URL:https://studysynapse.app/verify-email}
+
+  password-reset:
+    frontend-url: ${PASSWORD_RESET_URL:https://studysynapse.app/reset-password}
+
+cors:
+  allowed-origins:
+    - ${FRONTEND_ORIGIN:https://studysynapse.app}
+
+server:
+  port: ${PORT:8080}
+  forward-headers-strategy: native
+  shutdown: graceful
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
