@@ -2,7 +2,7 @@
 
 Synapse is a Spring Boot backend for turning uploaded study notes into structured learning resources. Users can register, upload PDF, Word (`.docx`), plain text, or Markdown notes, generate AI-powered summaries, create flashcard decks, and generate quizzes from saved notes.
 
-The API is secured with short-lived JWT bearer access tokens and rotating refresh token cookies, persists data in PostgreSQL, manages schema changes with Flyway, and exposes interactive OpenAPI documentation through Swagger UI.
+The API is secured with short-lived JWT bearer access tokens and rotating refresh token cookies, persists data in PostgreSQL, manages schema changes with Flyway, and exposes interactive OpenAPI documentation through Swagger UI during local development.
 
 ## Features ✨
 
@@ -19,7 +19,7 @@ The API is secured with short-lived JWT bearer access tokens and rotating refres
 - Quiz listing, retrieval, deletion, difficulty settings, and manual question management
 - Personal-practice score saving and newest-first score history
 - PostgreSQL persistence with Flyway migrations
-- Swagger/OpenAPI documentation
+- Swagger/OpenAPI documentation in development, disabled in production
 - Integration tests using Testcontainers
 - In-memory per-user and per-IP rate limiting
 - Scheduled cleanup of never-verified accounts and expired verification tokens
@@ -111,11 +111,15 @@ http://localhost:8080/
 
 ## Configuration ⚙️
 
-Local development configuration lives in:
+Shared configuration lives in `src/main/resources/application.yml`. Environment-specific overrides live in:
 
 ```text
 src/main/resources/application-dev.yml
+src/main/resources/application-prod.yml
 ```
+
+The `dev` profile is the default when no profile is selected. A deployment must explicitly set
+`SPRING_PROFILES_ACTIVE=prod`.
 
 The default local database is provided by `docker-compose.yml`:
 
@@ -195,6 +199,51 @@ endpoint. An email-change link issues no session, so it keeps the full day.
 Groq is the primary LLM client used by generation flows. Gemini client configuration is present as an alternate implementation, but Groq is currently selected by Spring.
 
 For production deployments, prefer setting secrets and profile values through environment variables rather than committing profile-specific configuration.
+
+## Production Deployment 🚢
+
+The repository includes a multi-stage `Dockerfile` that builds the Spring Boot jar with Java 25 and runs it as a
+non-root user on a Java 25 JRE. Build it with:
+
+```bash
+docker build -t synapse-backend .
+```
+
+The production profile expects a PostgreSQL database and the following environment variables:
+
+| Variable | Required | Production default | Meaning |
+| --- | --- | --- | --- |
+| `SPRING_PROFILES_ACTIVE` | Yes | none | Must be `prod` for a deployment |
+| `DB_HOST` | Yes | none | PostgreSQL hostname reachable from the backend |
+| `DB_PORT` | Yes | none | PostgreSQL port, normally `5432` |
+| `DB_NAME` | Yes | none | PostgreSQL database name |
+| `DB_USERNAME` | Yes | none | PostgreSQL username |
+| `DB_PASSWORD` | Yes | none | PostgreSQL password |
+| `JWT_SECRET` | Yes | none | Random secret of at least 32 bytes; changing it invalidates existing access tokens |
+| `GROQ_API_KEY` | Yes for AI generation | empty | Groq API key used by the primary LLM client |
+| `RESEND_API_KEY` | Yes for email | none | Resend API key for verification and password-reset messages |
+| `FRONTEND_ORIGIN` | No | `https://studysynapse.app` | Exact browser origin allowed by CORS, without a trailing slash |
+| `EMAIL_VERIFICATION_URL` | No | `https://studysynapse.app/verify-email` | Frontend verification page used in email links |
+| `PASSWORD_RESET_URL` | No | `https://studysynapse.app/reset-password` | Frontend reset page used in email links |
+| `PORT` | No | `8080` | HTTP port exposed by the platform |
+| `RESEND_FROM` | No | `Synapse <no-reply@studysynapse.app>` | Verified sender used for transactional email |
+
+For a small container, this is a reasonable starting point for `JAVA_TOOL_OPTIONS`:
+
+```text
+-XX:MaxRAMPercentage=65 -XX:InitialRAMPercentage=20 -XX:+UseSerialGC
+```
+
+Flyway runs automatically at startup, so deploy the backend only after the database exists and keep the database
+persistent across backend redeployments. The production connection pool is capped at five connections to suit a
+small hosted PostgreSQL instance.
+
+Use `GET /actuator/health` for the platform health check. It is public and returns only overall health; no other
+Actuator endpoint is exposed. The production profile also honours reverse-proxy forwarding headers so client-address
+rate limits use the original client address supplied by the hosting platform.
+
+Production serves neither Swagger UI nor the OpenAPI JSON. `/`, `/swagger-ui.html`, and `/v3/api-docs` return `404`
+under the `prod` profile. They remain available locally under the default `dev` profile.
 
 ## API Overview 📚
 
