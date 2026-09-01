@@ -116,7 +116,7 @@ class EmailVerificationTokenIntegrationTest extends PostgresIntegrationTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value(INVALID_TOKEN_MESSAGE));
 
-        verifyEmail(replacementToken).andExpect(status().isNoContent());
+        verifyEmail(replacementToken).andExpect(status().isOk());
     }
 
     @Test
@@ -124,7 +124,7 @@ class EmailVerificationTokenIntegrationTest extends PostgresIntegrationTest {
         register(EMAIL).andExpect(status().isAccepted());
         String token = rawTokenFromLastEmail();
 
-        verifyEmail(token).andExpect(status().isNoContent());
+        verifyEmail(token).andExpect(status().isOk());
 
         verifyEmail(token)
             .andExpect(status().isBadRequest())
@@ -138,7 +138,7 @@ class EmailVerificationTokenIntegrationTest extends PostgresIntegrationTest {
 
         List<Integer> statuses = verifyConcurrently(token, 2);
 
-        assertThat(statuses).containsExactlyInAnyOrder(204, 400);
+        assertThat(statuses).containsExactlyInAnyOrder(200, 400);
         assertThat(emailVerifiedAt(EMAIL)).isNotNull();
         assertThat(countConsumedTokens()).isEqualTo(1);
     }

@@ -16,6 +16,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
@@ -93,6 +94,9 @@ class EmailChangeIntegrationTest extends PostgresIntegrationTest {
         assertThat(emailOf()).isEqualTo(EMAIL);
         assertThat(tokenRow().get("purpose")).isEqualTo("EMAIL_CHANGE");
         assertThat(tokenRow().get("email")).isEqualTo(NEW_EMAIL);
+        assertThat(((Timestamp) tokenRow().get("expires_at")).toLocalDateTime())
+            .isAfter(LocalDateTime.now(ZoneOffset.UTC).plusHours(23))
+            .isBefore(LocalDateTime.now(ZoneOffset.UTC).plusHours(25));
     }
 
     @Test
@@ -114,11 +118,37 @@ class EmailChangeIntegrationTest extends PostgresIntegrationTest {
         reset(emailClient());
 
         requestEmailChange(accessToken, NEW_EMAIL).andExpect(status().isAccepted());
-        verifyEmail(rawTokenFromLastEmail()).andExpect(status().isNoContent());
+
+        verifyEmail(rawTokenFromLastEmail())
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.kind").value("EMAIL_CHANGE"))
+            .andExpect(jsonPath("$.email").value(NEW_EMAIL));
 
         assertThat(emailOf()).isEqualTo(NEW_EMAIL);
         assertThat(countUsers(EMAIL)).isZero();
         assertThat(verifiedAt(NEW_EMAIL)).isNotNull();
+    }
+
+    @Test
+    void confirmingTheChangeIssuesNoSessionAndLeavesTheExistingOneAlone() throws Exception {
+        String accessToken = registerAndAuthenticate("Kenneth", EMAIL, VALID_PASSWORD);
+        reset(emailClient());
+
+        requestEmailChange(accessToken, NEW_EMAIL).andExpect(status().isAccepted());
+
+        int sessionsBefore = countRefreshTokens();
+
+        verifyEmail(rawTokenFromLastEmail())
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.accessToken").doesNotExist())
+            .andExpect(jsonPath("$.fullName").doesNotExist())
+            .andExpect(result -> assertThat(result.getResponse().getCookie("refreshToken")).isNull());
+
+        assertThat(countRefreshTokens()).isEqualTo(sessionsBefore);
+
+        mockMvc.perform(get(USER_DETAILS_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.email").value(NEW_EMAIL));
     }
 
     @Test
@@ -127,7 +157,7 @@ class EmailChangeIntegrationTest extends PostgresIntegrationTest {
         reset(emailClient());
 
         requestEmailChange(accessToken, NEW_EMAIL).andExpect(status().isAccepted());
-        verifyEmail(rawTokenFromLastEmail()).andExpect(status().isNoContent());
+        verifyEmail(rawTokenFromLastEmail()).andExpect(status().isOk());
 
         login(EMAIL, VALID_PASSWORD)
             .andExpect(status().isUnauthorized())
@@ -170,7 +200,7 @@ class EmailChangeIntegrationTest extends PostgresIntegrationTest {
         assertThat(emailOf()).isEqualTo(EMAIL);
 
         requestEmailChange(accessToken, NEW_EMAIL).andExpect(status().isAccepted());
-        verifyEmail(rawTokenFromLastEmail()).andExpect(status().isNoContent());
+        verifyEmail(rawTokenFromLastEmail()).andExpect(status().isOk());
 
         assertThat(emailOf()).isEqualTo(NEW_EMAIL);
     }
@@ -192,7 +222,7 @@ class EmailChangeIntegrationTest extends PostgresIntegrationTest {
 
         assertThat(emailOf()).isEqualTo(EMAIL);
 
-        verifyEmail(secondToken).andExpect(status().isNoContent());
+        verifyEmail(secondToken).andExpect(status().isOk());
 
         assertThat(emailOf()).isEqualTo("third@example.com");
     }
@@ -273,7 +303,7 @@ class EmailChangeIntegrationTest extends PostgresIntegrationTest {
         reset(emailClient());
 
         requestEmailChange(accessToken, NEW_EMAIL).andExpect(status().isAccepted());
-        verifyEmail(rawTokenFromLastEmail()).andExpect(status().isNoContent());
+        verifyEmail(rawTokenFromLastEmail()).andExpect(status().isOk());
 
         assertThat(countUsers("ada@example.com")).isEqualTo(1);
         assertThat(verifiedAt("ada@example.com")).isNotNull();
@@ -337,7 +367,7 @@ class EmailChangeIntegrationTest extends PostgresIntegrationTest {
 
         assertThat(lastMessage().to()).isEqualTo(NEW_EMAIL);
 
-        verifyEmail(rawTokenFromLastEmail()).andExpect(status().isNoContent());
+        verifyEmail(rawTokenFromLastEmail()).andExpect(status().isOk());
 
         assertThat(emailOf()).isEqualTo(NEW_EMAIL);
     }
@@ -422,6 +452,10 @@ class EmailChangeIntegrationTest extends PostgresIntegrationTest {
     private Object verifiedAt(String email) {
         return jdbcTemplate.queryForMap("SELECT email_verified_at FROM app_user WHERE email = ?", email)
             .get("email_verified_at");
+    }
+
+    private int countRefreshTokens() {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM refresh_token", Integer.class);
     }
 
     private int countUsers(String email) {

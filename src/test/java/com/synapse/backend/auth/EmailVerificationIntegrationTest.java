@@ -6,6 +6,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -31,10 +32,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 
 import com.synapse.backend.auth.dto.LoginRequest;
@@ -43,6 +46,7 @@ import com.synapse.backend.email.dto.EmailMessage;
 import com.synapse.backend.email.exceptions.EmailProviderException;
 import com.synapse.backend.support.PostgresIntegrationTest;
 
+import jakarta.servlet.http.Cookie;
 import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
@@ -52,6 +56,9 @@ class EmailVerificationIntegrationTest extends PostgresIntegrationTest {
     private static final String REGISTER_ENDPOINT = "/api/auth/register";
     private static final String LOGIN_ENDPOINT = "/api/auth/login";
     private static final String VERIFY_ENDPOINT = "/api/auth/email/verify";
+    private static final String REFRESH_ENDPOINT = "/api/auth/refresh";
+    private static final String USER_DETAILS_ENDPOINT = "/api/user/details";
+    private static final String REFRESH_COOKIE_NAME = "refreshToken";
     private static final String EMAIL = "kenneth@example.com";
     private static final String VALID_PASSWORD = "password123";
 
@@ -94,8 +101,8 @@ class EmailVerificationIntegrationTest extends PostgresIntegrationTest {
         assertThat(message.text()).contains("ignore this email");
         assertThat(message.idempotencyKey()).isEqualTo("email-verification-" + token.get("id"));
         assertThat(expiresAt)
-            .isAfter(LocalDateTime.now(ZoneOffset.UTC).plusHours(23))
-            .isBefore(LocalDateTime.now(ZoneOffset.UTC).plusHours(25));
+            .isAfter(LocalDateTime.now(ZoneOffset.UTC).plusMinutes(55))
+            .isBefore(LocalDateTime.now(ZoneOffset.UTC).plusMinutes(65));
         assertThat(token.get("purpose")).isEqualTo("REGISTRATION");
         assertThat(token.get("email")).isEqualTo(EMAIL);
     }
@@ -109,7 +116,7 @@ class EmailVerificationIntegrationTest extends PostgresIntegrationTest {
             .andExpect(jsonPath("$.message")
                 .value("Email address is not verified. Check your inbox for the verification link."));
 
-        verifyEmail(rawTokenFromEmail()).andExpect(status().isNoContent());
+        verifyEmail(rawTokenFromEmail()).andExpect(status().isOk());
 
         login(EMAIL, VALID_PASSWORD)
             .andExpect(status().isOk())
@@ -121,22 +128,61 @@ class EmailVerificationIntegrationTest extends PostgresIntegrationTest {
     void confirmingRegistrationMarksTheAccountVerifiedAndConsumesTheToken() throws Exception {
         register(EMAIL).andExpect(status().isAccepted());
 
-        verifyEmail(rawTokenFromEmail()).andExpect(status().isNoContent());
+        verifyEmail(rawTokenFromEmail()).andExpect(status().isOk());
 
         assertThat(emailVerifiedAt(EMAIL)).isNotNull();
         assertThat(tokenRow().get("consumed_at")).isNotNull();
     }
 
     @Test
-    void confirmingRegistrationDoesNotLogTheUserIn() throws Exception {
+    void confirmingRegistrationSignsTheUserInAndSaysWhichLinkItWas() throws Exception {
         register(EMAIL).andExpect(status().isAccepted());
 
-        verifyEmail(rawTokenFromEmail())
-            .andExpect(status().isNoContent())
-            .andExpect(result -> assertThat(result.getResponse().getContentAsString()).isEmpty())
-            .andExpect(result -> assertThat(result.getResponse().getCookie("refreshToken")).isNull());
+        MvcResult result = verifyEmail(rawTokenFromEmail())
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.kind").value("REGISTRATION"))
+            .andExpect(jsonPath("$.fullName").value("Kenneth"))
+            .andExpect(jsonPath("$.email").value(EMAIL))
+            .andExpect(jsonPath("$.accessToken").isNotEmpty())
+            .andReturn();
 
-        assertThat(countRefreshTokens()).isZero();
+        Cookie refreshCookie = result.getResponse().getCookie(REFRESH_COOKIE_NAME);
+
+        assertThat(refreshCookie).isNotNull();
+        assertThat(refreshCookie.getValue()).isNotEmpty();
+        assertThat(refreshCookie.isHttpOnly()).isTrue();
+        assertThat(refreshCookie.getPath()).isEqualTo("/api/auth");
+        assertThat(countRefreshTokens()).isEqualTo(1);
+    }
+
+    @Test
+    void theSessionAConfirmedRegistrationIssuesIsUsableWithoutLoggingIn() throws Exception {
+        register(EMAIL).andExpect(status().isAccepted());
+
+        MvcResult result = verifyEmail(rawTokenFromEmail()).andExpect(status().isOk()).andReturn();
+
+        mockMvc.perform(get(USER_DETAILS_ENDPOINT)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessTokenFrom(result)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.email").value(EMAIL));
+
+        mockMvc.perform(post(REFRESH_ENDPOINT).cookie(result.getResponse().getCookie(REFRESH_COOKIE_NAME)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.accessToken").isNotEmpty());
+    }
+
+    @Test
+    void aRegistrationLinkOpenedTwiceIssuesOnlyOneSession() throws Exception {
+        register(EMAIL).andExpect(status().isAccepted());
+        String token = rawTokenFromEmail();
+
+        verifyEmail(token).andExpect(status().isOk());
+
+        verifyEmail(token)
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("Invalid or expired verification token."));
+
+        assertThat(countRefreshTokens()).isEqualTo(1);
     }
 
     @Test
@@ -188,7 +234,7 @@ class EmailVerificationIntegrationTest extends PostgresIntegrationTest {
                 .content("{\"email\": \"" + EMAIL + "\"}"))
             .andExpect(status().isNoContent());
 
-        verifyEmail(rawTokenFromEmail()).andExpect(status().isNoContent());
+        verifyEmail(rawTokenFromEmail()).andExpect(status().isOk());
 
         login(EMAIL, VALID_PASSWORD).andExpect(status().isOk());
     }
@@ -255,6 +301,13 @@ class EmailVerificationIntegrationTest extends PostgresIntegrationTest {
         return mockMvc.perform(post(VERIFY_ENDPOINT)
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(Map.of("token", token))));
+    }
+
+    private String accessTokenFrom(MvcResult result) throws Exception {
+        return objectMapper
+            .readTree(result.getResponse().getContentAsString())
+            .get("accessToken")
+            .asString();
     }
 
     private EmailMessage sentMessage() {
