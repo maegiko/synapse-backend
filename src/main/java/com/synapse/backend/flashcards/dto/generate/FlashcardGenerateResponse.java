@@ -6,5 +6,6 @@ import com.synapse.backend.flashcards.dto.FlashcardResponse;
 
 public record FlashcardGenerateResponse(
     String deckId,
+    boolean pinned,
     List<FlashcardResponse> flashcards
 ) {}

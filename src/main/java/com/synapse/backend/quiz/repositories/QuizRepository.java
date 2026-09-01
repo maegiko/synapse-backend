@@ -18,9 +18,9 @@ public interface QuizRepository extends JpaRepository<Quiz, Long> {
 
     List<Quiz> findByUserIdOrderByCreatedAtDesc(Long userId);
 
-    Page<Quiz> findByUserIdOrderByCreatedAtDescIdDesc(Long userId, Pageable pageable);
+    Page<Quiz> findByUserIdOrderByPinnedDescCreatedAtDescIdDesc(Long userId, Pageable pageable);
 
-    Page<Quiz> findByUserIdAndTitleContainingIgnoreCaseOrderByCreatedAtDescIdDesc(
+    Page<Quiz> findByUserIdAndTitleContainingIgnoreCaseOrderByPinnedDescCreatedAtDescIdDesc(
         Long userId,
         String title,
         Pageable pageable
@@ -28,7 +28,7 @@ public interface QuizRepository extends JpaRepository<Quiz, Long> {
 
     long deleteByPublicIdAndUserId(String publicId, Long userId);
 
-    List<Quiz> findByGroupIdOrderByCreatedAtDesc(Long groupId);
+    List<Quiz> findByGroupIdOrderByPinnedDescCreatedAtDescIdDesc(Long groupId);
 
     int countByGroupId(Long groupId);
 

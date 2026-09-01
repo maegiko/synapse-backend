@@ -111,21 +111,21 @@ public class GroupPersistenceService {
         StudyGroup group = findOwnedGroup(groupId, userId);
 
         List<GroupContentResponse> notes = noteRepository
-            .findByGroupIdOrderByCreatedAtDesc(group.getId())
+            .findByGroupIdOrderByPinnedDescCreatedAtDescIdDesc(group.getId())
             .stream()
-            .map(n -> new GroupContentResponse(n.getPublicId(), n.getTitle(), n.getCreatedAt()))
+            .map(n -> new GroupContentResponse(n.getPublicId(), n.getTitle(), n.getCreatedAt(), n.isPinned()))
             .toList();
 
         List<GroupContentResponse> decks = flashcardDeckRepository
-            .findByGroupIdOrderByCreatedAtDesc(group.getId())
+            .findByGroupIdOrderByPinnedDescCreatedAtDescIdDesc(group.getId())
             .stream()
-            .map(d -> new GroupContentResponse(d.getPublicId(), d.getTitle(), d.getCreatedAt()))
+            .map(d -> new GroupContentResponse(d.getPublicId(), d.getTitle(), d.getCreatedAt(), d.isPinned()))
             .toList();
 
         List<GroupContentResponse> quizzes = quizRepository
-            .findByGroupIdOrderByCreatedAtDesc(group.getId())
+            .findByGroupIdOrderByPinnedDescCreatedAtDescIdDesc(group.getId())
             .stream()
-            .map(q -> new GroupContentResponse(q.getPublicId(), q.getTitle(), q.getCreatedAt()))
+            .map(q -> new GroupContentResponse(q.getPublicId(), q.getTitle(), q.getCreatedAt(), q.isPinned()))
             .toList();
 
         return new GroupDetailResponse(

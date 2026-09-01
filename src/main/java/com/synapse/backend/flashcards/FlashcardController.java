@@ -179,12 +179,14 @@ public class FlashcardController {
     @PatchMapping("/{deckId}")
     @Operation(
         summary = "Update a flashcard deck",
-        description = "Updates the title of a flashcard deck owned by the currently authenticated user.",
+        description = "Updates the title and/or pin state of a flashcard deck owned by the currently "
+            + "authenticated user. Only the supplied fields are changed and at least one must be supplied. "
+            + "A pinned deck is listed before unpinned decks in the library.",
         responses = {
             @ApiResponse(responseCode = "200", description = "Successful flashcard deck update"),
             @ApiResponse(
                 responseCode = "400",
-                description = "Title is missing or blank",
+                description = "No field supplied, or the supplied title is blank",
                 content = @Content(schema = @Schema(implementation = com.synapse.backend.shared.ErrorResponse.class))
             ),
             @ApiResponse(
@@ -205,7 +207,7 @@ public class FlashcardController {
         @AuthenticationPrincipal Jwt jwt
     ) {
         Long userId = Long.valueOf(jwt.getSubject());
-        SingleDeckResponse res = persistenceService.updateDeck(deckId, userId, req.title());
+        SingleDeckResponse res = flashcardService.updateDeck(deckId, userId, req);
 
         return ResponseEntity.ok(res);
     }

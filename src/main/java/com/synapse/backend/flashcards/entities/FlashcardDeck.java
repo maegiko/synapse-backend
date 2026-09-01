@@ -45,6 +45,9 @@ public class FlashcardDeck {
     @Column(name = "group_id")
     private Long groupId;
 
+    @Column(nullable = false)
+    private boolean pinned;
+
     @Column(name = "public_id", nullable = false, unique = true, length = 10)
     private String publicId;
 
@@ -120,6 +123,10 @@ public class FlashcardDeck {
         return groupId;
     }
 
+    public boolean isPinned() {
+        return pinned;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -156,6 +163,10 @@ public class FlashcardDeck {
 
     public void updateTitle(String title) {
         this.title = title;
+    }
+
+    public void updatePinned(boolean pinned) {
+        this.pinned = pinned;
     }
 
     /**

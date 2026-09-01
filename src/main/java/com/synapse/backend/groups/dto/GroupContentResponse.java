@@ -5,5 +5,6 @@ import java.time.LocalDateTime;
 public record GroupContentResponse(
     String id,
     String title,
-    LocalDateTime createdAt
+    LocalDateTime createdAt,
+    boolean pinned
 ) {}

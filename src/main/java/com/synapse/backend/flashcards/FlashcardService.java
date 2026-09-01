@@ -12,11 +12,14 @@ import com.synapse.backend.ai.prompts.FlashcardGeneratePromptFactory;
 import com.synapse.backend.flashcards.dto.AddFlashcardRequest;
 import com.synapse.backend.flashcards.dto.AddFlashcardResponse;
 import com.synapse.backend.flashcards.dto.FlashcardResponse;
+import com.synapse.backend.flashcards.dto.UpdateDeckRequest;
 import com.synapse.backend.flashcards.dto.UpdateFlashcardRequest;
+import com.synapse.backend.flashcards.exceptions.InvalidDeckException;
 import com.synapse.backend.flashcards.exceptions.InvalidFlashcardException;
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateListResponse;
 import com.synapse.backend.flashcards.dto.generate.FlashcardGenerateResponse;
 import com.synapse.backend.flashcards.dto.generate.FlashcardSourceNote;
+import com.synapse.backend.flashcards.dto.list.SingleDeckResponse;
 import com.synapse.backend.flashcards.dto.review.ReviewDeckResponse;
 import com.synapse.backend.flashcards.enums.ReviewRating;
 import com.synapse.backend.notes.NotesService;
@@ -90,7 +93,8 @@ public class FlashcardService {
 
             streakService.recordActivity(userId);
 
-            return new FlashcardGenerateResponse(deckId, flashcards);
+            // A newly generated deck is always unpinned; the user pins it later through PATCH.
+            return new FlashcardGenerateResponse(deckId, false, flashcards);
         } catch (JacksonException e) {
             throw new LLMResponseParsingException("Failed to parse LLM response");
         }
@@ -103,6 +107,31 @@ public class FlashcardService {
                 .map(c -> new FlashcardResponse(c.name(), c.explanation()))
                 .toList()
         );
+    }
+
+    /**
+     * Updates the title and/or pin state of a deck owned by the currently authenticated user.
+     *
+     * <p>Only the supplied fields are changed. The request arrives with its title trimmed. The
+     * pin state is null when it was not supplied, true to pin the deck, and false to unpin it.</p>
+     *
+     * @param deckId the public id of the deck.
+     * @param userId the id of the currently authenticated user.
+     * @param req the validated fields to update, with at least one field supplied.
+     * @return the updated deck with its cards in position order.
+     * @throws InvalidDeckException if no field is supplied or the supplied title is blank.
+     */
+    public SingleDeckResponse updateDeck(String deckId, Long userId, UpdateDeckRequest req) {
+        String title = req.title();
+        Boolean pinned = req.pinned();
+
+        if (title == null && pinned == null)
+            throw new InvalidDeckException("At least one of title or pinned must be supplied.");
+
+        if (title != null && title.isBlank())
+            throw new InvalidDeckException("title: must not be blank");
+
+        return persistenceService.updateDeck(deckId, userId, title, pinned);
     }
 
     /**

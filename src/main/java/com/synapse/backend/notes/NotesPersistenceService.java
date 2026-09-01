@@ -73,7 +73,8 @@ public class NotesPersistenceService {
             summary.keypoints(),
             summary.concepts(),
             summary.importantTerms(),
-            null
+            null,
+            newNote.isPinned()
         );
     }
 
@@ -143,10 +144,10 @@ public class NotesPersistenceService {
         String search = query == null ? "" : query.trim();
 
         if (search.isEmpty())
-            return noteRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable);
+            return noteRepository.findByUserIdOrderByPinnedDescCreatedAtDescIdDesc(userId, pageable);
 
         return noteRepository
-            .findByUserIdAndTitleContainingIgnoreCaseOrderByCreatedAtDescIdDesc(userId, search, pageable);
+            .findByUserIdAndTitleContainingIgnoreCaseOrderByPinnedDescCreatedAtDescIdDesc(userId, search, pageable);
     }
 
     private NoteListResponse toNoteListResponse(List<NoteSummaryResponse> notes, Page<Note> page) {
@@ -217,7 +218,8 @@ public class NotesPersistenceService {
                 noteKeypoints,
                 noteConcepts,
                 noteImportantTerms,
-                groupPublicId(note.getGroupId())
+                groupPublicId(note.getGroupId()),
+                note.isPinned()
             ));
         }
 
@@ -259,7 +261,8 @@ public class NotesPersistenceService {
             noteKeypoints,
             noteConcepts,
             noteImportantTerms,
-            groupPublicId(note.getGroupId())
+            groupPublicId(note.getGroupId()),
+            note.isPinned()
         );
     }
 
@@ -270,11 +273,12 @@ public class NotesPersistenceService {
      * @param userId the user ID of the currently authenticated user.
      * @param title the new title, or null to leave it unchanged.
      * @param overview the new overview, or null to leave it unchanged.
+     * @param pinned the new pin state, or null to leave it unchanged.
      * @return the updated note summary.
      * @throws NoteNotFoundException if the note doesn't exist for this user.
      */
     @Transactional
-    public NoteSummaryResponse updateNote(String noteId, Long userId, String title, String overview) {
+    public NoteSummaryResponse updateNote(String noteId, Long userId, String title, String overview, Boolean pinned) {
         Note note = noteRepository
             .findByPublicIdAndUserId(noteId, userId)
             .orElseThrow(() -> new NoteNotFoundException("Requested note not found."));
@@ -284,6 +288,9 @@ public class NotesPersistenceService {
 
         if (overview != null)
             note.updateOverview(overview);
+
+        if (pinned != null)
+            note.updatePinned(pinned);
 
         noteRepository.save(note);
 

@@ -6,5 +6,6 @@ public record SingleDeckResponse(
     String deckId,
     String title,
     List<FlashcardWithIdResponse> flashcards,
-    String groupId
+    String groupId,
+    boolean pinned
 ) {}

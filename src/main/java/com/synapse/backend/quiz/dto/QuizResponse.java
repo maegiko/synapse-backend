@@ -10,5 +10,6 @@ public record QuizResponse(
     List<QuestionResponse> questions,
     Integer difficulty,
     LocalDateTime createdAt,
-    String groupId
+    String groupId,
+    boolean pinned
 ) {}

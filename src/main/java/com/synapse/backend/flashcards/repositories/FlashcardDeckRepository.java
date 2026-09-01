@@ -23,9 +23,9 @@ public interface FlashcardDeckRepository extends JpaRepository<FlashcardDeck, Lo
 
     List<FlashcardDeck> findByUserIdOrderByCreatedAtDesc(Long userId);
 
-    Page<FlashcardDeck> findByUserIdOrderByCreatedAtDescIdDesc(Long userId, Pageable pageable);
+    Page<FlashcardDeck> findByUserIdOrderByPinnedDescCreatedAtDescIdDesc(Long userId, Pageable pageable);
 
-    Page<FlashcardDeck> findByUserIdAndTitleContainingIgnoreCaseOrderByCreatedAtDescIdDesc(
+    Page<FlashcardDeck> findByUserIdAndTitleContainingIgnoreCaseOrderByPinnedDescCreatedAtDescIdDesc(
         Long userId,
         String title,
         Pageable pageable
@@ -52,7 +52,7 @@ public interface FlashcardDeckRepository extends JpaRepository<FlashcardDeck, Lo
 
     long deleteByPublicIdAndUserId(String publicId, Long userId);
 
-    List<FlashcardDeck> findByGroupIdOrderByCreatedAtDesc(Long groupId);
+    List<FlashcardDeck> findByGroupIdOrderByPinnedDescCreatedAtDescIdDesc(Long groupId);
 
     int countByGroupId(Long groupId);
 

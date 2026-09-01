@@ -39,6 +39,9 @@ public class Quiz {
     private Long groupId;
 
     @Column(nullable = false)
+    private boolean pinned;
+
+    @Column(nullable = false)
     private String title;
 
     @Column
@@ -90,6 +93,10 @@ public class Quiz {
         return groupId;
     }
 
+    public boolean isPinned() {
+        return pinned;
+    }
+
     public String getTitle() {
         return title;
     }
@@ -120,6 +127,10 @@ public class Quiz {
 
     public void updateDescription(String description) {
         this.description = description;
+    }
+
+    public void updatePinned(boolean pinned) {
+        this.pinned = pinned;
     }
 
 }

@@ -203,14 +203,15 @@ public class QuizService {
 
         String title = req.title();
         String description = req.description();
+        Boolean pinned = req.pinned();
 
-        if (title == null && description == null)
-            throw new InvalidQuizDetailsException("At least one of title or description must be supplied.");
+        if (title == null && description == null && pinned == null)
+            throw new InvalidQuizDetailsException("At least one of title, description, or pinned must be supplied.");
 
         if (title != null && title.isBlank())
             throw new InvalidQuizDetailsException("title: must not be blank");
 
-        return persistenceService.updateQuiz(userId, quizId, title, description);
+        return persistenceService.updateQuiz(userId, quizId, title, description, pinned);
     }
 
     /**

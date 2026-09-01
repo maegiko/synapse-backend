@@ -120,7 +120,8 @@ public class QuizPersistenceService {
             questions,
             newQuiz.getDifficulty(),
             newQuiz.getCreatedAt(),
-            null
+            null,
+            newQuiz.isPinned()
         );
     }
 
@@ -197,7 +198,8 @@ public class QuizPersistenceService {
                     questionResponses,
                     quiz.getDifficulty(),
                     quiz.getCreatedAt(),
-                    groupPublicId(quiz.getGroupId())
+                    groupPublicId(quiz.getGroupId()),
+                    quiz.isPinned()
                 )
             );
         }
@@ -209,10 +211,10 @@ public class QuizPersistenceService {
         String search = query == null ? "" : query.trim();
 
         if (search.isEmpty())
-            return quizRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable);
+            return quizRepository.findByUserIdOrderByPinnedDescCreatedAtDescIdDesc(userId, pageable);
 
         return quizRepository
-            .findByUserIdAndTitleContainingIgnoreCaseOrderByCreatedAtDescIdDesc(userId, search, pageable);
+            .findByUserIdAndTitleContainingIgnoreCaseOrderByPinnedDescCreatedAtDescIdDesc(userId, search, pageable);
     }
 
     private ListQuizResponse toListQuizResponse(List<QuizListItemResponse> quizzes, Page<Quiz> page) {
@@ -288,7 +290,8 @@ public class QuizPersistenceService {
             questions,
             quiz.getDifficulty(),
             quiz.getCreatedAt(),
-            groupPublicId(quiz.getGroupId())
+            groupPublicId(quiz.getGroupId()),
+            quiz.isPinned()
         );
     }
 
@@ -332,11 +335,12 @@ public class QuizPersistenceService {
      * @param quizId the public id of the quiz to update.
      * @param title the new title, or null to leave it unchanged.
      * @param description the new description, or null to leave it unchanged.
+     * @param pinned the new pin state, or null to leave it unchanged.
      * @return the updated quiz with ordered questions and answers.
      * @throws QuizNotFound if no quiz with the given public id belongs to the user.
      */
     @Transactional
-    public QuizResponse updateQuiz(Long userId, String quizId, String title, String description) {
+    public QuizResponse updateQuiz(Long userId, String quizId, String title, String description, Boolean pinned) {
         Quiz quiz = quizRepository
             .findByPublicIdAndUserId(quizId, userId)
             .orElseThrow(() -> new QuizNotFound("Quiz not found: " + quizId));
@@ -346,6 +350,9 @@ public class QuizPersistenceService {
 
         if (description != null)
             quiz.updateDescription(description.isBlank() ? null : description);
+
+        if (pinned != null)
+            quiz.updatePinned(pinned);
 
         quizRepository.save(quiz);
 

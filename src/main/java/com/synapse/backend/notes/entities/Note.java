@@ -34,6 +34,9 @@ public class Note {
     @Column(name = "group_id")
     private Long groupId;
 
+    @Column(nullable = false)
+    private boolean pinned;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -77,6 +80,10 @@ public class Note {
         return groupId;
     }
 
+    public boolean isPinned() {
+        return pinned;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -87,6 +94,10 @@ public class Note {
 
     public void updateOverview(String overview) {
         this.overview = overview;
+    }
+
+    public void updatePinned(boolean pinned) {
+        this.pinned = pinned;
     }
 
 }

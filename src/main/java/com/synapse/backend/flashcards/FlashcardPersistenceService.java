@@ -138,7 +138,8 @@ public class FlashcardPersistenceService {
                     deck.getPublicId(),
                     deck.getTitle(),
                     cards,
-                    groupPublicId(deck.getGroupId())
+                    groupPublicId(deck.getGroupId()),
+                    deck.isPinned()
                 )
             );
         }
@@ -150,10 +151,10 @@ public class FlashcardPersistenceService {
         String search = query == null ? "" : query.trim();
 
         if (search.isEmpty())
-            return flashcardDeckRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, pageable);
+            return flashcardDeckRepository.findByUserIdOrderByPinnedDescCreatedAtDescIdDesc(userId, pageable);
 
         return flashcardDeckRepository
-            .findByUserIdAndTitleContainingIgnoreCaseOrderByCreatedAtDescIdDesc(userId, search, pageable);
+            .findByUserIdAndTitleContainingIgnoreCaseOrderByPinnedDescCreatedAtDescIdDesc(userId, search, pageable);
     }
 
     private FlashcardListResponse toFlashcardListResponse(List<SingleDeckResponse> decks, Page<FlashcardDeck> page) {
@@ -186,7 +187,13 @@ public class FlashcardPersistenceService {
                 .map(f -> new FlashcardWithIdResponse(f.getPublicId(), f.getQuestion(), f.getAnswer()))
                 .toList();
 
-        return new SingleDeckResponse(publicId, deck.getTitle(), flashcardList, groupPublicId(deck.getGroupId()));
+        return new SingleDeckResponse(
+            publicId,
+            deck.getTitle(),
+            flashcardList,
+            groupPublicId(deck.getGroupId()),
+            deck.isPinned()
+        );
     }
 
     /**
@@ -194,17 +201,23 @@ public class FlashcardPersistenceService {
      *
      * @param deckId the public id of the deck.
      * @param userId the id of the currently authenticated user.
-     * @param title the new deck title.
+     * @param title the new deck title, or null to leave it unchanged.
+     * @param pinned the new pin state, or null to leave it unchanged.
      * @return the updated deck with its cards in position order.
      * @throws DeckNotFound if the deck doesn't exist for this user.
      */
     @Transactional
-    public SingleDeckResponse updateDeck(String deckId, Long userId, String title) {
+    public SingleDeckResponse updateDeck(String deckId, Long userId, String title, Boolean pinned) {
         FlashcardDeck deck = flashcardDeckRepository
             .findByPublicIdAndUserId(deckId, userId)
             .orElseThrow(() -> new DeckNotFound("Flashcard deck not found: " + deckId));
 
-        deck.updateTitle(title);
+        if (title != null)
+            deck.updateTitle(title);
+
+        if (pinned != null)
+            deck.updatePinned(pinned);
+
         flashcardDeckRepository.save(deck);
 
         List<Flashcard> flashcards = flashcardRepository.findByDeckIdOrderByPositionAsc(deck.getId());
@@ -214,7 +227,13 @@ public class FlashcardPersistenceService {
             .map(f -> new FlashcardWithIdResponse(f.getPublicId(), f.getQuestion(), f.getAnswer()))
             .toList();
 
-        return new SingleDeckResponse(deck.getPublicId(), deck.getTitle(), flashcardList, groupPublicId(deck.getGroupId()));
+        return new SingleDeckResponse(
+            deck.getPublicId(),
+            deck.getTitle(),
+            flashcardList,
+            groupPublicId(deck.getGroupId()),
+            deck.isPinned()
+        );
     }
 
     /**

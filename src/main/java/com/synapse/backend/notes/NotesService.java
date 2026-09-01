@@ -133,9 +133,10 @@ public class NotesService {
     public NoteSummaryResponse updateNote(String noteId, Long userId, UpdateNoteRequest req) {
         String title = req.title();
         String overview = req.overview();
+        Boolean pinned = req.pinned();
 
-        if (title == null && overview == null)
-            throw new InvalidNoteDetailsException("At least one of title or overview must be supplied.");
+        if (title == null && overview == null && pinned == null)
+            throw new InvalidNoteDetailsException("At least one of title, overview, or pinned must be supplied.");
 
         if (title != null && title.isBlank())
             throw new InvalidNoteDetailsException("title: must not be blank");
@@ -143,7 +144,7 @@ public class NotesService {
         if (overview != null && overview.isBlank())
             throw new InvalidNoteDetailsException("overview: must not be blank");
 
-        return notesPersistenceService.updateNote(noteId, userId, title, overview);
+        return notesPersistenceService.updateNote(noteId, userId, title, overview, pinned);
     }
 
 }

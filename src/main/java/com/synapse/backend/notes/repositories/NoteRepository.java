@@ -16,9 +16,9 @@ public interface NoteRepository extends JpaRepository<Note, Long> {
 
     List<Note> findByUserIdOrderByCreatedAtDesc(Long userId);
 
-    Page<Note> findByUserIdOrderByCreatedAtDescIdDesc(Long userId, Pageable pageable);
+    Page<Note> findByUserIdOrderByPinnedDescCreatedAtDescIdDesc(Long userId, Pageable pageable);
 
-    Page<Note> findByUserIdAndTitleContainingIgnoreCaseOrderByCreatedAtDescIdDesc(
+    Page<Note> findByUserIdAndTitleContainingIgnoreCaseOrderByPinnedDescCreatedAtDescIdDesc(
         Long userId,
         String title,
         Pageable pageable
@@ -30,7 +30,7 @@ public interface NoteRepository extends JpaRepository<Note, Long> {
 
     long deleteByPublicIdAndUserId(String noteId, Long userId);
 
-    List<Note> findByGroupIdOrderByCreatedAtDesc(Long groupId);
+    List<Note> findByGroupIdOrderByPinnedDescCreatedAtDescIdDesc(Long groupId);
 
     int countByGroupId(Long groupId);
 

@@ -1,14 +1,15 @@
 package com.synapse.backend.flashcards.dto;
 
-import jakarta.validation.constraints.NotBlank;
-
 /**
- * The deck title to update, normalised on construction so the
- * constraint below is checked against the value that is persisted.
+ * Optional flashcard deck fields to update, normalised on construction so the
+ * service validates the value that is actually persisted.
+ *
+ * <p>{@code pinned} is null when the pin state was not supplied and must be left
+ * unchanged, {@code true} to pin the deck, and {@code false} to unpin it.</p>
  */
 public record UpdateDeckRequest(
-    @NotBlank
-    String title
+    String title,
+    Boolean pinned
 ) {
 
     public UpdateDeckRequest {
