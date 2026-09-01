@@ -82,6 +82,30 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void registerCapitalisesTheFullName() throws Exception {
+        RegisterRequest request = new RegisterRequest("  ada   LOVELACE  ", "ada@example.com", VALID_PASSWORD);
+
+        mockMvc.perform(post(REGISTER_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isAccepted());
+
+        assertThat(fullNameOf("ada@example.com")).isEqualTo("Ada Lovelace");
+    }
+
+    @Test
+    void registerKeepsACapitalTheUserMeantToTypeInTheMiddleOfAName() throws Exception {
+        RegisterRequest request = new RegisterRequest("ada McDonald", "ada@example.com", VALID_PASSWORD);
+
+        mockMvc.perform(post(REGISTER_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isAccepted());
+
+        assertThat(fullNameOf("ada@example.com")).isEqualTo("Ada McDonald");
+    }
+
+    @Test
     void registerStoresTheSuppliedTimeZone() throws Exception {
         RegisterRequest request =
             new RegisterRequest("Kenneth", "kenneth@example.com", VALID_PASSWORD, "Australia/Sydney");
@@ -357,6 +381,14 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value("password: size must be between 8 and 64"));
+    }
+
+    private String fullNameOf(String email) {
+        return jdbcTemplate.queryForObject(
+            "SELECT full_name FROM app_user WHERE email = ?",
+            String.class,
+            email
+        );
     }
 
     private String timeZoneOf(String email) {

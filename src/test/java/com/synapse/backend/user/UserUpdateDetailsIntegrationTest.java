@@ -74,6 +74,28 @@ class UserUpdateDetailsIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void updateUserDetailsCapitalisesFullName() throws Exception {
+        String accessToken = registerAndGetAccessToken("Kenneth", EMAIL);
+
+        updateDetails(accessToken, new UpdateUserDetailsRequest("kenneth KOON", null))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.fullName").value("Kenneth Koon"));
+
+        assertThat(userRow(EMAIL).get("full_name")).isEqualTo("Kenneth Koon");
+    }
+
+    @Test
+    void updateUserDetailsKeepsACapitalTheUserMeantToTypeInTheMiddleOfAName() throws Exception {
+        String accessToken = registerAndGetAccessToken("Kenneth", EMAIL);
+
+        updateDetails(accessToken, new UpdateUserDetailsRequest("kenneth McKoon", null))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.fullName").value("Kenneth McKoon"));
+
+        assertThat(userRow(EMAIL).get("full_name")).isEqualTo("Kenneth McKoon");
+    }
+
+    @Test
     void updateUserDetailsIgnoresASuppliedEmailAndLeavesTheAddressAlone() throws Exception {
         String accessToken = registerAndGetAccessToken("Kenneth", EMAIL);
 
