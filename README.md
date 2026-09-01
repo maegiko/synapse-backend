@@ -218,8 +218,9 @@ Authorization: Bearer <accessToken>
 | `POST` | `/api/auth/logout` | Revoke the current refresh token and clear the cookie | No |
 | `PUT` | `/api/auth/password` | Change the authenticated user's password | Yes |
 
-`POST /api/auth/register` stores the full name with each word capitalised — `ada lovelace` and `ADA LOVELACE` are both
-saved as `Ada Lovelace`, while a word typed in a mixture of cases, such as `McDonald`, is kept as it was written. It
+`POST /api/auth/register` requires a 2–100 character full name containing no numbers. It stores the full name with each
+word capitalised — `ada lovelace` and `ADA LOVELACE` are both saved as `Ada Lovelace`, while a word typed in a mixture
+of cases, such as `McDonald`, is kept as it was written. It
 returns `202` with the address the link was sent to and a message telling the client to check its email. It issues no access token and sets no refresh cookie: the account is created with `email_verified_at` null
 and cannot log in until the link is confirmed. Logging in with the right password on an unverified account returns
 `401` with a message naming verification, while a wrong password on the same account still returns the generic

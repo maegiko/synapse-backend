@@ -2,15 +2,18 @@ package com.synapse.backend.auth.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
- * Registration details. The time zone is optional and trimmed on construction; a
- * client that sends none, or cannot detect one, gets UTC.
+ * Registration details. The full name cannot contain numbers. The time zone is
+ * optional and trimmed on construction; a client that sends none, or cannot detect
+ * one, gets UTC.
  */
 public record RegisterRequest(
     @NotBlank
     @Size(min = 2, max = 100)
+    @Pattern(regexp = "[^\\p{N}]*", message = "must not contain numbers")
     String fullName,
 
     @NotBlank

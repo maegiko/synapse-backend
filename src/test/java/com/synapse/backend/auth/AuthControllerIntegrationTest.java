@@ -229,6 +229,19 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void registerReturnsBadRequestWhenNameContainsNumbers() throws Exception {
+        RegisterRequest request = new RegisterRequest("Kenneth 123", "kenneth@example.com", VALID_PASSWORD);
+
+        mockMvc.perform(post(REGISTER_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("fullName: must not contain numbers"));
+
+        assertThat(countUsers("kenneth@example.com")).isZero();
+    }
+
+    @Test
     void registerReturnsBadRequestWhenEmailIsInvalid() throws Exception {
         RegisterRequest request = new RegisterRequest("Kenneth", "not-an-email", VALID_PASSWORD);
 
