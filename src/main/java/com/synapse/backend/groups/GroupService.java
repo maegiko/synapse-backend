@@ -71,7 +71,7 @@ public class GroupService {
      * @param userId the id of the currently authenticated user.
      * @param req the validated details to update, with at least one field supplied.
      * @return the updated group.
-     * @throws InvalidGroupDetailsException if no field is supplied or the supplied name is blank.
+     * @throws InvalidGroupDetailsException if no field is supplied.
      */
     public GroupResponse updateGroup(String groupId, Long userId, UpdateGroupRequest req) {
         String name = req.name();
@@ -79,9 +79,6 @@ public class GroupService {
 
         if (name == null && description == null)
             throw new InvalidGroupDetailsException("At least one of name or description must be supplied.");
-
-        if (name != null && name.isBlank())
-            throw new InvalidGroupDetailsException("name: must not be blank");
 
         return persistenceService.updateGroup(groupId, userId, name, description);
     }

@@ -128,9 +128,9 @@ class GroupCrudIntegrationTest extends PostgresIntegrationTest {
     void createGroupRejectsAnOverlongNameAndDescription() throws Exception {
         TestUser user = register("Kenneth", "kenneth@example.com");
 
-        createGroup(user, new CreateGroupRequest("N".repeat(101), null))
+        createGroup(user, new CreateGroupRequest("N".repeat(201), null))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("name: size must be between 0 and 100"));
+            .andExpect(jsonPath("$.message").value("name: size must be between 0 and 200"));
 
         createGroup(user, new CreateGroupRequest("Systems", "D".repeat(501)))
             .andExpect(status().isBadRequest())
