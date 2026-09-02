@@ -1,436 +1,336 @@
 # Synapse Backend 🧠
 
-Synapse is a Spring Boot backend for turning uploaded study notes into structured learning resources. Users can register, upload PDF, Word (`.docx`), plain text, or Markdown notes, generate AI-powered summaries, create flashcard decks, and generate quizzes from saved notes.
+> The production API behind [Synapse](https://studysynapse.app) — a full-stack study platform that turns uploaded notes into structured summaries, flashcards, quizzes, review schedules, and meaningful progress insights.
 
-The API is secured with short-lived JWT bearer access tokens and rotating refresh token cookies, persists data in PostgreSQL, manages schema changes with Flyway, and exposes interactive OpenAPI documentation through Swagger UI during local development.
+[![Java 25](https://img.shields.io/badge/Java-25-ED8B00?style=flat-square&logo=openjdk&logoColor=white)](https://openjdk.org/)
+[![Spring Boot 4](https://img.shields.io/badge/Spring_Boot-4.1.1-6DB33F?style=flat-square&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Gradle](https://img.shields.io/badge/Gradle-9.4.1-02303A?style=flat-square&logo=gradle&logoColor=white)](https://gradle.org/)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
 
-## Features ✨
+**[Open the live app](https://studysynapse.app)** · **[View the frontend repository](https://github.com/maegiko/synapse-frontend)** · **[Check API health](https://api.studysynapse.app/actuator/health)**
 
-- JWT-based registration and login, with mandatory email verification before an account can log in
-- Emailed single-use verification links for registration and confirmed email changes, sent through Resend
-- Emailed single-use password reset links, which end every session of the account they reset
-- Short-lived access tokens with rotating refresh tokens in `HttpOnly` cookies, plus refresh and logout endpoints
-- Authenticated user profile endpoint
-- PDF, Word (`.docx`), plain text (`.txt`), and Markdown (`.md`) note upload and AI-generated note summaries
-- Saved note listing, retrieval, and deletion
-- AI-generated flashcard decks from saved notes
-- Flashcard deck listing, retrieval, deletion, and manual card management
-- AI-generated quizzes from saved notes
-- Quiz listing, retrieval, deletion, difficulty settings, and manual question management
-- Personal-practice score saving and newest-first score history
-- PostgreSQL persistence with Flyway migrations
-- Swagger/OpenAPI documentation in development, disabled in production
-- Integration tests using Testcontainers
-- In-memory per-user and per-IP rate limiting
-- Scheduled cleanup of never-verified accounts and expired verification tokens
-- Checkstyle linting
+![Synapse product preview](https://studysynapse.app/social-preview.png)
+
+Synapse owns the complete study loop. A learner can upload a PDF, DOCX, text, or Markdown file; receive a structured AI summary; turn it into a flashcard deck or quiz; practise with spaced repetition; organise material into groups; and follow their progress over time. This repository provides the secure, transactional backend that makes that workflow possible.
+
+## What Synapse Does ✨
+
+### From raw notes to study material
+
+- Extracts text from PDF, Word (`.docx`), plain text, and Markdown uploads up to 10 MB
+- Produces structured summaries with an overview, key points, concepts, and important terms
+- Generates editable flashcard decks and ten-question quizzes from saved notes
+- Keeps generated resources linked to their source note without making that link a deletion dependency
+
+### From study material to long-term learning
+
+- Schedules decks with rating-based spaced repetition using `AGAIN`, `HARD`, `GOOD`, and `EASY`
+- Builds a personal review queue from each deck's next review date
+- Saves quiz attempts, question-count snapshots, scores, and optional study durations
+- Tracks study streaks in each user's own time zone
+- Aggregates 7, 30, 90, and 365-day analytics: study time, active days, retention, mastery, due forecasts, quiz performance, and improvement
+
+### From a collection to an organised library
+
+- Searches and paginates notes, decks, quizzes, and study groups
+- Pins important content above the rest of the library
+- Groups notes, decks, and quizzes without changing resource ownership
+- Supports editing titles, descriptions, summaries, cards, questions, answers, and difficulty
+
+### From registration to a secure account
+
+- Verifies new accounts through single-use email links sent by Resend
+- Uses short-lived JWT access tokens and rotating opaque refresh tokens in `HttpOnly` cookies
+- Supports confirmed email changes, forgotten-password links, password changes, and refresh-session revocation
+- Applies ownership constraints to every saved learning resource
+- Rate-limits authentication, general API, and AI-generation traffic
+
+## The Product Flow 🔄
+
+1. **Upload** — the API validates and extracts text from a supported file.
+2. **Understand** — Groq transforms that text into a predictable structured summary.
+3. **Generate** — the saved note becomes a flashcard deck, a quiz, or both.
+4. **Practise** — reviews and quiz attempts record scores, ratings, durations, and activity days.
+5. **Improve** — the analytics API turns that history into trends, retention, mastery, and upcoming workload.
+
+## Architecture 🏗️
+
+```mermaid
+flowchart LR
+    User[Student] --> Web[React + Vite frontend<br/>Cloudflare Pages]
+    Web --> API[Spring Boot API<br/>Northflank]
+    API --> DB[(PostgreSQL 16)]
+    API --> Groq[Groq LLM]
+    API --> Resend[Resend email]
+    Web -. anonymous product events .-> PostHog[PostHog]
+```
+
+The backend follows a feature-package architecture. Controllers define the HTTP boundary, services coordinate workflows, persistence services own database operations and DTO mapping, and Spring Data repositories keep queries focused. Flyway owns schema evolution while Hibernate validates that the Java model matches it.
+
+## Engineering Highlights 🔍
+
+- **Replay-resistant sessions** — refresh tokens are random opaque values stored only as SHA-256 hashes. Rotation is a single conditional database update, so concurrent reuse has one winner.
+- **Purpose-separated email credentials** — verification and password-reset tokens live in different tables and are consumed by different endpoints. One type can never perform the other's action.
+- **Transactional recovery** — password resets consume the link, update the BCrypt hash, and revoke every refresh token in one transaction. A failed write leaves the link usable.
+- **Non-enumerating account recovery** — forgotten-password and verification-resend endpoints deliberately return the same response for known and unknown addresses.
+- **Time-zone-correct learning data** — timestamps stay in UTC while streaks, review dates, and analytics windows follow the user's IANA time zone.
+- **Ownership-first persistence** — public IDs are resolved together with the authenticated owner, preventing cross-account access without exposing internal database IDs.
+- **Schema discipline** — 26 ordered Flyway migrations cover the platform's evolution; `ddl-auto: validate` prevents Hibernate from silently changing production data.
+- **Real integration coverage** — Spring Boot integration tests run against PostgreSQL 16 through Testcontainers, while LLM and email boundaries are replaced with controlled test doubles.
 
 ## Tech Stack 🛠️
 
+| Layer | Technology |
+| --- | --- |
+| Language and runtime | Java 25 |
+| Application framework | Spring Boot 4.1.1, Spring MVC |
+| Security | Spring Security, OAuth2 Resource Server, HS256 JWT, BCrypt |
+| Persistence | PostgreSQL 16, Spring Data JPA, Hibernate, Flyway |
+| AI generation | Groq as the primary `LLMClient`; Gemini implementation available as an alternate |
+| Document parsing | Apache PDFBox, Apache POI, plain-text and Markdown extractors |
+| Email | Resend HTTP API behind an `EmailClient` boundary |
+| Rate limiting | Caffeine-backed fixed-window counters |
+| API documentation | springdoc OpenAPI and Swagger UI in development |
+| Testing | JUnit, MockMvc, Testcontainers |
+| Build and quality | Gradle, Checkstyle, multi-stage Docker build |
+| Production | Northflank backend and PostgreSQL; Cloudflare Pages frontend |
+
+The companion frontend uses React 19, TypeScript, Vite, React Router, TanStack Query, and Tailwind CSS. Its source is available in the [Synapse frontend repository](https://github.com/maegiko/synapse-frontend).
+
+## Run Locally 🚀
+
+### Requirements
+
 - Java 25
-- Spring Boot 4
-- Spring MVC
-- Spring Security
-- Spring OAuth2 Resource Server
-- Spring Data JPA
-- PostgreSQL
-- Flyway
-- Gradle
-- Testcontainers
-- PDFBox
-- Apache POI
-- Caffeine
-- springdoc-openapi
-- Groq/Gemini-ready LLM client configuration
+- Docker with Docker Compose
+- A Groq API key for AI generation
+- A Resend API key for transactional email
+- A random JWT secret containing at least 32 UTF-8 bytes
 
-## Requirements 📋
-
-- Java 25
-- Docker
-- Docker Compose
-- A Groq API key for the currently configured generation client
-- A Resend API key for verification email delivery
-- A JWT secret with at least 32 bytes
-
-## Getting Started 🚀
-
-Clone the repository:
+### 1. Clone and configure
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/maegiko/synapse-backend.git
 cd synapse-backend
-```
-
-Create an environment file:
-
-```bash
 cp .env.example .env
 ```
 
-Fill in the required values:
+Fill in the required values in `.env`:
 
 ```properties
 JWT_SECRET=replace-with-at-least-32-bytes
-GEMINI_API_KEY=optional-if-not-used
 GROQ_API_KEY=replace-with-your-groq-api-key
 RESEND_API_KEY=replace-with-your-resend-api-key
+GEMINI_API_KEY=
 ```
 
-`RESEND_API_KEY` is created in the Resend dashboard under **API Keys** and must have sending permission for the
-verified sending domain. Never commit it; `.env` is git-ignored.
+`GEMINI_API_KEY` is optional because Groq is the primary generation client. Keep `.env` local; it is intentionally excluded from version control.
 
-Start PostgreSQL:
+### 2. Start PostgreSQL
 
 ```bash
 docker compose up -d
 ```
 
-Run the application:
+The local database is created as `synapse_dev` on port `5432` with the development credentials in `docker-compose.yml`. Its data is retained in a named Docker volume.
+
+### 3. Run the API
 
 ```bash
 ./gradlew bootRun
 ```
 
-The API will be available at:
+| Local service | URL |
+| --- | --- |
+| API | `http://localhost:8080` |
+| Swagger UI | `http://localhost:8080/swagger-ui.html` |
+| OpenAPI JSON | `http://localhost:8080/v3/api-docs` |
+| Health check | `http://localhost:8080/actuator/health` |
 
-```text
-http://localhost:8080
+The `dev` profile is selected by default. Swagger and the OpenAPI document are disabled under the production profile.
+
+### 4. Run the frontend (optional)
+
+In a sibling directory:
+
+```bash
+git clone https://github.com/maegiko/synapse-frontend.git
+cd synapse-frontend
+npm install
 ```
 
-Swagger UI is available at:
+Set the frontend API base URL:
 
-```text
-http://localhost:8080/swagger-ui.html
+```properties
+VITE_API_BASE_URL=http://localhost:8080
 ```
 
-The root route also redirects to Swagger UI:
+Then start Vite:
 
-```text
-http://localhost:8080/
+```bash
+npm run dev
 ```
+
+The development CORS configuration allows `http://localhost:5173`.
 
 ## Configuration ⚙️
 
-Shared configuration lives in `src/main/resources/application.yml`. Environment-specific overrides live in:
+Shared settings live in `src/main/resources/application.yml`, with environment-specific overrides in `application-dev.yml` and `application-prod.yml`.
 
-```text
-src/main/resources/application-dev.yml
-src/main/resources/application-prod.yml
-```
+### Core variables
 
-The `dev` profile is the default when no profile is selected. A deployment must explicitly set
-`SPRING_PROFILES_ACTIVE=prod`.
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `JWT_SECRET` | Yes | HS256 signing secret; must contain at least 32 bytes |
+| `GROQ_API_KEY` | For generation | API key used by the primary LLM client |
+| `RESEND_API_KEY` | For email | Resend key with permission to send from the verified domain |
+| `GEMINI_API_KEY` | No | Key for the alternate Gemini client |
+| `EMAIL_VERIFICATION_URL` | No | Frontend verification page; defaults to `http://localhost:5173/verify-email` locally |
+| `PASSWORD_RESET_URL` | No | Frontend reset page; defaults to `http://localhost:5173/reset-password` locally |
+| `RESEND_FROM` | No | Sender identity; defaults to `Synapse <no-reply@studysynapse.app>` |
 
-The default local database is provided by `docker-compose.yml`:
+### Production variables
 
-```text
-Database: synapse_dev
-Username: dev_user
-Password: dev_password
-Port:     5432
-```
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `SPRING_PROFILES_ACTIVE=prod` | Yes | Enables production database, CORS, server, and documentation settings |
+| `DB_HOST`, `DB_PORT`, `DB_NAME` | Yes | PostgreSQL connection location |
+| `DB_USERNAME`, `DB_PASSWORD` | Yes | PostgreSQL credentials |
+| `FRONTEND_ORIGIN` | No | Exact allowed browser origin; defaults to `https://studysynapse.app` |
+| `PORT` | No | Server port supplied by the platform; defaults to `8080` |
+| `JAVA_TOOL_OPTIONS` | No | JVM memory and collector settings for the container |
 
-The application imports `.env` using:
+Important defaults:
 
-```properties
-spring.config.import=optional:file:.env[.properties]
-```
+- Access tokens: 15 minutes
+- Refresh tokens: 30 days
+- Registration verification links: 1 hour
+- Email-change links: 24 hours
+- Password-reset links: 30 minutes
+- Unverified-account retention: 7 days
+- Maximum upload size: 10 MB
 
-The development profile sets JWT access tokens to expire after `15m`, refresh tokens to expire after `30d`, and limits
-multipart uploads to `10MB`:
+## API Reference 📚
 
-```yaml
-jwt:
-  issuer: synapse
-  access-token-ttl: 15m
-  refresh-token-ttl: 30d
-  secret: ${JWT_SECRET}
-
-auth:
-  refresh-cookie:
-    secure: true
-    same-site: None
-```
-
-`auth.refresh-cookie` controls the `Secure` and `SameSite` attributes of the refresh token cookie. The defaults suit a
-browser frontend served from a different origin over HTTPS. Set `same-site` to `Lax` when the frontend and API are
-served from the same site.
-
-Email verification and delivery are configured with:
-
-```yaml
-auth:
-  email-verification:
-    frontend-url: ${EMAIL_VERIFICATION_URL:http://localhost:5173/verify-email}
-    registration-token-ttl: 1h
-    email-change-token-ttl: 24h
-    unverified-retention: 7d
-    cleanup-interval: 1h
-
-  password-reset:
-    frontend-url: ${PASSWORD_RESET_URL:http://localhost:5173/reset-password}
-    token-ttl: 30m
-
-email:
-  resend:
-    api-key: ${RESEND_API_KEY}
-    from: ${RESEND_FROM:Synapse <no-reply@studysynapse.app>}
-    api-url: ${RESEND_API_URL:https://api.resend.com/emails}
-    connect-timeout: 5s
-    read-timeout: 10s
-```
-
-| Variable | Required | Default | Meaning |
-| --- | --- | --- | --- |
-| `RESEND_API_KEY` | Yes | none | Resend API key used as `Authorization: Bearer <key>` |
-| `EMAIL_VERIFICATION_URL` | No | `http://localhost:5173/verify-email` | Frontend page verification links point at; set it to `https://studysynapse.app/verify-email` in production |
-| `PASSWORD_RESET_URL` | No | `http://localhost:5173/reset-password` | Frontend page password reset links point at; set it to `https://studysynapse.app/reset-password` in production |
-| `RESEND_FROM` | No | `Synapse <no-reply@studysynapse.app>` | Sender address, which must belong to a domain verified in Resend |
-| `RESEND_API_URL` | No | `https://api.resend.com/emails` | Resend send-email endpoint |
-
-Verification and password reset links are `{frontend-url}?token={urlEncodedToken}`. The link opens the frontend, which
-posts the token to `POST /api/auth/email/verify` or `POST /api/auth/password/reset`; no state-changing backend route is
-ever opened directly from an email, because mail clients and scanners follow links on their own.
-
-The two token lifetimes differ on purpose. Confirming a registration link signs the account in, which makes that link a
-credential and not merely a proof of address, so it lives for an hour and a lapsed one is recovered with the resend
-endpoint. An email-change link issues no session, so it keeps the full day.
-
-Groq is the primary LLM client used by generation flows. Gemini client configuration is present as an alternate implementation, but Groq is currently selected by Spring.
-
-For production deployments, prefer setting secrets and profile values through environment variables rather than committing profile-specific configuration.
-
-## Production Deployment 🚢
-
-The repository includes a multi-stage `Dockerfile` that builds the Spring Boot jar with Java 25 and runs it as a
-non-root user on a Java 25 JRE. Build it with:
-
-```bash
-docker build -t synapse-backend .
-```
-
-The production profile expects a PostgreSQL database and the following environment variables:
-
-| Variable | Required | Production default | Meaning |
-| --- | --- | --- | --- |
-| `SPRING_PROFILES_ACTIVE` | Yes | none | Must be `prod` for a deployment |
-| `DB_HOST` | Yes | none | PostgreSQL hostname reachable from the backend |
-| `DB_PORT` | Yes | none | PostgreSQL port, normally `5432` |
-| `DB_NAME` | Yes | none | PostgreSQL database name |
-| `DB_USERNAME` | Yes | none | PostgreSQL username |
-| `DB_PASSWORD` | Yes | none | PostgreSQL password |
-| `JWT_SECRET` | Yes | none | Random secret of at least 32 bytes; changing it invalidates existing access tokens |
-| `GROQ_API_KEY` | Yes for AI generation | empty | Groq API key used by the primary LLM client |
-| `RESEND_API_KEY` | Yes for email | none | Resend API key for verification and password-reset messages |
-| `FRONTEND_ORIGIN` | No | `https://studysynapse.app` | Exact browser origin allowed by CORS, without a trailing slash |
-| `EMAIL_VERIFICATION_URL` | No | `https://studysynapse.app/verify-email` | Frontend verification page used in email links |
-| `PASSWORD_RESET_URL` | No | `https://studysynapse.app/reset-password` | Frontend reset page used in email links |
-| `PORT` | No | `8080` | HTTP port exposed by the platform |
-| `RESEND_FROM` | No | `Synapse <no-reply@studysynapse.app>` | Verified sender used for transactional email |
-
-For a small container, this is a reasonable starting point for `JAVA_TOOL_OPTIONS`:
-
-```text
--XX:MaxRAMPercentage=65 -XX:InitialRAMPercentage=20 -XX:+UseSerialGC
-```
-
-Flyway runs automatically at startup, so deploy the backend only after the database exists and keep the database
-persistent across backend redeployments. The production connection pool is capped at five connections to suit a
-small hosted PostgreSQL instance.
-
-Use `GET /actuator/health` for the platform health check. It is public and returns only overall health; no other
-Actuator endpoint is exposed. The production profile also honours reverse-proxy forwarding headers so client-address
-rate limits use the original client address supplied by the hosting platform.
-
-Production serves neither Swagger UI nor the OpenAPI JSON. `/`, `/swagger-ui.html`, and `/v3/api-docs` return `404`
-under the `prod` profile. They remain available locally under the default `dev` profile.
-
-## API Overview 📚
-
-Most endpoints require a JWT access token:
+Most routes require an access token:
 
 ```http
 Authorization: Bearer <accessToken>
 ```
 
+Refresh and logout use the `refreshToken` cookie instead. Browser clients must include credentials on those requests.
+
 ### Authentication 🔐
 
-| Method | Endpoint | Description | Auth |
+| Method | Endpoint | Purpose | Auth |
 | --- | --- | --- | --- |
-| `POST` | `/api/auth/register` | Register an unverified user and email them a verification link | No |
-| `POST` | `/api/auth/login` | Log in and receive an access token | No |
-| `POST` | `/api/auth/email/verify` | Confirm an emailed verification link, signing a confirmed registration in | No |
-| `POST` | `/api/auth/email/resend` | Resend a registration verification link | No |
-| `POST` | `/api/auth/password/forgot` | Email a password reset link | No |
-| `POST` | `/api/auth/password/reset` | Set a new password from a reset link | No |
-| `POST` | `/api/auth/refresh` | Exchange the refresh token cookie for a new access token | No |
-| `POST` | `/api/auth/logout` | Revoke the current refresh token and clear the cookie | No |
-| `PUT` | `/api/auth/password` | Change the authenticated user's password | Yes |
+| `POST` | `/api/auth/register` | Create an unverified account and send its confirmation link | Public |
+| `POST` | `/api/auth/login` | Authenticate a verified account and issue a session | Public |
+| `POST` | `/api/auth/refresh` | Rotate the refresh token and return a new access token | Cookie |
+| `POST` | `/api/auth/logout` | Revoke the presented refresh token and clear its cookie | Cookie |
+| `PUT` | `/api/auth/password` | Change a known password and revoke every refresh session | Bearer |
+| `POST` | `/api/auth/email/verify` | Consume a registration or email-change verification token | Public |
+| `POST` | `/api/auth/email/resend` | Request a replacement registration verification link | Public |
+| `POST` | `/api/auth/password/forgot` | Request a password-reset link without revealing account existence | Public |
+| `POST` | `/api/auth/password/reset` | Consume a reset token, change the password, and revoke sessions | Public |
 
-`POST /api/auth/register` requires a 2–100 character full name containing no numbers. It stores the full name with each
-word capitalised — `ada lovelace` and `ADA LOVELACE` are both saved as `Ada Lovelace`, while a word typed in a mixture
-of cases, such as `McDonald`, is kept as it was written. It
-returns `202` with the address the link was sent to and a message telling the client to check its email. It issues no access token and sets no refresh cookie: the account is created with `email_verified_at` null
-and cannot log in until the link is confirmed. Logging in with the right password on an unverified account returns
-`401` with a message naming verification, while a wrong password on the same account still returns the generic
-`Invalid email or password.` An address that already belongs to a **verified** account returns `409` as before. An
-address that belongs to an **unverified** account gets the same `202` and a replacement link, and its stored password,
-name, and time zone are never overwritten.
+Registration returns `202 Accepted`; the account receives a session only after its email is confirmed. Verification and reset tokens are single-use, expire automatically, and are stored only as hashes.
 
-`POST /api/auth/email/verify` takes `{ "token": "..." }`, consumes the single-use token, and returns `200` with a
-`kind` property naming the kind of link it was. A `REGISTRATION` token marks the account verified and signs it in,
-answering with the account's name, address, and an access token, and setting the same refresh cookie login sets. An
-`EMAIL_CHANGE` token moves the account to its new address after re-checking that nobody else has claimed it, returning
-`409` if they have; it answers with only `kind` and the new address, and issues no token and no cookie, because whoever
-confirms it normally already has a session that a new refresh cookie would needlessly replace. Clients must branch on
-`kind` rather than on whether the visitor happens to be signed in already: somebody signed into one account can open a
-registration link for another. Missing, unknown, expired, replaced, and already used tokens all return the same
-generic `400`, so a link opened twice succeeds once and issues exactly one session.
+### User and progress 👤
 
-`POST /api/auth/email/resend` takes `{ "email": "..." }` and always returns `204`, whether the address is unknown,
-already verified, or still pending, so it cannot be used to discover who has an account. Only an unverified account
-causes an email to be sent, and the replacement link invalidates the previous one.
-
-`POST /api/auth/password/forgot` takes `{ "email": "..." }`, normalises it exactly like registration, and **always**
-returns `204`. Unknown addresses, accounts that have never been verified, live accounts, and a failed email provider
-are answered identically, so the endpoint cannot be used to discover who has an account; a provider failure is logged
-and never reaches the caller. Only a verified account is actually sent a link, and a new link invalidates that user's
-previous one. The request is limited to 3 per hour per normalised address and, separately, per client address, and the
-limits are checked before the account is looked up so an unknown address costs the same as a real one.
-
-`POST /api/auth/password/reset` takes `{ "token": "...", "newPassword": "..." }`, consumes the single-use token,
-BCrypt-hashes the new password, and returns `204`. The new password must satisfy the same 8-64 character rule as
-registration. Missing, unknown, expired, replaced, and already used tokens all return the same generic `400`, and a
-token from a verification email is never accepted here: reset tokens live in their own table and are consumed by their
-own endpoint, so neither kind of link can do the other's job.
-
-A successful reset revokes **every** refresh token of that user and clears the caller's refresh cookie, so all of their
-sessions have to sign in again. It does not sign the caller in: no access token is returned, and the client should
-route to login. Access tokens are not blacklisted, so one issued before the reset stays usable for the rest of its
-15-minute lifetime.
-
-Reset tokens are 32 cryptographically random bytes, URL-safe Base64 encoded without padding, stored only as a SHA-256
-hash, and valid for 30 minutes. Consumption is a single conditional update, so two concurrent resets with the same link
-race for one row and only the first succeeds. Consumption, the password write, and the session revocation are one
-transaction: if either write fails, the link stays usable.
-
-Verification tokens are 32 cryptographically random bytes, URL-safe Base64 encoded without padding. Only their SHA-256
-hash is stored, alongside the user, target address, purpose, expiry, and consumption/invalidation state. Consumption is
-a single conditional update, so two concurrent confirmations of the same link race for one row and only the first
-succeeds. A registration token is valid for one hour and an email-change token for 24 hours by default.
-
-Login also sets a `refreshToken` cookie. The cookie is `HttpOnly`, `Secure`, `SameSite`-restricted, scoped
-to `/api/auth`, and valid for 30 days. Only a SHA-256 hash of each refresh token is stored server-side, alongside its
-user, expiry, and revocation state.
-
-`POST /api/auth/refresh` rotates the token it is given: the presented refresh token is revoked and a replacement cookie
-is issued, so each refresh token can be used only once. A missing, expired, revoked, or already used token returns
-`401`. Revocation is a single conditional update, so if two requests race with the same refresh token, exactly one
-rotates it and the other receives `401`. Rotation is transactional, so a failure partway through leaves the
-presented token usable instead of ending the session. Browser clients must send the request with credentials included so the cookie
-is attached.
-
-`PUT /api/auth/password` takes `currentPassword` and `newPassword`, verifies the current password, and returns `401` if
-it is wrong. On success it returns `204`, revokes every refresh token belonging to the user, and clears the refresh
-cookie, so a password change signs every session out. The client must discard its access token as well, because
-existing access tokens stay valid until they expire.
-
-### User 👤
-
-| Method | Endpoint | Description | Auth |
-| --- | --- | --- | --- |
-| `GET` | `/api/user/details` | Get the authenticated user's details | Yes |
-| `PATCH` | `/api/user/details` | Update the authenticated user's full name and/or time zone | Yes |
-| `POST` | `/api/user/email-change` | Request a confirmed change of email address | Yes |
-| `GET` | `/api/user/streak` | Get the authenticated user's study streak | Yes |
-
-`PATCH /api/user/details` accepts an optional `fullName` and an optional `timeZone`, and requires at least one of them.
-Only the supplied fields are changed, and both are trimmed before their length limits are applied. A supplied full
-name is capitalised the same way registration capitalises it. The email address
-can no longer be changed here; an `email` property in the body is ignored. The response is the updated details; no new
-access token is issued, so `GET /api/user/details` stays the source of current profile data.
-
-`POST /api/user/email-change` takes `{ "email": "..." }`, normalises it exactly like registration, and emails a
-single-use confirmation link to the proposed address. It returns `202` with the pending address and its expiry, `204`
-when the proposed address is the one the user already has, and `409` when the address already belongs to another
-account. Nothing about the account changes until the link is confirmed: the current address keeps working, including
-for login. A newer request invalidates the pending one, and an abandoned request simply expires without reserving the
-address.
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/user/details` | Get the current profile, time zone, and lifetime review count |
+| `PATCH` | `/api/user/details` | Update the full name and/or time zone |
+| `POST` | `/api/user/email-change` | Send a confirmation link to a proposed new address |
+| `GET` | `/api/user/streak` | Get current and longest streaks plus the last activity date |
+| `GET` | `/api/user/analytics?period=30` | Get study analytics for 7, 30, 90, or 365 days |
 
 ### Notes 📝
 
-| Method | Endpoint | Description | Auth |
-| --- | --- | --- | --- |
-| `POST` | `/api/notes/summarise` | Upload a PDF, `.docx`, `.txt`, or `.md` note, generate a summary, and save it | Yes |
-| `GET` | `/api/notes/list` | List saved note summaries | Yes |
-| `GET` | `/api/notes/{id}` | Get one saved note summary | Yes |
-| `DELETE` | `/api/notes/{id}` | Delete a saved note | Yes |
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/notes/summarise` | Upload, extract, summarise, and persist a note |
+| `GET` | `/api/notes/list` | Search and page through saved notes |
+| `GET` | `/api/notes/{noteId}` | Get a structured note summary |
+| `PATCH` | `/api/notes/{noteId}` | Update its title, overview, and/or pin state |
+| `DELETE` | `/api/notes/{noteId}` | Delete a note while preserving derived decks and quizzes |
+
+`POST /api/notes/summarise` accepts multipart form data with a `file` field. The saved response contains the note's public ID, overview, key points, concepts, important terms, timestamps, group membership, and pin state.
 
 ### Flashcards 🃏
 
-| Method | Endpoint | Description | Auth |
-| --- | --- | --- | --- |
-| `POST` | `/api/flashcards/generate` | Generate and save flashcards from a saved note | Yes |
-| `GET` | `/api/flashcards/list` | List saved flashcard decks | Yes |
-| `GET` | `/api/flashcards/{deckId}` | Get one flashcard deck | Yes |
-| `POST` | `/api/flashcards/{deckId}` | Add a flashcard to a deck | Yes |
-| `DELETE` | `/api/flashcards/{deckId}` | Delete a flashcard deck | Yes |
-| `DELETE` | `/api/flashcards/{deckId}/cards/{cardId}` | Delete a flashcard from a deck | Yes |
-| `POST` | `/api/flashcards/{deckId}/complete` | Mark a deck as completed and record study activity | Yes |
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/flashcards/generate` | Generate and save a deck from a note |
+| `GET` | `/api/flashcards/list` | Search and page through saved decks |
+| `GET` | `/api/flashcards/{deckId}` | Get a deck and its cards |
+| `PATCH` | `/api/flashcards/{deckId}` | Update the deck title and/or pin state |
+| `DELETE` | `/api/flashcards/{deckId}` | Delete a deck and its cards |
+| `POST` | `/api/flashcards/{deckId}` | Add a card manually |
+| `PATCH` | `/api/flashcards/{deckId}/cards/{cardId}` | Update a card's front and/or back |
+| `DELETE` | `/api/flashcards/{deckId}/cards/{cardId}` | Delete a card |
+| `GET` | `/api/flashcards/review` | Get the current user's due review queue |
+| `POST` | `/api/flashcards/{deckId}/review` | Save a rating and duration, then reschedule the deck |
+
+The review endpoint accepts `AGAIN`, `HARD`, `GOOD`, or `EASY`. Scheduling is calculated on the server from the deck's previous interval and ease factor, then anchored to the owner's current local date.
 
 ### Quizzes ❓
 
-| Method | Endpoint | Description | Auth |
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/quiz/generate` | Generate and save a quiz from a note |
+| `GET` | `/api/quiz/list` | Search and page through saved quizzes |
+| `GET` | `/api/quiz/{quizId}` | Get a quiz with questions and answers |
+| `PATCH` | `/api/quiz/{quizId}` | Update its title, description, and/or pin state |
+| `DELETE` | `/api/quiz/{quizId}` | Delete a quiz, its questions, answers, and score history |
+| `POST` | `/api/quiz/{quizId}/questions` | Add a question and answer set manually |
+| `PATCH` | `/api/quiz/{quizId}/questions/{questionId}` | Update a question and/or replace its answers atomically |
+| `DELETE` | `/api/quiz/{quizId}/questions/{questionId}` | Delete a question and its answers |
+| `PUT` | `/api/quiz/{quizId}/difficulty` | Set difficulty from 1 to 5 |
+| `POST` | `/api/quiz/{quizId}/score` | Save a score and optional attempt duration |
+| `GET` | `/api/quiz/{quizId}/score/list` | Get score history from newest to oldest |
+
+Each score stores the quiz's question count at submission time, so historical percentages remain meaningful after a quiz is edited.
+
+### Study groups 🗂️
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/groups` | Create an empty group |
+| `GET` | `/api/groups/list` | Search and page through groups with content counts |
+| `GET` | `/api/groups/{groupId}` | Get a group with its notes, decks, and quizzes |
+| `PATCH` | `/api/groups/{groupId}` | Update the name and/or description |
+| `DELETE` | `/api/groups/{groupId}` | Delete the group without deleting its content |
+| `PUT` | `/api/groups/{groupId}/notes/{noteId}` | Add or move a note into the group |
+| `DELETE` | `/api/groups/{groupId}/notes/{noteId}` | Remove a note from the group |
+| `PUT` | `/api/groups/{groupId}/decks/{deckId}` | Add or move a deck into the group |
+| `DELETE` | `/api/groups/{groupId}/decks/{deckId}` | Remove a deck from the group |
+| `PUT` | `/api/groups/{groupId}/quizzes/{quizId}` | Add or move a quiz into the group |
+| `DELETE` | `/api/groups/{groupId}/quizzes/{quizId}` | Remove a quiz from the group |
+
+Deleting a group ungroups its content rather than deleting it. Every membership operation verifies that the group and resource have the same authenticated owner.
+
+### System ❤️‍🩹
+
+| Method | Endpoint | Purpose | Availability |
 | --- | --- | --- | --- |
-| `POST` | `/api/quiz/generate` | Generate and save a quiz from a saved note | Yes |
-| `GET` | `/api/quiz/list` | List saved quizzes with question previews | Yes |
-| `GET` | `/api/quiz/{quizId}` | Get one quiz with questions and answers | Yes |
-| `POST` | `/api/quiz/{quizId}/questions` | Add a question and answers to a quiz | Yes |
-| `DELETE` | `/api/quiz/{quizId}` | Delete a quiz | Yes |
-| `DELETE` | `/api/quiz/{quizId}/questions/{questionId}` | Delete a question from a quiz | Yes |
-| `PUT` | `/api/quiz/{quizId}/difficulty` | Set quiz difficulty from 1 to 5 | Yes |
-| `POST` | `/api/quiz/{quizId}/score` | Save a personal-practice score | Yes |
-| `GET` | `/api/quiz/{quizId}/score/list` | List saved scores from newest to oldest | Yes |
+| `GET` | `/actuator/health` | Minimal liveness/readiness signal | All profiles |
+| `GET` | `/swagger-ui.html` | Interactive API documentation | Development only |
+| `GET` | `/v3/api-docs` | OpenAPI JSON | Development only |
 
-### Study Streaks 🔥
+### Shared API conventions
 
-`GET /api/user/streak` returns the authenticated user's study streak:
+- List routes accept `query`, zero-based `page`, and `size` from 1 to 100.
+- Resources use 10-character public IDs; internal numeric IDs are not exposed.
+- Validation and domain failures share one response shape: `{ "message": "..." }`.
+- A resource that is absent and one owned by somebody else both resolve as `404`.
+- `429 Too Many Requests` responses include a `Retry-After` header.
 
-```json
-{
-  "currentStreak": 6,
-  "longestStreak": 14,
-  "activeToday": true,
-  "lastActiveDate": "2026-08-28"
-}
-```
+## A Quick API Walkthrough 🧪
 
-A day counts once a qualifying study action succeeds and its data is saved:
-
-- `POST /api/notes/summarise`
-- `POST /api/flashcards/generate`
-- `POST /api/quiz/generate`
-- `POST /api/quiz/{quizId}/score`
-- `POST /api/flashcards/{deckId}/complete`
-
-Streak days are UTC calendar days decided by the server; the client never sends a date. Several qualifying actions on
-one day still count as one day, and failed requests award nothing. `currentStreak` counts back from the most recent
-active day and only while that day is today or yesterday, so a missed day resets it to `0`. `longestStreak` is the
-longest run in the user's history. A user with no activity gets zeros and a null `lastActiveDate`.
-
-## Example Flow 🔄
-
-1. Register, then confirm the emailed verification link, which signs the new account in. Existing users just log in.
-2. Copy the `accessToken` returned by that confirmation or by login, and keep the `refreshToken` cookie.
-3. Upload a PDF, `.docx`, `.txt`, or `.md` file to `/api/notes/summarise`.
-4. Use the saved note id to generate flashcards or a quiz.
-5. Add or delete individual flashcards/questions as needed.
-6. Set the quiz difficulty and complete the quiz in the client.
-7. Save the practice score and retrieve previous attempts.
-8. Retrieve saved learning resources from the list/get endpoints.
-9. Call `/api/auth/refresh` when the access token expires, and `/api/auth/logout` to end the session.
-
-Example registration request:
+Register an account:
 
 ```bash
 curl -X POST http://localhost:8080/api/auth/register \
@@ -438,368 +338,138 @@ curl -X POST http://localhost:8080/api/auth/register \
   -d '{
     "fullName": "Ada Lovelace",
     "email": "ada@example.com",
-    "password": "password123"
+    "password": "password123",
+    "timeZone": "Australia/Sydney"
   }'
 ```
 
-It answers `202` and sends the verification email:
-
-```json
-{
-  "email": "ada@example.com",
-  "message": "Check your email for a verification link to finish creating your account."
-}
-```
-
-Example verification request, with the token the frontend page read from the link:
-
-```bash
-curl -X POST http://localhost:8080/api/auth/email/verify \
-  -H "Content-Type: application/json" \
-  -d '{
-    "token": "<rawTokenFromTheLink>"
-  }'
-```
-
-A registration link answers `200`, sets the refresh cookie, and signs the new account in:
-
-```json
-{
-  "kind": "REGISTRATION",
-  "fullName": "Ada Lovelace",
-  "email": "ada@example.com",
-  "accessToken": "<accessToken>"
-}
-```
-
-An email-change link answers `200` with the address the account now uses, and nothing else:
-
-```json
-{
-  "kind": "EMAIL_CHANGE",
-  "email": "ada.lovelace@example.com"
-}
-```
-
-Example email-change request:
-
-```bash
-curl -X POST http://localhost:8080/api/user/email-change \
-  -H "Authorization: Bearer <accessToken>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "ada.lovelace@example.com"
-  }'
-```
-
-Example forgotten-password request, which answers `204` whatever the address turns out to be:
-
-```bash
-curl -X POST http://localhost:8080/api/auth/password/forgot \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "ada@example.com"
-  }'
-```
-
-Example password reset, with the token the frontend reset page read from the link:
-
-```bash
-curl -X POST http://localhost:8080/api/auth/password/reset \
-  -H "Content-Type: application/json" \
-  -d '{
-    "token": "<rawTokenFromTheLink>",
-    "newPassword": "a-new-password"
-  }'
-```
-
-It answers `204`, clears the refresh cookie, and signs nobody in: log in with the new password afterwards.
-
-Example refresh request, reusing the cookie saved at login:
-
-```bash
-curl -X POST http://localhost:8080/api/auth/refresh \
-  -b cookies.txt \
-  -c cookies.txt
-```
-
-Example note upload:
+After confirming the emailed link, use the returned access token to summarise a note:
 
 ```bash
 curl -X POST http://localhost:8080/api/notes/summarise \
   -H "Authorization: Bearer <accessToken>" \
-  -F "file=@/path/to/notes.pdf"
+  -F "file=@/path/to/lecture-notes.pdf"
 ```
 
-Example quiz generation:
+Generate a quiz from its public note ID:
 
 ```bash
 curl -X POST http://localhost:8080/api/quiz/generate \
   -H "Authorization: Bearer <accessToken>" \
   -H "Content-Type: application/json" \
-  -d '{
-    "noteId": "<noteId>"
-}'
+  -d '{ "noteId": "<noteId>" }'
 ```
 
-Example manual quiz question creation:
+The local Swagger UI is the easiest way to explore every request and response interactively.
 
-```bash
-curl -X POST http://localhost:8080/api/quiz/<quizId>/questions \
-  -H "Authorization: Bearer <accessToken>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "question": "What does a reinforcing loop do?",
-    "questionType": "MULTIPLE_CHOICE",
-    "answers": [
-      { "answer": "Amplifies change", "isCorrect": true },
-      { "answer": "Always reduces change", "isCorrect": false },
-      { "answer": "Stores uploaded PDFs", "isCorrect": false },
-      { "answer": "Expires JWT tokens", "isCorrect": false }
-    ]
-  }'
-```
+## Security Model 🛡️
 
-Example difficulty update:
+- Access tokens are HS256 JWTs with a 15-minute lifetime.
+- Refresh tokens are 32 random bytes, returned only in a secure `HttpOnly` cookie and stored only as SHA-256 hashes.
+- Refresh rotation and single-use email-token consumption use conditional updates rather than read-then-write checks.
+- Passwords are stored with BCrypt.
+- Password changes and password resets revoke every refresh token belonging to the account.
+- Verification, resend, login, registration, password-reset, authenticated API, and AI-generation routes have separate limits.
+- CORS allows only configured frontend origins and supports credentialed browser requests for the refresh cookie.
+- Swagger and OpenAPI are unavailable in production.
 
-```bash
-curl -X PUT http://localhost:8080/api/quiz/<quizId>/difficulty \
-  -H "Authorization: Bearer <accessToken>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "difficulty": 3
-  }'
-```
+## Rate Limiting 🚦
 
-Example score creation:
+Default limits use bounded, fixed-window counters in a Caffeine cache:
 
-```bash
-curl -X POST http://localhost:8080/api/quiz/<quizId>/score \
-  -H "Authorization: Bearer <accessToken>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "score": 8
-  }'
-```
+| Scope | Default limit | Key |
+| --- | --- | --- |
+| AI generation | 3/minute and 50/day | User ID |
+| Other authenticated API calls | 120/minute | User ID |
+| Login | 10/15 minutes | Normalised email and client address separately |
+| Registration | 10/hour | Client address |
+| Verification resend | 3/hour | Normalised email and client address separately |
+| Forgotten password | 3/hour | Normalised email and client address separately |
+| Email change | 3/hour | User ID |
 
-Scores are calculated by the client for personal practice. The backend verifies that a score is non-negative and does not exceed the quiz question count. Each attempt stores the question count at completion time so historical results remain meaningful if the quiz changes later.
+These counters are deliberately local to one application instance. See [Scope and trade-offs](#scope-and-trade-offs) for the scaling implication.
 
-Example score history retrieval:
+## Testing and Quality ✅
 
-```bash
-curl http://localhost:8080/api/quiz/<quizId>/score/list \
-  -H "Authorization: Bearer <accessToken>"
-```
-
-## Database Migrations 🗄️
-
-Flyway migrations are stored in:
-
-```text
-src/main/resources/db/migration
-```
-
-Current migration coverage includes:
-
-- Users
-- Notes
-- Flashcards
-- Quizzes
-- Quiz difficulty and score history
-- Refresh tokens
-- Study streak activity days
-- Email verification state and verification tokens
-
-The development profile uses:
-
-```yaml
-spring:
-  jpa:
-    hibernate:
-      ddl-auto: validate
-  flyway:
-    enabled: true
-```
-
-This means Hibernate validates the schema and Flyway owns schema creation/evolution.
-
-## Testing ✅
-
-Run the full test suite:
+Run the integration and unit tests:
 
 ```bash
 ./gradlew test
 ```
 
-Run linting:
+Run Checkstyle:
 
 ```bash
 ./gradlew lint
 ```
 
-Run both:
+Run the complete verification:
 
 ```bash
 ./gradlew test lint
 ```
 
-Integration tests use Testcontainers with PostgreSQL, so Docker must be running before executing tests.
+Docker must be running because integration tests start PostgreSQL 16 through Testcontainers. LLM-backed flows mock the `LLMClient`, and the shared integration-test configuration replaces email delivery, so the suite neither spends provider tokens nor sends real messages.
 
-The test suite covers:
+Coverage includes authentication and rotation races, verification and reset-token concurrency, transactional rollback, account enumeration resistance, resource ownership, document extraction, generation flows, editing, groups, spaced repetition, time-zone boundaries, analytics, score history, streaks, and rate limiting.
 
-- Authentication, including that an unverified account cannot log in
-- Email verification: registration state, email contents and link and expiry, confirmation, the session a confirmed
-  registration issues, provider failure recovery, and the migration backfill
-- Verification tokens: unknown, expired, invalidated, consumed, reused, and concurrently consumed links
-- Verification resending and its deliberately identical responses
-- Confirmed email changes, including uniqueness re-checks, races, replacement requests, and abandonment
-- Password resets: the non-enumerating forgot response for unknown, unverified, verified, and provider-failure cases,
-  both rate limits, token storage and expiry, replacement, reuse, concurrent consumption, purpose isolation from
-  verification tokens, session revocation, cookie clearing, and transaction rollback
-- Cleanup of never-verified accounts and expired verification tokens
-- Refresh token issuing, rotation, expiry, revocation, concurrent rotation, rotation rollback, and logout
-- User details
-- Note summary/list/get/delete flows
-- Flashcard generate/list/get/delete flows
-- Quiz generate/list/get/delete flows
-- Quiz question creation/deletion and difficulty updates
-- Quiz score creation, validation, ownership, ordering, and history retrieval
-- Streak activity awarding, streak calculation, UTC day boundaries, and ownership isolation
-- Flashcard deck completion, ownership, and same-day idempotency
-- Rate limiting of AI, authenticated, login, registration, and verification-resend requests
-- PDF, DOCX, plain text, and Markdown extraction
+## Database and Migrations 🗄️
 
-LLM-backed endpoint tests mock the `LLMClient`, so tests do not require real LLM API calls or tokens. The shared
-integration-test base class replaces the `EmailClient` with a mock for every test and points the Resend client at an
-unreachable URL with a dummy key, so no test can send email or reach the provider.
+Flyway migrations live in `src/main/resources/db/migration` and run automatically at startup. They cover:
+
+- Accounts, hashed session tokens, verification, and password reset
+- Structured notes and extracted summary sections
+- Flashcard decks, cards, scheduling state, and review history
+- Quizzes, questions, answers, score snapshots, and durations
+- Study groups, pinning, streak activity, time zones, and UTC normalisation
+
+Hibernate uses `ddl-auto: validate`; it verifies the mapping but never owns schema evolution.
+
+## Deployment 🚢
+
+The repository includes a multi-stage Docker build. It compiles the application on a Java 25 JDK, copies only the boot jar into a Java 25 JRE image, and runs as a non-root user.
+
+```bash
+docker build -t synapse-backend .
+```
+
+For production:
+
+1. Provision persistent PostgreSQL storage.
+2. Configure the production variables listed above.
+3. Set `SPRING_PROFILES_ACTIVE=prod`.
+4. Deploy the image and use `/actuator/health` as the health check.
+5. Let Flyway migrate the database before serving traffic.
+
+The production profile caps HikariCP at five connections, honours forwarded headers, enables graceful shutdown, and exposes only the health actuator endpoint.
 
 ## Project Structure 🧱
 
 ```text
 src/main/java/com/synapse/backend
-├── ai             # LLM client abstractions, provider clients, prompts, and AI exceptions
-├── auth           # Registration, login, refresh tokens, logout, auth DTOs, and auth exceptions
-├── config         # Shared application configuration
-├── docs           # Swagger/OpenAPI configuration and docs redirect
-├── flashcards     # Flashcard controllers, services, DTOs, entities, and repositories
-├── notes          # Note controllers, services, DTOs, entities, and repositories
-├── quiz           # Quiz controllers, services, DTOs, entities, enums, and repositories
-├── security       # JWT and Spring Security configuration
-├── shared         # Shared errors, exceptions, and file parsing utilities
-├── streak         # Study streak controller, services, DTO, entity, and repository
-└── user           # User entity, repository, service, controller, and DTOs
+├── ai           # Provider clients, prompts, and the LLM boundary
+├── analytics    # Study-history aggregation and analytics DTOs
+├── auth         # Sessions, email verification, and password recovery
+├── config       # Clock, scheduling, REST client, and MVC configuration
+├── docs         # Development OpenAPI configuration
+├── email        # Resend integration behind EmailClient
+├── flashcards   # Deck generation, editing, review scheduling, and history
+├── groups       # Study-group CRUD and content membership
+├── notes        # File extraction, AI summaries, editing, and persistence
+├── quiz         # Generation, editing, play results, and score history
+├── security     # CORS, JWT encoding/decoding, and route security
+├── shared       # Errors, file extractors, and rate limiting
+├── streak       # Daily qualifying activity and streak calculations
+└── user         # Profiles, time zones, and confirmed email changes
 ```
 
-## Error Handling 🚦
+## Scope and Trade-offs 🧭
 
-The API returns structured error responses through a global exception handler:
+- Note ingestion supports PDF, DOCX, TXT, and Markdown. Scanned images and legacy `.doc` files require an OCR/conversion step outside Synapse.
+- LLM output quality and availability depend on the configured provider; malformed or unavailable provider responses are surfaced as `502 Bad Gateway`.
+- Rate limits are in-memory and best suited to the current single-instance deployment. Horizontal scaling would require a shared counter store such as Redis.
+- Access tokens are intentionally short-lived rather than server-blacklisted, so a token issued before a password reset can remain valid for the balance of its 15-minute lifetime.
 
-```json
-{
-  "message": "Error message"
-}
-```
+---
 
-Common response codes:
-
-- `400` for validation, bad input, unsupported files, and invalid requests
-- `401` for unauthenticated or invalid-auth requests
-- `404` for resources that do not exist or do not belong to the user
-- `409` for duplicate registration conflicts
-- `502` for LLM provider failures or invalid LLM responses
-
-## API Documentation 📖
-
-OpenAPI documentation is generated automatically from controller annotations.
-
-When the app is running, visit:
-
-```text
-http://localhost:8080/swagger-ui.html
-```
-
-The OpenAPI JSON is available at:
-
-```text
-http://localhost:8080/v3/api-docs
-```
-
-## Development Notes 🧭
-
-- Keep generated resources user-scoped. All saved notes, flashcards, and quizzes should be accessed only by the authenticated owner.
-- Do not call real LLM APIs from integration tests. Mock `LLMClient` instead.
-- Add Flyway migrations for schema changes instead of relying on Hibernate schema generation.
-- Keep controllers thin and place business orchestration in services.
-- Keep persistence mapping/query logic in persistence services.
-- Run `./gradlew test lint` before opening a pull request.
-
-## Rate Limiting 🚦
-
-Requests are counted in a bounded in-memory Caffeine cache per application instance, in fixed windows. Exceeding a limit
-returns HTTP 429 with the standard error body and a `Retry-After` header holding the seconds until the window resets,
-rounded up.
-
-| Scope | Limit | Counted per |
-| --- | --- | --- |
-| `POST /api/notes/summarise`, `POST /api/flashcards/generate`, `POST /api/quiz/generate` | 3 per minute and 50 per day | JWT user id |
-| Other authenticated `/api/**` requests | 120 per minute | JWT user id |
-| `POST /api/auth/login` | 10 per 15 minutes | Normalized email, and separately client address |
-| `POST /api/auth/register` | 3 per hour | Client address |
-| `POST /api/auth/email/resend` | 3 per hour | Normalized email, and separately client address |
-| `POST /api/auth/password/forgot` | 3 per hour | Normalized email, and separately client address |
-| `POST /api/user/email-change` | 3 per hour | JWT user id |
-
-CORS preflight requests are not rate limited.
-
-Limits are configured in `src/main/resources/application-dev.yml`:
-
-```yaml
-ratelimit:
-  enabled: true
-  ai:
-    limit: 3
-    window: 1m
-  ai-daily:
-    limit: 50
-    window: 1d
-  login:
-    limit: 10
-    window: 15m
-  register:
-    limit: 3
-    window: 1h
-  verification-resend:
-    limit: 3
-    window: 1h
-  email-change:
-    limit: 3
-    window: 1h
-  password-reset:
-    limit: 3
-    window: 1h
-  api:
-    limit: 120
-    window: 1m
-```
-
-Setting `ratelimit.enabled` to `false` turns limiting off.
-
-## Current Limitations ⚠️
-
-- Only PDF, DOCX, plain text (`text/plain`), and Markdown (`text/markdown`) uploads are currently supported for note summarisation.
-- Legacy `.doc` Word files are not supported, only `.docx`.
-- LLM generation quality depends on the configured provider and prompt behavior.
-- Rate limiting is in-memory and single-instance. Counters are not shared between instances and are lost on restart.
-- Rate limiting uses the direct client address, so a reverse proxy must be accounted for before deploying behind one.
-- Expired and revoked refresh tokens are kept in the database. There is no scheduled cleanup job for them.
-- Verification emails are sent after the account and token are committed, in a separate step. A provider failure
-  returns `502` and leaves an unverified account that the resend endpoint can recover; the two are deliberately not one
-  transaction.
-- Password reset emails are sent the same way, but a provider failure is swallowed and logged rather than returned,
-  because changing the response would tell the caller that the address has an account.
-- A password reset cannot revoke access tokens that have already been issued, so a stolen access token survives the
-  reset for the rest of its 15-minute lifetime. Only refresh tokens are revoked.
-- Never-verified accounts are deleted seven days after they are created, and expired verification and password reset
-  tokens are swept, by scheduled sweeps that run in every instance.
-- Refresh token reuse is rejected but does not revoke the rest of that user's active refresh tokens.
-- The local application profile is development-oriented and should be adjusted for production deployment.
+Synapse was built end to end: database design, secure authentication, document parsing, AI orchestration, learning algorithms, analytics, responsive frontend, transactional email, automated tests, and production deployment.
