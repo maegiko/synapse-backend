@@ -15,6 +15,8 @@ import com.synapse.backend.notes.dto.UpdateNoteRequest;
 import com.synapse.backend.notes.exceptions.InvalidFileException;
 import com.synapse.backend.notes.exceptions.InvalidNoteDetailsException;
 import com.synapse.backend.shared.files.FileParsingService;
+import com.synapse.backend.shared.validation.RequestText;
+import com.synapse.backend.shared.validation.ValidationLimits;
 import com.synapse.backend.streak.StreakService;
 
 import tools.jackson.core.JacksonException;
@@ -84,10 +86,33 @@ public class NotesService {
         String res = llmClient.generate(req);
 
         try {
-            return objectMapper.readValue(res, NoteSummaryResponse.class);
+            return withinLimits(objectMapper.readValue(res, NoteSummaryResponse.class));
         } catch (JacksonException e) {
             throw new LLMResponseParsingException("Failed to parse LLM response");
         }
+    }
+
+    /**
+     * Clamps a generated summary to the bounds the note edit endpoint enforces.
+     *
+     * <p>Nothing stops a model returning a title or overview longer than PATCH
+     * /api/notes/{id} accepts. Were that stored as generated, the user would own a note they
+     * could not save again without first shortening text they never wrote.</p>
+     *
+     * @param summary the parsed summary.
+     * @return the same summary with its editable text bounded.
+     */
+    private NoteSummaryResponse withinLimits(NoteSummaryResponse summary) {
+        return new NoteSummaryResponse(
+            summary.id(),
+            RequestText.clamped(summary.title(), ValidationLimits.TITLE_MAX),
+            RequestText.clamped(summary.overview(), ValidationLimits.OVERVIEW_MAX),
+            summary.keypoints(),
+            summary.concepts(),
+            summary.importantTerms(),
+            summary.groupId(),
+            summary.pinned()
+        );
     }
 
     /**
@@ -127,7 +152,7 @@ public class NotesService {
      * @param userId the ID of the user.
      * @param req the validated fields to update, with at least one field supplied.
      * @return the updated note summary.
-     * @throws InvalidNoteDetailsException if no field is supplied or a supplied field is blank.
+     * @throws InvalidNoteDetailsException if no field is supplied.
      * @throws NoteNotFoundException if the note doesn't exist for this user.
      */
     public NoteSummaryResponse updateNote(String noteId, Long userId, UpdateNoteRequest req) {
@@ -137,12 +162,6 @@ public class NotesService {
 
         if (title == null && overview == null && pinned == null)
             throw new InvalidNoteDetailsException("At least one of title, overview, or pinned must be supplied.");
-
-        if (title != null && title.isBlank())
-            throw new InvalidNoteDetailsException("title: must not be blank");
-
-        if (overview != null && overview.isBlank())
-            throw new InvalidNoteDetailsException("overview: must not be blank");
 
         return notesPersistenceService.updateNote(noteId, userId, title, overview, pinned);
     }
