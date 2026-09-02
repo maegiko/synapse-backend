@@ -38,7 +38,7 @@ ratelimit:
     window: 15m
 
   register:
-    limit: 3
+    limit: 10
     window: 1h
 
   verification-resend:

@@ -52,7 +52,7 @@ class RateLimitIntegrationTest extends PostgresIntegrationTest {
     private static final int AI_REQUESTS_PER_MINUTE = 3;
     private static final int API_REQUESTS_PER_MINUTE = 5;
     private static final int LOGIN_ATTEMPTS = 10;
-    private static final int REGISTRATIONS_PER_HOUR = 3;
+    private static final int REGISTRATIONS_PER_HOUR = 10;
     private static final int VERIFICATION_RESENDS_PER_HOUR = 3;
 
     @Autowired
