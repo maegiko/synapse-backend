@@ -1,16 +1,20 @@
 package com.synapse.backend.user.dto;
 
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
  * Optional profile fields to update, normalised on construction so the
  * constraints below are checked against the values that are persisted.
  *
+ * <p>The full name cannot contain numbers, the same rule registration enforces.</p>
+ *
  * <p>The email address is deliberately not here: changing it needs the new
  * address confirmed first, which is what POST /api/user/email-change starts.</p>
  */
 public record UpdateUserDetailsRequest(
     @Size(min = 2, max = 100)
+    @Pattern(regexp = "[^\\p{N}]*", message = "must not contain numbers")
     String fullName,
 
     @Size(max = 64)

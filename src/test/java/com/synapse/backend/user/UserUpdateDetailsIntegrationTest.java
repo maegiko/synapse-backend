@@ -234,6 +234,17 @@ class UserUpdateDetailsIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void updateUserDetailsReturnsBadRequestWhenFullNameContainsNumbers() throws Exception {
+        String accessToken = registerAndGetAccessToken("Kenneth", EMAIL);
+
+        updateDetails(accessToken, new UpdateUserDetailsRequest("Kenneth 123", null))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("fullName: must not contain numbers"));
+
+        assertThat(userRow(EMAIL).get("full_name")).isEqualTo("Kenneth");
+    }
+
+    @Test
     void updateUserDetailsReturnsBadRequestWhenFullNameIsTooShort() throws Exception {
         String accessToken = registerAndGetAccessToken("Kenneth", EMAIL);
 
