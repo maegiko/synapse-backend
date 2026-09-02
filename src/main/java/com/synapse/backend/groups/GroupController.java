@@ -8,6 +8,7 @@ import com.synapse.backend.groups.dto.GroupDetailResponse;
 import com.synapse.backend.groups.dto.GroupListResponse;
 import com.synapse.backend.groups.dto.GroupResponse;
 import com.synapse.backend.groups.dto.UpdateGroupRequest;
+import com.synapse.backend.shared.validation.ValidationLimits;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -17,6 +18,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -96,9 +98,12 @@ public class GroupController {
         }
     )
     public ResponseEntity<GroupListResponse> getAllGroups(
-        @RequestParam(required = false) String query,
+        @RequestParam(required = false) @Size(max = ValidationLimits.SEARCH_QUERY_MAX) String query,
         @RequestParam(defaultValue = "0") @Min(0) int page,
-        @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+        @RequestParam(defaultValue = "20")
+        @Min(ValidationLimits.PAGE_SIZE_MIN)
+        @Max(ValidationLimits.PAGE_SIZE_MAX)
+        int size,
         @AuthenticationPrincipal Jwt jwt
     ) {
         Long userId = Long.valueOf(jwt.getSubject());

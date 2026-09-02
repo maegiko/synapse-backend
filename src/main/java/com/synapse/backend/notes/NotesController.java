@@ -3,6 +3,7 @@ package com.synapse.backend.notes;
 import com.synapse.backend.notes.dto.NoteListResponse;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
 import com.synapse.backend.notes.dto.UpdateNoteRequest;
+import com.synapse.backend.shared.validation.ValidationLimits;
 
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,6 +19,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
@@ -105,9 +107,12 @@ public class NotesController {
         }
     )
     public ResponseEntity<NoteListResponse> getAllNotes(
-        @RequestParam(required = false) String query,
+        @RequestParam(required = false) @Size(max = ValidationLimits.SEARCH_QUERY_MAX) String query,
         @RequestParam(defaultValue = "0") @Min(0) int page,
-        @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+        @RequestParam(defaultValue = "20")
+        @Min(ValidationLimits.PAGE_SIZE_MIN)
+        @Max(ValidationLimits.PAGE_SIZE_MAX)
+        int size,
         @AuthenticationPrincipal Jwt jwt
     ) {
         Long userId = Long.valueOf(jwt.getSubject());

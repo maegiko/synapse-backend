@@ -18,6 +18,7 @@ import com.synapse.backend.quiz.dto.list.ListQuizResponse;
 import com.synapse.backend.quiz.dto.score.ListQuizScoreResponse;
 import com.synapse.backend.quiz.dto.score.QuizScoreResponse;
 import com.synapse.backend.quiz.dto.score.SaveScoreRequest;
+import com.synapse.backend.shared.validation.ValidationLimits;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -27,6 +28,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -113,9 +115,12 @@ public class QuizController {
         }
     )
     public ResponseEntity<ListQuizResponse> getAllQuizzes(
-        @RequestParam(required = false) String query,
+        @RequestParam(required = false) @Size(max = ValidationLimits.SEARCH_QUERY_MAX) String query,
         @RequestParam(defaultValue = "0") @Min(0) int page,
-        @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size,
+        @RequestParam(defaultValue = "20")
+        @Min(ValidationLimits.PAGE_SIZE_MIN)
+        @Max(ValidationLimits.PAGE_SIZE_MAX)
+        int size,
         @AuthenticationPrincipal Jwt jwt
     ) {
         Long userId = Long.valueOf(jwt.getSubject());
