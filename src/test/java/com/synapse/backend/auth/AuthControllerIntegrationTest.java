@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -244,14 +245,14 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void registerReturnsBadRequestWhenNameContainsNumbers() throws Exception {
-        RegisterRequest request = new RegisterRequest("Kenneth 123", "kenneth@example.com", VALID_PASSWORD);
+    void registerReturnsBadRequestWhenNameContainsSymbols() throws Exception {
+        RegisterRequest request = new RegisterRequest("Kenneth 123 <b>", "kenneth@example.com", VALID_PASSWORD);
 
         mockMvc.perform(post(REGISTER_ENDPOINT)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("fullName: must not contain numbers"));
+            .andExpect(jsonPath("$.message").value("fullName: must contain only letters, spaces, hyphens and apostrophes"));
 
         assertThat(countUsers("kenneth@example.com")).isZero();
     }
@@ -264,7 +265,7 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("email: must be a well-formed email address"));
+            .andExpect(jsonPath("$.message").value("email: must be a valid email address"));
     }
 
     @Test
@@ -276,6 +277,29 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value("password: size must be between 8 and 64"));
+    }
+
+    /**
+     * A password can satisfy the character bound and still be too large for BCrypt, which
+     * counts bytes and refuses anything over 72. Thirty characters of a three byte script is
+     * 90 bytes: well inside 8 to 64 characters, and rejected. Before the byte bound existed
+     * this reached the encoder and came back as a 500.
+     */
+    @Test
+    void registerReturnsBadRequestWhenPasswordIsTooLargeForTheEncoder() throws Exception {
+        String multiByte = "\u5bc6".repeat(30);
+        RegisterRequest request = new RegisterRequest("Kenneth", "kenneth@example.com", multiByte);
+
+        assertThat(multiByte.length()).isLessThanOrEqualTo(64);
+        assertThat(multiByte.getBytes(StandardCharsets.UTF_8).length).isGreaterThan(72);
+
+        mockMvc.perform(post(REGISTER_ENDPOINT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("password: must be at most 72 bytes long"));
+
+        assertThat(countUsers("kenneth@example.com")).isZero();
     }
 
     @Test
@@ -386,7 +410,7 @@ class AuthControllerIntegrationTest extends PostgresIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("email: must be a well-formed email address"));
+            .andExpect(jsonPath("$.message").value("email: must be a valid email address"));
     }
 
     @Test

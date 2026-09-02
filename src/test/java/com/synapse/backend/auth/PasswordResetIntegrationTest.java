@@ -184,6 +184,16 @@ class PasswordResetIntegrationTest extends PostgresIntegrationTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value("newPassword: size must be between 8 and 64"));
 
+        // Inside the character bound but past what BCrypt will hash: 30 three byte characters
+        // is 90 bytes. Without the byte bound this reached the encoder and returned a 500.
+        String multiByte = "\u5bc6".repeat(30);
+        assertThat(multiByte.length()).isLessThanOrEqualTo(64);
+        assertThat(multiByte.getBytes(StandardCharsets.UTF_8).length).isGreaterThan(72);
+
+        resetPassword(token, multiByte)
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("newPassword: must be at most 72 bytes long"));
+
         // Validation runs before the token is consumed, so the link survives a typo.
         assertThat(passwordHashOf(EMAIL)).isEqualTo(oldHash);
         resetPassword(token, NEW_PASSWORD).andExpect(status().isNoContent());

@@ -189,7 +189,7 @@ class ForgotPasswordIntegrationTest extends PostgresIntegrationTest {
     void requestingAResetReturnsBadRequestForAnInvalidAddress() throws Exception {
         forgot("not-an-email")
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("email: must be a well-formed email address"));
+            .andExpect(jsonPath("$.message").value("email: must be a valid email address"));
 
         verifyNoInteractions(emailClient());
     }

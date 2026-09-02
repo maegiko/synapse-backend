@@ -1,25 +1,19 @@
 package com.synapse.backend.auth.dto;
 
-import java.util.Locale;
-
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import com.synapse.backend.shared.validation.EmailAddress;
+import com.synapse.backend.shared.validation.RequestText;
 
 /**
- * The address to email a reset link to, normalised on construction so the
- * constraints below are checked against the value that is actually looked up and
- * rate limited, matching {@code ChangeEmailRequest}.
+ * The address to email a reset link to, normalised on construction so the constraints below
+ * are checked against the value that is actually looked up and rate limited.
  */
 public record ForgotPasswordRequest(
-    @NotBlank
-    @Email
-    @Size(max = 255)
+    @EmailAddress
     String email
 ) {
 
     public ForgotPasswordRequest {
-        email = email == null ? null : email.trim().toLowerCase(Locale.ROOT);
+        email = RequestText.normalisedEmail(email);
     }
 
 }

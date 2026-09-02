@@ -1,13 +1,15 @@
 package com.synapse.backend.auth.dto;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import com.synapse.backend.shared.validation.Password;
 
+/**
+ * The current password and its replacement. Both carry the one password rule, so a secret
+ * that could never have been registered is refused before it reaches the encoder.
+ */
 public record ChangePasswordRequest(
-    @NotBlank
+    @Password
     String currentPassword,
 
-    @NotBlank
-    @Size(min = 8, max = 64)
+    @Password
     String newPassword
 ) {}

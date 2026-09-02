@@ -72,6 +72,28 @@ class ChangePasswordIntegrationTest extends PostgresIntegrationTest {
         assertThat(newPasswordHash).startsWith("$2");
     }
 
+    /**
+     * The character bound and the byte bound are different rules, and BCrypt enforces the
+     * byte one. Thirty characters of a three byte script is 90 bytes: inside 8 to 64
+     * characters, and past what the encoder will hash. Before the byte bound existed this
+     * reached the encoder and came back as a 500 with the password already changed nowhere.
+     */
+    @Test
+    void changePasswordReturnsBadRequestWhenTheNewPasswordIsTooLargeForTheEncoder() throws Exception {
+        String accessToken = accessToken(registerAndLogin());
+        String oldPasswordHash = passwordHash();
+        String multiByte = "\u5bc6".repeat(30);
+
+        assertThat(multiByte.length()).isLessThanOrEqualTo(64);
+        assertThat(multiByte.getBytes(StandardCharsets.UTF_8).length).isGreaterThan(72);
+
+        changePassword(accessToken, new ChangePasswordRequest(CURRENT_PASSWORD, multiByte))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("newPassword: must be at most 72 bytes long"));
+
+        assertThat(passwordHash()).isEqualTo(oldPasswordHash);
+    }
+
     @Test
     void changePasswordClearsTheRefreshTokenCookie() throws Exception {
         String accessToken = accessToken(registerAndLogin());

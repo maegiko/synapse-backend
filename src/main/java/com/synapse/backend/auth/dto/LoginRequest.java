@@ -1,16 +1,23 @@
 package com.synapse.backend.auth.dto;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import com.synapse.backend.shared.validation.EmailAddress;
+import com.synapse.backend.shared.validation.Password;
+import com.synapse.backend.shared.validation.RequestText;
 
+/**
+ * Sign-in credentials, with the address normalised on construction so it is validated in the
+ * form it is looked up in.
+ */
 public record LoginRequest(
-    @NotBlank
-    @Email
-    @Size(max = 255)
+    @EmailAddress
     String email,
 
-    @NotBlank
-    @Size(min = 8, max = 64)
+    @Password
     String password
-) {}
+) {
+
+    public LoginRequest {
+        email = RequestText.normalisedEmail(email);
+    }
+
+}
