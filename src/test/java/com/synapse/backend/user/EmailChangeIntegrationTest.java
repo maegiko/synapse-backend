@@ -317,7 +317,7 @@ class EmailChangeIntegrationTest extends PostgresIntegrationTest {
 
         requestEmailChange(accessToken, "not-an-email")
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("email: must be a well-formed email address"));
+            .andExpect(jsonPath("$.message").value("email: must be a valid email address"));
 
         verifyNoInteractions(emailClient());
     }

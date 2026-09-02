@@ -180,7 +180,7 @@ class UserUpdateDetailsIntegrationTest extends PostgresIntegrationTest {
 
         updateDetails(accessToken, new UpdateUserDetailsRequest(null, "   "))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("timeZone: must be a valid IANA time zone"));
+            .andExpect(jsonPath("$.message").value("timeZone: must not be blank"));
 
         assertThat(userRow(EMAIL).get("time_zone")).isEqualTo("UTC");
     }
@@ -217,7 +217,7 @@ class UserUpdateDetailsIntegrationTest extends PostgresIntegrationTest {
 
         updateDetails(accessToken, new UpdateUserDetailsRequest("   ", null))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("fullName: size must be between 2 and 100"));
+            .andExpect(jsonPath("$.message").value("fullName: must not be blank"));
 
         assertThat(userRow(EMAIL).get("full_name")).isEqualTo("Kenneth");
     }
@@ -234,12 +234,12 @@ class UserUpdateDetailsIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void updateUserDetailsReturnsBadRequestWhenFullNameContainsNumbers() throws Exception {
+    void updateUserDetailsReturnsBadRequestWhenFullNameContainsSymbols() throws Exception {
         String accessToken = registerAndGetAccessToken("Kenneth", EMAIL);
 
-        updateDetails(accessToken, new UpdateUserDetailsRequest("Kenneth 123", null))
+        updateDetails(accessToken, new UpdateUserDetailsRequest("Kenneth 123 <b>", null))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("fullName: must not contain numbers"));
+            .andExpect(jsonPath("$.message").value("fullName: must contain only letters, spaces, hyphens and apostrophes"));
 
         assertThat(userRow(EMAIL).get("full_name")).isEqualTo("Kenneth");
     }
