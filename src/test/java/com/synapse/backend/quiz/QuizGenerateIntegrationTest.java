@@ -245,7 +245,7 @@ class QuizGenerateIntegrationTest extends PostgresIntegrationTest {
                 .content("{}")
                 .header(HttpHeaders.AUTHORIZATION, bearer(user.accessToken())))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("noteId: must not be null"));
+            .andExpect(jsonPath("$.message").value("noteId: must not be blank"));
 
         verifyNoInteractions(llmClient);
         assertNoQuizzesWereSaved();

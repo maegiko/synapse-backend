@@ -27,6 +27,8 @@ import com.synapse.backend.quiz.enums.QuestionType;
 import com.synapse.backend.quiz.exceptions.CreateQuestionInputException;
 import com.synapse.backend.quiz.exceptions.InvalidQuizDetailsException;
 import com.synapse.backend.shared.exceptions.concrete.UserUnauthorised;
+import com.synapse.backend.shared.validation.RequestText;
+import com.synapse.backend.shared.validation.ValidationLimits;
 import com.synapse.backend.streak.StreakService;
 
 import tools.jackson.core.JacksonException;
@@ -83,7 +85,8 @@ public class QuizService {
             GeneratedQuizResponse generatedQuiz = objectMapper.readValue(res, GeneratedQuizResponse.class);
             validateQuizStructure(generatedQuiz);
 
-            QuizResponse savedQuiz = persistenceService.saveQuizFromNote(generatedQuiz, userId, note.id());
+            QuizResponse savedQuiz = persistenceService
+                .saveQuizFromNote(withinLimits(generatedQuiz), userId, note.id());
             streakService.recordActivity(userId);
 
             return savedQuiz;
@@ -111,6 +114,45 @@ public class QuizService {
                 throw new LLMResponseParsingException("Failed to parse LLM response");
             }
         }
+    }
+
+    /**
+     * Clamps a generated quiz to the bounds the quiz and question edit endpoints enforce.
+     *
+     * <p>The structure check above rejects a quiz of the wrong shape, but says nothing about
+     * how long its text is. Storing a title, description, question or answer longer than
+     * PATCH accepts would leave the user unable to save that quiz again.</p>
+     *
+     * @param generatedQuiz the structurally valid quiz.
+     * @return the same quiz with its editable text bounded.
+     */
+    private GeneratedQuizResponse withinLimits(GeneratedQuizResponse generatedQuiz) {
+        return new GeneratedQuizResponse(
+            RequestText.clamped(generatedQuiz.title(), ValidationLimits.TITLE_MAX),
+            RequestText.clamped(generatedQuiz.description(), ValidationLimits.DESCRIPTION_MAX),
+            generatedQuiz.questions().stream().map(this::withinLimits).toList()
+        );
+    }
+
+    /**
+     * Clamps a generated question and its answers to the bounds the edit endpoint enforces.
+     *
+     * @param question the generated question.
+     * @return the same question with its text and its answers bounded.
+     */
+    private GeneratedQuestionResponse withinLimits(GeneratedQuestionResponse question) {
+        return new GeneratedQuestionResponse(
+            RequestText.clamped(question.questionText(), ValidationLimits.QUESTION_TEXT_MAX),
+            question.questionType(),
+            question
+                .answers()
+                .stream()
+                .map(a -> new GeneratedAnswerResponse(
+                    RequestText.clamped(a.answerText(), ValidationLimits.ANSWER_TEXT_MAX),
+                    a.correct()
+                ))
+                .toList()
+        );
     }
 
     /**
@@ -195,7 +237,7 @@ public class QuizService {
      * @param quizId the public id of the quiz to update.
      * @param req the validated fields to update, with at least one field supplied.
      * @return the updated quiz with ordered questions and answers.
-     * @throws InvalidQuizDetailsException if no field is supplied or the supplied title is blank.
+     * @throws InvalidQuizDetailsException if no field is supplied.
      */
     public QuizResponse updateQuiz(Long userId, String quizId, UpdateQuizRequest req) {
         if (userId == null)
@@ -207,9 +249,6 @@ public class QuizService {
 
         if (title == null && description == null && pinned == null)
             throw new InvalidQuizDetailsException("At least one of title, description, or pinned must be supplied.");
-
-        if (title != null && title.isBlank())
-            throw new InvalidQuizDetailsException("title: must not be blank");
 
         return persistenceService.updateQuiz(userId, quizId, title, description, pinned);
     }
@@ -226,8 +265,8 @@ public class QuizService {
      * @param questionId the public id of the question to update.
      * @param req the validated fields to update, with at least one field supplied.
      * @return the updated question with its answers.
-     * @throws CreateQuestionInputException if no field is supplied, the supplied question text is
-     *     blank, or the resulting question breaks the answer count or correct-answer rules.
+     * @throws CreateQuestionInputException if no field is supplied, or the resulting question
+     *     breaks the answer count or correct-answer rules.
      */
     public CreateQuestionResponse updateQuestion(
         Long userId,
@@ -246,9 +285,6 @@ public class QuizService {
             throw new CreateQuestionInputException(
                 "At least one of question, questionType, or answers must be supplied."
             );
-
-        if (question != null && question.isBlank())
-            throw new CreateQuestionInputException("question: must not be blank");
 
         return persistenceService.updateQuestion(userId, quizId, questionId, question, questionType, answers);
     }
