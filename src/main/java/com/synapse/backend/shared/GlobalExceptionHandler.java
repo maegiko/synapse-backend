@@ -1,8 +1,11 @@
 package com.synapse.backend.shared;
 
+import java.util.Comparator;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -72,12 +75,33 @@ public class GlobalExceptionHandler {
         String message = ex.getBindingResult()
                 .getFieldErrors()
                 .stream()
+                .min(Comparator.comparingInt(GlobalExceptionHandler::severity).thenComparing(FieldError::getField))
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
-                .findFirst()
                 .orElse("Invalid request");
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse(message));
+    }
+
+    /**
+     * Orders the constraints that can fail on one value, lowest first.
+     *
+     * <p>A body reports one message, so when several constraints on a field fail at once
+     * something has to choose between them. Left to stream order that choice is arbitrary,
+     * and a blank name could be reported as blank on one request and as too short on the
+     * next. Reporting the most basic failure first means a client is told what is most wrong:
+     * that a value is missing before it is told the value is the wrong length, and its length
+     * before its format.</p>
+     *
+     * @param error one failed constraint.
+     * @return the rank to sort it by.
+     */
+    private static int severity(FieldError error) {
+        return switch (error.getCode() == null ? "" : error.getCode()) {
+            case "NotNull", "NotBlank", "NotEmpty", "NullOrNotBlank" -> 0;
+            case "Size", "Min", "Max", "MaxUtf8Bytes" -> 1;
+            default -> 2;
+        };
     }
 }
