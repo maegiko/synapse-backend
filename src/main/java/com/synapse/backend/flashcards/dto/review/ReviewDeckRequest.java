@@ -1,6 +1,7 @@
 package com.synapse.backend.flashcards.dto.review;
 
 import com.synapse.backend.flashcards.enums.ReviewRating;
+import com.synapse.backend.shared.validation.ValidationLimits;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -8,15 +9,15 @@ import jakarta.validation.constraints.NotNull;
 
 /**
  * A finished study session. {@code durationSeconds} is how long the session took and is
- * optional: a client that does not time its sessions omits it, and the review is saved
- * with no duration rather than a guessed one.
+ * optional: a client that does not time its sessions omits it, and the review is saved with
+ * no duration rather than a guessed one.
  */
 public record ReviewDeckRequest(
     @NotNull
     ReviewRating rating,
 
     @Min(0)
-    @Max(21600)
+    @Max(ValidationLimits.DURATION_SECONDS_MAX)
     Integer durationSeconds
 ) {
 

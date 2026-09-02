@@ -23,6 +23,8 @@ import com.synapse.backend.flashcards.dto.list.SingleDeckResponse;
 import com.synapse.backend.flashcards.dto.review.ReviewDeckResponse;
 import com.synapse.backend.flashcards.enums.ReviewRating;
 import com.synapse.backend.notes.NotesService;
+import com.synapse.backend.shared.validation.RequestText;
+import com.synapse.backend.shared.validation.ValidationLimits;
 import com.synapse.backend.notes.dto.NoteForGeneration;
 import com.synapse.backend.notes.dto.NoteSummaryResponse;
 import com.synapse.backend.shared.exceptions.concrete.UserUnauthorised;
@@ -86,7 +88,7 @@ public class FlashcardService {
             if (generatedFlashcards.flashcards() == null)
                 throw new LLMResponseParsingException("Failed to parse LLM response");
 
-            flashcards.addAll(generatedFlashcards.flashcards());
+            generatedFlashcards.flashcards().stream().map(this::withinLimits).forEach(flashcards::add);
 
             String deckId = persistenceService
                 .saveFlashcardFromNote(flashcards, userId, new FlashcardSourceNote(note.id(), note.summary().title()));
@@ -104,8 +106,26 @@ public class FlashcardService {
         return new ArrayList<>(
             note.concepts()
                 .stream()
-                .map(c -> new FlashcardResponse(c.name(), c.explanation()))
+                .map(c -> withinLimits(new FlashcardResponse(c.name(), c.explanation())))
                 .toList()
+        );
+    }
+
+    /**
+     * Clamps a card to the bounds the add and edit endpoints enforce.
+     *
+     * <p>A card's two sides come either from a note concept or straight from the model, and
+     * neither is bounded at the source. Storing one longer than PATCH
+     * /api/flashcards/{deckId}/cards/{cardId} accepts would leave the user unable to save
+     * that card again.</p>
+     *
+     * @param card the generated card.
+     * @return the same card with both sides bounded.
+     */
+    private FlashcardResponse withinLimits(FlashcardResponse card) {
+        return new FlashcardResponse(
+            RequestText.clamped(card.title(), ValidationLimits.FLASHCARD_TEXT_MAX),
+            RequestText.clamped(card.answer(), ValidationLimits.FLASHCARD_TEXT_MAX)
         );
     }
 
@@ -119,7 +139,7 @@ public class FlashcardService {
      * @param userId the id of the currently authenticated user.
      * @param req the validated fields to update, with at least one field supplied.
      * @return the updated deck with its cards in position order.
-     * @throws InvalidDeckException if no field is supplied or the supplied title is blank.
+     * @throws InvalidDeckException if no field is supplied.
      */
     public SingleDeckResponse updateDeck(String deckId, Long userId, UpdateDeckRequest req) {
         String title = req.title();
@@ -127,9 +147,6 @@ public class FlashcardService {
 
         if (title == null && pinned == null)
             throw new InvalidDeckException("At least one of title or pinned must be supplied.");
-
-        if (title != null && title.isBlank())
-            throw new InvalidDeckException("title: must not be blank");
 
         return persistenceService.updateDeck(deckId, userId, title, pinned);
     }
@@ -161,7 +178,7 @@ public class FlashcardService {
      * @param cardId the public id of the flashcard to update.
      * @param req the validated fields to update, with at least one field supplied.
      * @return the updated flashcard.
-     * @throws InvalidFlashcardException if no field is supplied or a supplied field is blank.
+     * @throws InvalidFlashcardException if no field is supplied.
      */
     public AddFlashcardResponse updateFlashcard(String deckId, Long userId, String cardId, UpdateFlashcardRequest req) {
         String question = req.question();
@@ -169,12 +186,6 @@ public class FlashcardService {
 
         if (question == null && answer == null)
             throw new InvalidFlashcardException("At least one of question or answer must be supplied.");
-
-        if (question != null && question.isBlank())
-            throw new InvalidFlashcardException("question: must not be blank");
-
-        if (answer != null && answer.isBlank())
-            throw new InvalidFlashcardException("answer: must not be blank");
 
         return persistenceService.updateFlashcard(deckId, userId, cardId, question, answer);
     }
