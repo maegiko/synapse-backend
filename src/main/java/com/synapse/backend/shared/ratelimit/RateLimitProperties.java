@@ -14,6 +14,8 @@ public record RateLimitProperties(
     Limit verificationResend,
     Limit emailChange,
     Limit passwordReset,
+    Limit googleNonce,
+    Limit googleLogin,
     Limit api
 ) {
 

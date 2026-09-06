@@ -53,6 +53,18 @@ ratelimit:
     limit: 3
     window: 1h
 
+  # A nonce is issued on page view rather than per attempt, and costs 32 bytes in
+  # a cache that expires in five minutes. It is deliberately far looser than the
+  # sign-in limit below, because one NAT'd campus or office shares a single
+  # address and would otherwise lock its whole building out of Google sign-in.
+  google-nonce:
+    limit: 60
+    window: 15m
+
+  google-login:
+    limit: 10
+    window: 15m
+
   api:
     limit: 120
     window: 1m
@@ -78,6 +90,10 @@ auth:
   password-reset:
     frontend-url: ${PASSWORD_RESET_URL:http://localhost:5173/reset-password}
     token-ttl: 30m
+
+  google:
+    client-ids: ${GOOGLE_CLIENT_ID:}
+    nonce-ttl: 5m
 
 email:
   resend:
