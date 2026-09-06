@@ -91,6 +91,24 @@ public class EmailVerificationTokenPersistenceService {
     }
 
     /**
+     * Invalidates every outstanding registration link of a user.
+     *
+     * <p>Used when Google claims an account that registered but never confirmed itself.
+     * The address is proven at that point, so a link still sitting in the inbox would be a
+     * live credential for an account somebody else now owns.</p>
+     *
+     * @param userId the internal id of the user whose registration links are invalidated.
+     * @return how many links were invalidated.
+     */
+    @Transactional
+    public long invalidateRegistrationTokens(Long userId) {
+        return emailVerificationTokenRepository.invalidateActiveByUserIdAndPurpose(
+            userId,
+            EmailVerificationPurpose.REGISTRATION
+        );
+    }
+
+    /**
      * Deletes verification tokens that expired before a cutoff.
      *
      * <p>Expired tokens can never be consumed, so nothing depends on keeping
