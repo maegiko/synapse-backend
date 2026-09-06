@@ -27,6 +27,16 @@ public abstract class PostgresIntegrationTest {
     private static final String JWT_TEST_SECRET = "test-jwt-secret-with-at-least-32-bytes";
     private static final String RESEND_TEST_API_KEY = "test-resend-api-key";
     private static final String RESEND_UNREACHABLE_API_URL = "http://localhost:1/emails";
+    private static final String GOOGLE_TEST_CLIENT_ID = "test-google-client-id.apps.googleusercontent.com";
+
+    /**
+     * Spring caches one application context per distinct test configuration, and each of them
+     * holds its own connection pool against the one PostgreSQL container for the whole run.
+     * The production default of ten would exhaust the server's connection limit well before
+     * the cache filled up. No integration test runs more than two requests at once.
+     */
+    private static final int TEST_POOL_SIZE = 4;
+    private static final int TEST_POOL_IDLE = 1;
 
     private static final String REGISTER_ENDPOINT = "/api/auth/register";
     private static final String LOGIN_ENDPOINT = "/api/auth/login";
@@ -73,6 +83,9 @@ public abstract class PostgresIntegrationTest {
         registry.add("jwt.secret", () -> JWT_TEST_SECRET);
         registry.add("email.resend.api-key", () -> RESEND_TEST_API_KEY);
         registry.add("email.resend.api-url", () -> RESEND_UNREACHABLE_API_URL);
+        registry.add("auth.google.client-ids", () -> GOOGLE_TEST_CLIENT_ID);
+        registry.add("spring.datasource.hikari.maximum-pool-size", () -> TEST_POOL_SIZE);
+        registry.add("spring.datasource.hikari.minimum-idle", () -> TEST_POOL_IDLE);
     }
 
     /** The mocked email provider boundary, so a test can stub or verify sends. */
