@@ -41,6 +41,13 @@ public final class ValidationLimits {
     /** Maximum length of an opaque emailed token. */
     public static final int TOKEN_MAX = 255;
 
+    /**
+     * Upper bound on a Google ID token. Google's own are around a kilobyte; this leaves
+     * generous room and still refuses a body that was never a credential before it reaches
+     * the verifier.
+     */
+    public static final int GOOGLE_CREDENTIAL_MAX = 4096;
+
     /** Length of the nanoid public identifier every resource is addressed by. */
     public static final int PUBLIC_ID_MAX = 10;
 
