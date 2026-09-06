@@ -41,6 +41,7 @@ Synapse owns the complete study loop. A learner can upload a PDF, DOCX, text, or
 ### From registration to a secure account
 
 - Verifies new accounts through single-use email links sent by Resend
+- Offers "Continue with Google", which creates, links, or signs in to a Synapse account from a verified Google ID token
 - Uses short-lived JWT access tokens and rotating opaque refresh tokens in `HttpOnly` cookies
 - Supports confirmed email changes, forgotten-password links, password changes, and refresh-session revocation
 - Applies ownership constraints to every saved learning resource
@@ -85,11 +86,12 @@ The backend follows a feature-package architecture. Controllers define the HTTP 
 | --- | --- |
 | Language and runtime | Java 25 |
 | Application framework | Spring Boot 4.1.1, Spring MVC |
-| Security | Spring Security, OAuth2 Resource Server, HS256 JWT, BCrypt |
+| Security | Spring Security, OAuth2 Resource Server, HS256 JWT, BCrypt, Google ID-token verification |
 | Persistence | PostgreSQL 16, Spring Data JPA, Hibernate, Flyway |
 | AI generation | Groq as the primary `LLMClient`; Gemini implementation available as an alternate |
 | Document parsing | Apache PDFBox, Apache POI, plain-text and Markdown extractors |
 | Email | Resend HTTP API behind an `EmailClient` boundary |
+| Google sign-in | `google-api-client` `GoogleIdTokenVerifier` behind a `GoogleTokenVerifier` boundary |
 | Rate limiting | Caffeine-backed fixed-window counters |
 | API documentation | springdoc OpenAPI and Swagger UI in development |
 | Testing | JUnit, MockMvc, Testcontainers |
@@ -107,6 +109,7 @@ The companion frontend uses React 19, TypeScript, Vite, React Router, TanStack Q
 - A Groq API key for AI generation
 - A Resend API key for transactional email
 - A random JWT secret containing at least 32 UTF-8 bytes
+- A Google OAuth client ID, if you want "Continue with Google" to work
 
 ### 1. Clone and configure
 
@@ -122,10 +125,26 @@ Fill in the required values in `.env`:
 JWT_SECRET=replace-with-at-least-32-bytes
 GROQ_API_KEY=replace-with-your-groq-api-key
 RESEND_API_KEY=replace-with-your-resend-api-key
+GOOGLE_CLIENT_ID=replace-with-your-google-oauth-web-client-id
 GEMINI_API_KEY=
 ```
 
-`GEMINI_API_KEY` is optional because Groq is the primary generation client. Keep `.env` local; it is intentionally excluded from version control.
+`GEMINI_API_KEY` is optional because Groq is the primary generation client. `GOOGLE_CLIENT_ID` is only needed for
+Google sign-in; leaving it empty makes `POST /api/auth/google` reject every credential and leaves the rest of the API
+untouched. Keep `.env` local; it is intentionally excluded from version control.
+
+#### Google Cloud setup
+
+Google sign-in is ID-token only, so it needs no client secret and no OAuth consent redirect handling.
+
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an **OAuth client ID** of type
+   **Web application**.
+2. Add the frontend's exact origins under **Authorized JavaScript origins**, for example `http://localhost:5173`
+   locally and `https://studysynapse.app` in production. Google Identity Services runs in the browser, so the origin
+   that matters is the frontend's, not the API's.
+3. Leave **Authorized redirect URIs** empty. The popup flow returns the credential to the page; nothing is redirected.
+4. Put the client ID in the backend's `GOOGLE_CLIENT_ID` and in the frontend's own Google client ID setting. They must
+   be the same value, because the backend checks the token's `aud` against it.
 
 ### 2. Start PostgreSQL
 
@@ -185,6 +204,7 @@ Shared settings live in `src/main/resources/application.yml`, with environment-s
 | `JWT_SECRET` | Yes | HS256 signing secret; must contain at least 32 bytes |
 | `GROQ_API_KEY` | For generation | API key used by the primary LLM client |
 | `RESEND_API_KEY` | For email | Resend key with permission to send from the verified domain |
+| `GOOGLE_CLIENT_ID` | For Google sign-in | OAuth web client ID a Google ID token must be addressed to; accepts a comma-separated list |
 | `GEMINI_API_KEY` | No | Key for the alternate Gemini client |
 | `EMAIL_VERIFICATION_URL` | No | Frontend verification page; defaults to `http://localhost:5173/verify-email` locally |
 | `PASSWORD_RESET_URL` | No | Frontend reset page; defaults to `http://localhost:5173/reset-password` locally |
@@ -208,6 +228,7 @@ Important defaults:
 - Registration verification links: 1 hour
 - Email-change links: 24 hours
 - Password-reset links: 30 minutes
+- Google sign-in nonces: 5 minutes, single use
 - Unverified-account retention: 7 days
 - Maximum upload size: 10 MB
 
@@ -219,7 +240,8 @@ Most routes require an access token:
 Authorization: Bearer <accessToken>
 ```
 
-Refresh and logout use the `refreshToken` cookie instead. Browser clients must include credentials on those requests.
+Refresh and logout use the `refreshToken` cookie instead, and the Google routes use a `googleNonce` cookie. Browser
+clients must include credentials on those requests.
 
 ### Authentication 🔐
 
@@ -234,8 +256,33 @@ Refresh and logout use the `refreshToken` cookie instead. Browser clients must i
 | `POST` | `/api/auth/email/resend` | Request a replacement registration verification link | Public |
 | `POST` | `/api/auth/password/forgot` | Request a password-reset link without revealing account existence | Public |
 | `POST` | `/api/auth/password/reset` | Consume a reset token, change the password, and revoke sessions | Public |
+| `POST` | `/api/auth/google/nonce` | Issue a single-use nonce for one Google sign-in attempt | Public |
+| `POST` | `/api/auth/google` | Continue with Google: verify an ID token and issue a Synapse session | Public |
 
 Registration returns `202 Accepted`; the account receives a session only after its email is confirmed. Verification and reset tokens are single-use, expire automatically, and are stored only as hashes.
+
+#### Continue with Google
+
+There is no separate Google registration route. `POST /api/auth/google` verifies the ID token and then decides for
+itself what the credential means:
+
+1. If a Synapse account already holds the token's `sub`, that account signs in. The subject wins even when Google's
+   current address differs from the Synapse one, and nothing is copied back from Google.
+2. Otherwise Google has to own the address, meaning a Gmail address or a Google Workspace address with an `hd` claim.
+   A Google Account built on a third-party address is refused with `400`, and told to register with Synapse and link
+   Google afterwards.
+3. An address with no Synapse account creates one: passwordless, already verified, named from Google's name claim, in
+   the requested time zone, with no verification email.
+4. An address belonging to a verified Synapse account is linked to it. The password, name, content, settings, and
+   other sessions are all kept, and the account can afterwards use either method.
+5. An address belonging to an account that registered but never confirmed itself is claimed: the subject is attached,
+   the account is marked verified, its password is cleared, its unproven name and time zone are replaced, and its
+   outstanding registration links are invalidated. The password is cleared because it was chosen by somebody who had
+   not proven they owned the address.
+6. An address belonging to an account linked to a *different* Google Account is refused with `409` and never merged.
+
+The response is the same `LoginResponse` and `refreshToken` cookie a password login returns. A Google ID token is
+never accepted as a Synapse bearer token, and no Google access token, refresh token, or raw ID token is stored.
 
 ### User and progress 👤
 
@@ -244,6 +291,8 @@ Registration returns `202 Accepted`; the account receives a session only after i
 | `GET` | `/api/user/details` | Get the current profile, time zone, and lifetime review count |
 | `PATCH` | `/api/user/details` | Update the full name and/or time zone |
 | `POST` | `/api/user/email-change` | Send a confirmation link to a proposed new address |
+| `POST` | `/api/user/google-link` | Link a Google Account, using the current password and a fresh credential |
+| `DELETE` | `/api/user/google-link` | Unlink the Google Account and revoke every session, using the current password |
 | `GET` | `/api/user/streak` | Get current and longest streaks plus the last activity date |
 | `GET` | `/api/user/analytics?period=30` | Get study analytics for 7, 30, 90, or 365 days |
 
@@ -367,9 +416,16 @@ The local Swagger UI is the easiest way to explore every request and response in
 - Access tokens are HS256 JWTs with a 15-minute lifetime.
 - Refresh tokens are 32 random bytes, returned only in a secure `HttpOnly` cookie and stored only as SHA-256 hashes.
 - Refresh rotation and single-use email-token consumption use conditional updates rather than read-then-write checks.
-- Passwords are stored with BCrypt.
-- Password changes and password resets revoke every refresh token belonging to the account.
-- Verification, resend, login, registration, password-reset, authenticated API, and AI-generation routes have separate limits.
+- Passwords are stored with BCrypt. An account may have a password, a Google identity, or both; the database refuses a
+  row that has neither.
+- Google ID tokens are verified with Google's own verifier against Google's rotating public keys, the issuer, the
+  configured client ID, the expiry, and a single-use nonce Synapse issued and bound to the browser with a host-only
+  `HttpOnly` cookie. Every failed check produces one generic `401` that names no specific cause.
+- The Google identity is the stable `sub` claim, never the Google email. Signing out of Google does not sign out of
+  Synapse, and signing in with Google never overwrites a Synapse email or name.
+- Password changes, password resets, and unlinking Google revoke every refresh token belonging to the account.
+- Verification, resend, login, registration, password-reset, Google sign-in, authenticated API, and AI-generation
+  routes have separate limits.
 - CORS allows only configured frontend origins and supports credentialed browser requests for the refresh cookie.
 - Swagger and OpenAPI are unavailable in production.
 
@@ -386,6 +442,8 @@ Default limits use bounded, fixed-window counters in a Caffeine cache:
 | Verification resend | 3/hour | Normalised email and client address separately |
 | Forgotten password | 3/hour | Normalised email and client address separately |
 | Email change | 3/hour | User ID |
+| Google nonce | 60/15 minutes | Client address |
+| Google sign-in and linking | 10/15 minutes | Client address |
 
 These counters are deliberately local to one application instance. See [Scope and trade-offs](#scope-and-trade-offs) for the scaling implication.
 
@@ -417,7 +475,7 @@ Coverage includes authentication and rotation races, verification and reset-toke
 
 Flyway migrations live in `src/main/resources/db/migration` and run automatically at startup. They cover:
 
-- Accounts, hashed session tokens, verification, and password reset
+- Accounts, hashed session tokens, verification, password reset, and optional Google identities
 - Structured notes and extracted summary sections
 - Flashcard decks, cards, scheduling state, and review history
 - Quizzes, questions, answers, score snapshots, and durations
@@ -449,7 +507,7 @@ The production profile caps HikariCP at five connections, honours forwarded head
 src/main/java/com/synapse/backend
 ├── ai           # Provider clients, prompts, and the LLM boundary
 ├── analytics    # Study-history aggregation and analytics DTOs
-├── auth         # Sessions, email verification, and password recovery
+├── auth         # Sessions, email verification, password recovery, and Google sign-in
 ├── config       # Clock, scheduling, REST client, and MVC configuration
 ├── docs         # Development OpenAPI configuration
 ├── email        # Resend integration behind EmailClient
