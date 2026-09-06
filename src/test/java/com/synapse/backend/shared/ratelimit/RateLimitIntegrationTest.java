@@ -38,12 +38,14 @@ import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@TestPropertySource(properties = "ratelimit.api.limit=5")
+@TestPropertySource(properties = { "ratelimit.api.limit=5", "ratelimit.google-nonce.limit=5" })
 class RateLimitIntegrationTest extends PostgresIntegrationTest {
 
     private static final String REGISTER_ENDPOINT = "/api/auth/register";
     private static final String LOGIN_ENDPOINT = "/api/auth/login";
     private static final String RESEND_ENDPOINT = "/api/auth/email/resend";
+    private static final String GOOGLE_NONCE_ENDPOINT = "/api/auth/google/nonce";
+    private static final String GOOGLE_ENDPOINT = "/api/auth/google";
     private static final String SUMMARY_ENDPOINT = "/api/notes/summarise";
     private static final String NOTES_LIST_ENDPOINT = "/api/notes/list";
     private static final String VALID_PASSWORD = "password123";
@@ -54,6 +56,9 @@ class RateLimitIntegrationTest extends PostgresIntegrationTest {
     private static final int LOGIN_ATTEMPTS = 10;
     private static final int REGISTRATIONS_PER_HOUR = 10;
     private static final int VERIFICATION_RESENDS_PER_HOUR = 3;
+    private static final int GOOGLE_ATTEMPTS = 10;
+    /** Overridden above: the real limit is 60, which is a slow loop for no extra coverage. */
+    private static final int GOOGLE_NONCES = 5;
 
     @Autowired
     private MockMvc mockMvc;
@@ -197,6 +202,40 @@ class RateLimitIntegrationTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void googleNonceReturnsTooManyRequestsAfterTheNonceLimit() throws Exception {
+        for (int i = 0; i < GOOGLE_NONCES; i++) {
+            googleNonce("10.0.0.9").andExpect(status().isOk());
+        }
+
+        googleNonce("10.0.0.9")
+            .andExpect(status().isTooManyRequests())
+            .andExpect(header().exists(HttpHeaders.RETRY_AFTER))
+            .andExpect(jsonPath("$.message").value(startsWith("Too many requests.")));
+
+        googleNonce("10.0.0.10").andExpect(status().isOk());
+    }
+
+    /**
+     * Signing in is limited separately from, and far more tightly than, asking for a nonce: a
+     * nonce is taken on page view and costs almost nothing, while a sign-in attempt is what an
+     * attacker would actually spend effort on. Each attempt here fails on the nonce, which is
+     * the cheapest way to spend the limit without a Google credential.
+     */
+    @Test
+    void googleSignInReturnsTooManyRequestsAfterTheGoogleLimit() throws Exception {
+        for (int i = 0; i < GOOGLE_ATTEMPTS; i++) {
+            googleSignIn("10.0.0.11").andExpect(status().isUnauthorized());
+        }
+
+        googleSignIn("10.0.0.11")
+            .andExpect(status().isTooManyRequests())
+            .andExpect(header().exists(HttpHeaders.RETRY_AFTER))
+            .andExpect(jsonPath("$.message").value(startsWith("Too many requests.")));
+
+        googleSignIn("10.0.0.12").andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void getRequestOnAiPathUsesApiLimit() throws Exception {
         String accessToken = registerAndGetAccessToken("Kenneth", "kenneth@example.com");
 
@@ -258,6 +297,17 @@ class RateLimitIntegrationTest extends PostgresIntegrationTest {
         return mockMvc.perform(post(REGISTER_ENDPOINT)
             .contentType(MediaType.APPLICATION_JSON)
             .content(objectMapper.writeValueAsString(request)));
+    }
+
+    private ResultActions googleNonce(String clientIp) throws Exception {
+        return mockMvc.perform(post(GOOGLE_NONCE_ENDPOINT).with(fromAddress(clientIp)));
+    }
+
+    private ResultActions googleSignIn(String clientIp) throws Exception {
+        return mockMvc.perform(post(GOOGLE_ENDPOINT)
+            .with(fromAddress(clientIp))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"credential\": \"google-id-token\"}"));
     }
 
     private ResultActions resendVerification(String email, String clientIp) throws Exception {
