@@ -19,6 +19,7 @@ import com.synapse.backend.auth.exceptions.EmailNotVerifiedException;
 import com.synapse.backend.auth.exceptions.IncorrectPasswordException;
 import com.synapse.backend.auth.exceptions.InvalidRefreshTokenException;
 import com.synapse.backend.auth.exceptions.LoginFailException;
+import com.synapse.backend.auth.exceptions.PasswordNotSetException;
 import com.synapse.backend.security.jwt.JwtService;
 import com.synapse.backend.shared.ratelimit.RateLimitProperties;
 import com.synapse.backend.shared.ratelimit.RateLimitService;
@@ -137,7 +138,8 @@ public class AuthService {
      * @param loginRequest validated login details.
      * @param clientIp the address the request came from.
      * @return the user's name, email and an access token, plus a refresh token for the client cookie.
-     * @throws LoginFailException if the email address is not registered or the password is incorrect.
+     * @throws LoginFailException if the email address is not registered, the password is incorrect, or the
+     *     account has no password because it signs in with Google.
      * @throws EmailNotVerifiedException if the credentials are correct but the address is not verified yet.
      * @throws RateLimitExceededException if the email or the address has made too many login attempts.
      */
@@ -223,11 +225,15 @@ public class AuthService {
      * @param userId the id of the authenticated user.
      * @param changePasswordRequest the validated current and new passwords.
      * @throws UserNotFoundException if the user ID does not exist in DB.
+     * @throws PasswordNotSetException if the account signs in with Google only and has no password to change.
      * @throws IncorrectPasswordException if the current password does not match.
      */
     @Transactional
     public void changePassword(Long userId, ChangePasswordRequest changePasswordRequest) {
         User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+
+        if (!user.hasPassword())
+            throw new PasswordNotSetException();
 
         if (!doesPasswordMatch(changePasswordRequest.currentPassword(), user.getPasswordHash()))
             throw new IncorrectPasswordException();
@@ -242,8 +248,16 @@ public class AuthService {
         return userRepository.findByEmail(email);
     }
 
+    /**
+     * Compares a password against a stored hash, treating an account that has no password
+     * as a failed match.
+     *
+     * <p>A Google-only account has a null {@code password_hash}, which is never handed to
+     * the encoder. Login therefore fails it with the same generic message an unknown address
+     * gets, rather than telling the caller how that account signs in.</p>
+     */
     private boolean doesPasswordMatch(String rawPassword, String passwordHash) {
-        return passwordEncoder.matches(rawPassword, passwordHash);
+        return passwordHash != null && passwordEncoder.matches(rawPassword, passwordHash);
     }
 
 }
