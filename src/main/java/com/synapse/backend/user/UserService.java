@@ -38,7 +38,8 @@ public class UserService {
      * Gets the user's details by ID.
      *
      * @param userId the user's ID.
-     * @return the user's full name, email, lifetime flashcards reviewed, and time zone.
+     * @return the user's full name, email, lifetime flashcards reviewed, time zone, and which ways in the
+     *     account has.
      * @throws UserNotFoundException if the user ID does not exist in DB.
      */
     public UserDetailsResponse getUserDetails(Long userId) {
@@ -123,7 +124,9 @@ public class UserService {
             user.getName(),
             user.getEmail(),
             user.getTotalFlashcardsReviewed(),
-            user.getTimeZone()
+            user.getTimeZone(),
+            user.hasPassword(),
+            user.getGoogleSubject() != null
         );
     }
 
